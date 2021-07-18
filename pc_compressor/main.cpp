@@ -1048,10 +1048,19 @@ int main(int argc, char** argv)
 
     fileIn.read((char*) colorBuffer, sizeof(colorBuffer));
 
-    ofstream fileOut;
-    std::string outFileName = argv[2];
-    fileOut.open(outFileName, std::ios::binary);
-    if (!fileOut.is_open())
+    ofstream mainDataFile;
+    std::string mainDataFileName = inputFileName + ".main";
+    mainDataFile.open(mainDataFileName, std::ios::binary);
+    if (!mainDataFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+
+    ofstream size8LinesFile;
+    std::string size8LinesFileName = inputFileName + ".main.size";
+    size8LinesFile.open(size8LinesFileName, std::ios::binary);
+    if (!size8LinesFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
@@ -1104,6 +1113,24 @@ int main(int argc, char** argv)
     }
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
+
+    for (int y = 0; y < data.data.size(); ++y)
+    {
+        const auto& line = data.data[y];
+        mainDataFile.write((const char*) line.data.data(), line.data.size());
+
+        if (y < data.data.size() - 8)
+        {
+            uint16_t sizeFor8Lines = 0;
+            for (int i = 0; i < 8; ++i)
+            {
+                const auto& line = data.data[y + i];
+                sizeFor8Lines += line.data.size();
+            }
+            assert(sizeFor8Lines < 512 && sizeFor8Lines >= 256);
+            size8LinesFile.write((const char*) &sizeFor8Lines, 1);
+        }
+    }
 
     return 0;
 }
