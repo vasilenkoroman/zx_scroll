@@ -330,6 +330,14 @@ public:
         {
           h.updateToValue(line, hiByte, registers8);
         }
+        else if (!isEmpty() && value16() == value + 1)
+        {
+            inc(line);
+        }
+        else if (!isEmpty() && value16() == value - 1)
+        {
+            dec(line);
+        }
         else if (regH && regL)
         {
             h.loadFromReg(line, *regH);
@@ -344,16 +352,27 @@ public:
     void dec(CompressedLine& line, int repeat = 1)
     {
         assert(!isEmpty());
-        const auto newValue = *value16() - 1;
+        const auto newValue = *value16() - repeat;
         h.value = newValue >> 8;
         l.value = newValue % 256;
 
         for (int i = 0; i < repeat; ++i)
         {
-            if (h.name == 's')
-                line.data.push_back(0x3b); //< dec sp
-            else
-                assert(0);
+            line.data.push_back(0x0b + reg16Index() * 8); //< dec sp
+            line.drawTicks += 6;
+        }
+    }
+
+    void inc(CompressedLine& line, int repeat = 1)
+    {
+        assert(!isEmpty());
+        const auto newValue = *value16() + repeat;
+        h.value = newValue >> 8;
+        l.value = newValue % 256;
+
+        for (int i = 0; i < repeat; ++i)
+        {
+            line.data.push_back(0x03 + reg16Index() * 8); //< dec sp
             line.drawTicks += 6;
         }
     }
@@ -1032,6 +1051,13 @@ int main(int argc, char** argv)
     using namespace std;
 
     ifstream fileIn;
+
+    if (argc < 2)
+    {
+        std::cerr << "Usage: scroll_image_compress <file_name>";
+        return -1;
+    }
+
     std::string inputFileName = argv[1];
     fileIn.open(inputFileName, std::ios::binary);
     if (!fileIn.is_open())
@@ -1067,7 +1093,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int flags = verticalCompressionH | verticalCompressionL; // | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionH | verticalCompressionL | inverseColors; // | interlineRegisters
     auto data = compress(flags, buffer);
     auto colorData = compressColors(colorBuffer);
     auto realTimeColor = compressRealTimeColors(colorBuffer, 24);
