@@ -9,6 +9,7 @@
 #include <string>
 #include <deque>
 
+static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
 uint8_t DEC_SP_CODE = 0x3b;
 
@@ -1057,10 +1058,10 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    ofstream size8LinesFile;
-    std::string size8LinesFileName = inputFileName + ".main.size";
-    size8LinesFile.open(size8LinesFileName, std::ios::binary);
-    if (!size8LinesFile.is_open())
+    ofstream lineDescriptorFile;
+    std::string lineDescriptorFileName = inputFileName + ".descriptor";
+    lineDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
+    if (!lineDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
@@ -1113,24 +1114,43 @@ int main(int argc, char** argv)
     }
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
+#pragma pack(push)
+#pragma pack(1)
+    struct LineDescriptor
+    {
+        uint16_t offset = 0;  //< Line offset in bytes.
+        uint8_t next8Len = 0; //< length of this line and next 7 lines.
+        uint8_t next4Len = 0; //< length of this line and next 3 lines.
+    };
+#pragma pack(pop)
+
+    for (int lineNum = 0; lineNum < imageHeight; ++lineNum)
+    {
+        LineDescriptor descriptor;
+        int bank = lineNum % 8;
+        int numberInBank = lineNum / 8;
+        int linesBefore = imageHeight / 8 * bank + numberInBank;
+        for (int i = 0; i < linesBefore; ++i)
+            descriptor.offset += data.data[i].data.size();
+
+        for (int i = 0; i < 8; ++i)
+        {
+            if (lineNum + i < imageHeight)
+            {
+                const auto& line = data.data[lineNum + i];
+                descriptor.next8Len += line.data.size();
+                if ( i < 4)
+                    descriptor.next4Len += line.data.size();
+            }
+        }
+        lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));
+    }
 
     for (int y = 0; y < data.data.size(); ++y)
     {
         const auto& line = data.data[y];
         mainDataFile.write((const char*) line.data.data(), line.data.size());
-
-        if (y < data.data.size() - 8)
-        {
-            uint16_t sizeFor8Lines = 0;
-            for (int i = 0; i < 8; ++i)
-            {
-                const auto& line = data.data[y + i];
-                sizeFor8Lines += line.data.size();
-            }
-            assert(sizeFor8Lines < 512 && sizeFor8Lines >= 256);
-            size8LinesFile.write((const char*) &sizeFor8Lines, 1);
-        }
     }
-
+    
     return 0;
 }

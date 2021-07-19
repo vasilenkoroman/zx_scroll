@@ -7,28 +7,26 @@ screen_addr:    equ 16384
 screen_size:    equ 6144
 screen_end:     equ screen_addr + screen_size
 //generated_code: equ 0x5b00 ; screen_end + 768
-generated_code: equ 32768 ; screen_end + 768
+generated_code: equ 32768
                 ASSERT generated_code % 256 == 0
 
 /*************** Image data. ******************/
 
-    org generated_code + image_data_len
+    org generated_code
 
 image_data:
-        INCBIN "resources/thanos.bin", 0, 6144
-        INCBIN "resources/thanos.bin", 0, 6144
-        //INCBIN "resources/image8.bin", 0, 6144
+        INCBIN "resources/thanos.bin.main"
 image_end:
 color_data:
-        INCBIN "resources/thanos.bin", 6144, 768
+        //INCBIN "resources/thanos.bin", 6144, 768
 data_end:
 
 image_data_len: equ image_end - image_data
 generate_code_len: equ image_data_len * 2
         ASSERT generate_code_len % 2048 == 0
 generate_code_line_len: equ 64
-generate_code_interlive8_len: equ generate_code_len / 8
-generate_code_interlive8_len_h: equ generate_code_interlive8_len / 256
+bank_len: equ generate_code_len / 8
+bank_len_h: equ high(bank_len)
 
 /*************** Ennd image data. ******************/
 
@@ -41,131 +39,116 @@ LD_DE_XXXX_CODE equ 11h
                 inc hl
         ENDM
 
-/********************* mirror data ***********************/
-
-interleave_data_block:
-        // hl - destination address for generated code.
-        // ix - source data
-
-        ld b, 128
-        
-.rep:   ld de, (ix)
-        inc ix
-        inc ix
-        write_byte e
-        write_byte d
-
-        djnz .rep
-        ret
-
-prepare_image_data:
-        ld hl, image_data
-        ld ix, image_data + image_data_len
-        ld bc, image_data_len / 2
-        
-        ; mirror pixels in data
-.mirror_loop
-        dec ix
-        ld d, (ix)
-        ld e, (hl)
-        ld (ix), e
-        ld (hl), d
-        inc hl
-
-        dec bc
-        ld a, b
-        or c
-        jr nz, .mirror_loop
-
-        ; interliave data in the same way as for generated code
-        ld hl, image_data
-        ld ix, generated_code
-        ld a, 8 ; banks count
-
-        ld hl, generated_code
-        ld ix, image_data
-        ld b, image_data_len / (32 * 64) ; Data length in lines/64.
-
-.interleave_loop
-        ; generate 64 lines
-        push ix
-        push bc
-.line_64_loop:
-        push bc
-        call interleave_data_block ; 8 lines (256 bytes)
-        pop bc
-
-        ld de,  2048 - (8 * 32)
-        add ix, de
-        djnz .line_64_loop ; draw 8 * N lines (N is whole data size in 3-th part of the screen)
-
-        pop bc
-        pop ix
-        ld de, 8 * 32
-        add ix, de ; next screen line  in the source image (skip 8 lines in bytes)
-        dec a
-        jr nz, .interleave_loop
-        
-        ; copy interleaved data back to the source buffer
-        ld hl, generated_code
-        ld de, image_data
-        ld bc, image_data_len
-        ldir
-
-        ret
-
-/** Generate code for while image.
- * It assumes the source image buffer has several images in ZX video format.
- * The destination code contains lines interleaved by 8. It remove interleaving by 64 lines 
- * (third part of screen interleaving).
- */
-generate_data:
-        ld hl, generated_code
-        ld ix, image_data
-        ld bc, image_data_len / 4
-
-.rep:   ld de, (ix)
-        inc ix
-        inc ix
-
-        write_byte LD_BC_XXXX_CODE  //< "ld bc, xxxx" instruction code.
-        write_byte d
-        write_byte e
-
-        ld de, (ix)
-        inc ix
-        inc ix
-
-        write_byte LD_DE_XXXX_CODE  //< "ld bc, xxxx" instruction code.
-        write_byte d
-        write_byte e
-
-        write_byte 0c5h //< "push bc" instruction code.
-        write_byte 0d5h //< "push de" instruction code.
-
-        dec bc
-        ld a, b
-        or c
-        jr nz, .rep
-        ret
-
 /*************** Draw 8 lines of image.  ******************/
+JP_IY_COMMAND equ 0000
+
         MACRO draw_8_lines
-                // hl - descriptor
-                // sp - destinatin screen address to draw
+                ; hl - descriptor
+                ; sp - destinatin screen address to draw
 
-                // write return address to code
-                ld (hl), d ;JP_HL_CODE          ; 7 ticks
+                ; bc = descriptor[line].offset (exec address)
+                ld c, (hl)      ; 7
+                inc  l          ; 4
+                ld b, (hl)      ; 7     
+                inc l           ; 4
 
-                exx                             ; 4 ticks
-                ld hl, $ + 5 ; return addr      ; 10 ticks
-                jp ix ; draw                    ; 8 ticks
-                exx                             ; 4 ticks
+                ld d, 1                                         ; 7
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                inc hl                                          ; 6
+                ex de, hl                                       ; 4
+                add hl, bc                                      ; 11
+                ; hl now point to execution address end, de - saved descriptor
+
+
+                ld (hl), high(JP_IY_COMMAND)                                                    ; 10
+                inc hl                                                                          ; 6
+                ld c, (hl)      ; save only 2-nd byte. Assume 1-st byte is always LD bc, xx     ; 7
+                ld (hl), low(JP_IY_COMMAND)                                                     ; 10
+
+                ld ix, bc                                                                       ; 16
+                exx                                                                             ; 4
+                ; TODO: put here 'the most used byte' from generated code
+                ld a, 0xff                                                                      ; 7
+                ld iy, $ + 5 ; return addr                                                      ; 14
+                jp ix ; draw                                                                    ; 8
+                exx                                                                             ; 4
+
                 // restore code back
-                ld (hl), c; LD_BC_XXXX_CODE     ; 7 ticks
+                ld (hl), c                                                                      ; 7
+                dec hl                                                                          ; 6
+                ld (hl), LD_BC_XXXX_CODE                                                        ; 10
+                ex de, hl                                                                       ; 4
 
-                // itself total 40 ticks per 8 lines, gen code = 21 * 16*8 + 4 = 2692
+                // itself total 174 ticks per 8 lines, avg 21.75 ticks overhead/line
         ENDM
+
+draw_64_lines:
+                ; hl - descriptor
+                ; sp - destinatin screen address to draw
+
+                .8 draw_8_lines                            
+
+                jp iy      ; ret                                               ; 10 ticks
+        
+draw_image:
+        // bc - line number
+
+        ; offset = (line % 8) * bank_len + line/8 * generate_code_line_len = 
+        ; (line % 8) * bank_len + line * 8
+
+        ld (stack_bottom), sp                   ; 20 ticks
+
+        ; start drawing image since line 128. (128..192, 64..128, 0..64)
+        ld hl, 128
+        add hl, bc
+
+        ; Calculate descriptor address for the selected line
+        add hl, hl
+        add hl, hl              ; hl = line number * 4
+        add hl, line_descriptor ; hl = descriptor[line + 128]
+
+        ; bc = descriptor[line + 128].offset
+        ld c, (hl)
+        inc hl
+        ld b, (hl)
+
+        ; ix = generate code to execute
+        ld ix, bc
+
+        ld sp, 16384 + 1024 * 2 ; draw lines 128..192
+        ld iy, $ + 7            ; return address
+        jp draw_64_lines
+
+        ld sp, (stack_bottom)                   ; 20 ticks
+        ret
+
+copy_colors:
+        ld hl, color_data
+        ld de, 16384 + 6144
+        ld bc, 768
+        ldir
+        ret
+
+prepare_interruption_table:
+        ld A, 18h       ; JR instruction code
+        ld  (65535), a
+
+        ld   a, 0c3h    ; JP instruction code
+        ld   (65524), a
+        ld hl, after_interrupt
+        ld   (65525), hl
+
+        LD   hl, #FE00
+        LD   de, #FE01
+        LD   bc, #0100
+        LD   (hl), #FF
+        LD   a, h
+        LDIR
+        ld i, a
+        im 2
+        ret
+
 
 draw_4_lines_and_rt_colors:
                 // hl - descriptor
@@ -262,163 +245,16 @@ draw_64_lines_2:
 
                 jp iy      ; ret                                               ; 10 ticks
 
-
-draw_image:
-        // bc - line number
-
-        ; offset = (line % 8) * generate_code_interlive8_len + line/8 * generate_code_line_len = 
-        ; (line % 8) * generate_code_interlive8_len + line * 8
-
-        ld (stack_bottom), sp                   ; 20 ticks
-
-        ; e = 8 - (line % 8)
-        ld a, c
-        and 7
-        ld d, a
-        ld a, 8
-        sub d
-        ld e, a
-
-generated_code_since_line_128 equ generated_code + 128/8 * generate_code_line_len
-
-        ; ix = generate code + (line % 8) * bankOffset
-        ld h, code_offsets / 256
-        ld a, d
-        add code_offsets % 256
-        ld l, a ; hl = code_offsets + line % 8
-        ld a, (hl) ; code_offsets[line % 8]
-        add a, generated_code_since_line_128 / 256 + 2 ; shift HL to 512 bytes (code ptr end)
-        ld h, a
-        ld l, generated_code_since_line_128 % 256 ; ix - code to execute address
-
-        ; cb = roundToFloor(lineNnumber,8) * 8
-        ld a, c
-        and 0xf8
-        rla
-        rl b
-        rla
-        rl b
-        rla
-        rl b
-        ld c, a
-
-        add hl, bc ; generated code to execute
-
-        ld b, e ; line number
-        ld c, LD_BC_XXXX_CODE ; constant
-        ld de, JP_HL_CODE * 256 + 2 ; constants
-
-        ld sp, 16384 + 1024 * 2
-        ld iy, $ + 7
-        jp draw_64_lines
-
-        ld sp, -(64 / 8 * generate_code_line_len + generate_code_line_len)
-        add hl, sp
-        ld sp, 16384 + 1024 * 4
-        ld iy, $ + 7
-        jp draw_64_lines
-
-        ld sp, -(64 / 8 * generate_code_line_len + generate_code_line_len)
-        add hl, sp
-        ld sp, 16384 + 1024 * 6
-        ld iy, $ + 7
-        jp draw_64_lines
-
-        ld sp, (stack_bottom)                   ; 20 ticks
-        ret
-
-copy_colors:
-        ld hl, color_data
-        ld de, 16384 + 6144
-        ld bc, 768
-        ldir
-        ret
-
-prepare_interruption_table:
-        ld A, 18h       ; JR instruction code
-        ld  (65535), a
-
-        ld   a, 0c3h    ; JP instruction code
-        ld   (65524), a
-        ld hl, after_interrupt
-        ld   (65525), hl
-
-        LD   hl, #FE00
-        LD   de, #FE01
-        LD   bc, #0100
-        LD   (hl), #FF
-        LD   a, h
-        LDIR
-        ld i, a
-        im 2
-        ret
-
-/*
-        MACRO delay   
-        sub     43 + 9                                      ; 7
-        ld      hl, high(table)  * 256 + 16                 ; 10        17
-wait2   sub     l                                           ; 4         21
-        jr      nc,wait2                                    ; 12/7      28
-        ld      l,a                                         ; 4         32
-        ld      l,(hl)                                      ; 7         39
-        jp      (hl)                                        ; 4         43
-*/        
-
-
-        MACRO delay   
-        sub     36 + 9 + 19                                 ; 7         
-        ld      h, high($)                                  ; 7         14
-        jr      nc,wait2                                    ; 12/7      21
-        ld      l,a                                         ; 4         25
-        ld      l,(hl)                                      ; 7         32
-        jp      (hl)                                        ; 4         36
-wait2   sub 19                                              ; 4         30
-        jr      nc,wait2                                    ; 12/7      37
-        ld      l,a                                         ; 4         41
-        ld      l,(hl)                                      ; 7         48
-        jp      (hl)                                        ; 4         52
-        
-t24     nop
-t20     nop
-t16     nop
-t12     jr delay_end
-
-t27     nop
-t23     nop
-t19     nop
-t15     nop
-t11     ld l, low(delay_end)
-        jp (hl)
-
-t26     nop
-t22     nop
-t18     nop
-t14     nop
-t10     jp delay_end
-
-t25     nop
-t21     nop
-t17     nop
-t13     nop
-t09     ld a, r
-delay_end
-        ENDM
-
 /*************** Main. ******************/
 main:
-        ld bc, (hl)
-
         di
         ld sp, stack_top
-
-        ld a, 112   ; 48 is min
-        delay
 
         ; Change border color
         ld a, 1
         out 0xfe,a
 
-        call copy_colors
+        //call copy_colors
 	
 	call prepare_image_data
         call generate_data
@@ -445,7 +281,7 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait - 10 - 10 - 7
 
-max_scroll_offset equ image_data_len / 32 - 192
+max_scroll_offset 191
 
         ld bc, max_scroll_offset        ; 10  ticks
         ld de, -1                       ; 10 ticks
@@ -497,31 +333,15 @@ max_scroll_offset equ image_data_len / 32 - 192
         ret
 
 /*************** Data segment ******************/
-data_segment_start:
-table
-        db      low(t09), low(t10), low(t11), low(t12)
-        db      low(t13), low(t14), low(t15), low(t16)
-        db      low(t17), low(t18), low(t19), low(t20)
-        db      low(t21), low(t22), low(t23), low(t24)
-        db      low(t25), low(t26), low(t27)
-
 STACK_SIZE: equ 16  ; in words
 stack_bottom:
         defs STACK_SIZE * 2, 0
 stack_top:
 
-code_offsets:
-        db 0
-        db generate_code_interlive8_len / 256
-        db generate_code_interlive8_len * 2 / 256
-        db generate_code_interlive8_len * 3 / 256
-        db generate_code_interlive8_len * 4 / 256
-        db generate_code_interlive8_len * 5 / 256
-        db generate_code_interlive8_len * 6 / 256
-        db generate_code_interlive8_len * 7 / 256
-code_offsets_end:         
+line_descriptor:
+        INCBIN "resources/thanos.bin.descriptor"
+line_descriptor_end:
         ; it need to update code. Currently it don't increment low part of the register.
-        ASSERT code_offsets / 256 == code_offsets_end / 256
 data_segment_end:
 
 /*************** Commands to SJ asm ******************/
