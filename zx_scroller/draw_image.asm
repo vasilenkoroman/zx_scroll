@@ -14,19 +14,10 @@ generated_code: equ 32768
 
     org generated_code
 
-image_data:
         INCBIN "resources/thanos.bin.main"
-image_end:
 color_data:
         //INCBIN "resources/thanos.bin", 6144, 768
 data_end:
-
-image_data_len: equ image_end - image_data
-generate_code_len: equ image_data_len * 2
-        ASSERT generate_code_len % 2048 == 0
-generate_code_line_len: equ 64
-bank_len: equ generate_code_len / 8
-bank_len_h: equ high(bank_len)
 
 /*************** Ennd image data. ******************/
 
@@ -42,7 +33,7 @@ LD_DE_XXXX_CODE equ 11h
 /*************** Draw 8 lines of image.  ******************/
 JP_IY_COMMAND equ 0000
 
-        MACRO draw_8_lines
+        MACRO draw_8_lines_with_iy
                 ; hl - descriptor
                 ; sp - destinatin screen address to draw
 
@@ -83,45 +74,6 @@ JP_IY_COMMAND equ 0000
                 // itself total 174 ticks per 8 lines, avg 21.75 ticks overhead/line
         ENDM
 
-draw_64_lines:
-                ; hl - descriptor
-                ; sp - destinatin screen address to draw
-
-                .8 draw_8_lines                            
-
-                jp iy      ; ret                                               ; 10 ticks
-        
-draw_image:
-        // bc - line number
-
-        ; offset = (line % 8) * bank_len + line/8 * generate_code_line_len = 
-        ; (line % 8) * bank_len + line * 8
-
-        ld (stack_bottom), sp                   ; 20 ticks
-
-        ; start drawing image since line 128. (128..192, 64..128, 0..64)
-        ld hl, 128
-        add hl, bc
-
-        ; Calculate descriptor address for the selected line
-        add hl, hl
-        add hl, hl              ; hl = line number * 4
-        add hl, line_descriptor ; hl = descriptor[line + 128]
-
-        ; bc = descriptor[line + 128].offset
-        ld c, (hl)
-        inc hl
-        ld b, (hl)
-
-        ; ix = generate code to execute
-        ld ix, bc
-
-        ld sp, 16384 + 1024 * 2 ; draw lines 128..192
-        ld iy, $ + 7            ; return address
-        jp draw_64_lines
-
-        ld sp, (stack_bottom)                   ; 20 ticks
-        ret
 
 copy_colors:
         ld hl, color_data
@@ -256,9 +208,6 @@ main:
 
         //call copy_colors
 	
-	call prepare_image_data
-        call generate_data
-
         call prepare_interruption_table
         ei
         halt
@@ -281,7 +230,7 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait - 10 - 10 - 7
 
-max_scroll_offset 191
+max_scroll_offset equ 191
 
         ld bc, max_scroll_offset        ; 10  ticks
         ld de, -1                       ; 10 ticks
@@ -291,7 +240,7 @@ max_scroll_offset 191
 
         push bc                         ; 11 ticks
         push de                         ; 11 ticks
-        call draw_image                 ; 67103 ticks
+        //call draw_image                 ; 67103 ticks
         halt
         pop de                          ; 10 ticks
         pop bc                          ; 10 ticks
