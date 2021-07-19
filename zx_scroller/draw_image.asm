@@ -151,8 +151,7 @@ generate_data:
 
 /*************** Draw 8 lines of image.  ******************/
         MACRO draw_8_lines
-                // ix - generated code block start
-                // hl - generated code block end
+                // hl - descriptor
                 // sp - destinatin screen address to draw
 
                 // write return address to code
@@ -168,42 +167,102 @@ generate_data:
                 // itself total 40 ticks per 8 lines, gen code = 21 * 16*8 + 4 = 2692
         ENDM
 
-draw_64_lines:
-                ; hl - generated code block end
-                ; sp - destinatin screen address to draw
-                ; b - 8 - (line Number % 8)
+draw_4_lines_and_rt_colors:
+                // hl - descriptor
+                // sp - destinatin screen address to draw
+                // iy - color address to draw
 
-                ld a, l                               ; 8 ticks
-                ld ixl, a                             ; 4 ticks
+                ; bc - address to execute
+                ld c, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld b, (hl)                                      ; 7
+                inc l                                           ; 4
 
-                MACRO draw_8_lines_with_check
-                ; HL = ix + 8 * codeLineSize = ix + 512
-                ld a, h                                 ; 4 ticks
-                sub e	; e is constant 2       	; 4 ticks
-                ld ixh, a                               ; 8 ticks
+                ; exec address end
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld d, (hl)                                      ; 7
+                inc hl                                          ; 10
+                ex de, hl       ; save descriptor to de         ; 4
 
-                draw_8_lines                            ; 2732 ticks
+                ; update generated code line
+                ld (hl), JP_HL_CODE                             ; 11
+                ld ix, bc                                       ; 16
+                exx                                             ; 4
+                ld hl, $ + 5    ; return address                ; 10
+                ; free registers to use: bc, de, bc'.   hl -return addr, hl' - exec end addr to restore, de' - descriptor
+                jp ix                                           ; 8
+                exx                                             ; 10
 
-                add a, generate_code_interlive8_len_h + 2 ; 7 ticks
-                ld h, a                                 ; 4 ticks
+                ; restore data
+                ld (hl), LD_BC_XXXX_CODE                        ; 11
+                ex de, hl                                       ; 4
 
-                djnz  .ok                              ; 13/8 ticks
-                        ld a, (generate_code_line_len - generate_code_len) % 256        ; 7 ticks
-                        add l                                                           ; 4 ticks
-                        ld l, a                                                         ; 4 ticks
-                        ld ixl, a                                                       ; 8 ticks
-                        ld a, (generate_code_line_len - generate_code_len) >> 8         ; 7 ticks
-                        adc h                                                           ; 4 ticks
-                        ld h, a  ; total= 38                                            ; 4 ticks
-.ok:
-                ENDM
-                .8 draw_8_lines_with_check
+                // total ticks: 126
 
-                ld a, b
-                add 8
-                ld b, a
+                // draw RT colors (1 line)
+
+                ld d, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld e, (hl)                                      ; 7
+                inc hl                                          ; 10
+
+                ; save descriptor
+                ld (stack_bottom), hl                           ; 16
+                ; save stack
+                ld (stack_bottom + 2), sp                       ; 20
+                ; set stack to color attributes
+                ld sp, iy                                       ; 10
+
+                ex de, hl                                       ; 4
+                ld ix, $ + 4    ; return address                ; 14
+                jp hl                                           ; 4
+                ; restore descriptor
+                ld hl, (stack_bottom)                           ; 16
+                ; restore stack
+                ld sp, (stack_bottom + 2)                       ; 20
+
+                // total ticks:118 for colors, total: 118 + 126 = 244
+
+
                 jp iy      ; ret                                               ; 10 ticks
-        
+
+
+draw_64_lines_2:
+                // sp - descriptor
+                // de - destinatin screen address to draw
+
+                ; bc - address to execute
+                pop ix                                          ; 10
+
+                ; hl - end execute address
+                pop hl                                          ; 10
+
+                ; save descriptor
+                ld (stack_bottom + 2), sp                       ; 20
+
+                ld (hl), JP_HL_CODE                             ; 11
+
+                ex de, hl ; save end address in de              ; 4
+                ld sp, hl                                       ; 6
+
+                ld hl, $ + 6    ; return address                ; 10
+                ; free registers to use: bc, de, bc'
+                jp ix                                           ; 8
+
+                ; restore data
+                ex de, hl                                       ; 4
+                ld (hl), LD_BC_XXXX_CODE                        ; 11
+
+                ld hl, 0                                        ; 10
+                add hl, sp                                      ; 11
+                ex de, hl                                       ; 4
+                ld sp, (stack_bottom + 2)                       ; 20
+                // total ticks: 139
+
+                jp iy      ; ret                                               ; 10 ticks
+
+
 draw_image:
         // bc - line number
 
@@ -347,6 +406,8 @@ delay_end
 
 /*************** Main. ******************/
 main:
+        ld bc, (hl)
+
         di
         ld sp, stack_top
 
@@ -436,16 +497,8 @@ max_scroll_offset equ image_data_len / 32 - 192
         ret
 
 /*************** Data segment ******************/
-
-        IF (low($) <= 237)
-                org high($) * 256 + 237
-        ELSE
-                assert(0)
-        ENDIF        
-
 data_segment_start:
 table
-        ASSERT(low(table) == 237)
         db      low(t09), low(t10), low(t11), low(t12)
         db      low(t13), low(t14), low(t15), low(t16)
         db      low(t17), low(t18), low(t19), low(t20)
