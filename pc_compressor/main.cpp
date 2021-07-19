@@ -630,11 +630,7 @@ CompressedLine compressLine(
         }
         else if (verticalRepCount > 2)
         {
-            for (int i = 0; i < verticalRepCount; ++i)
-            {
-                result.data.push_back(DEC_SP_CODE);
-                result.drawTicks += 6;
-            }
+            sp.dec(result, verticalRepCount);
             isFilled = true;
         }
         if (isFilled)
@@ -654,10 +650,9 @@ CompressedLine compressLine(
             continue;
 
         // Decrement stack if line has same value from previous step (vertical compression)
-        for (int i = 0; i < verticalRepCount; ++i)
+        if (verticalRepCount > 0)
         {
-            result.data.push_back(DEC_SP_CODE);
-            result.drawTicks += 6;
+            sp.dec(result, verticalRepCount);
             isFilled = true;
         }
         if (isFilled)
