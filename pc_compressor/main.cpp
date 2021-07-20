@@ -42,6 +42,12 @@ struct CompressedLine
         *ptr = word;
     }
 
+    void operator +=(const CompressedLine& other)
+    {
+        data.insert(data.end(), other.data.begin(), other.data.end());
+        drawTicks += other.drawTicks;
+    }
+
     std::vector<uint8_t> data;
     int drawTicks = 0;
     bool isAltReg = false;
@@ -351,10 +357,12 @@ public:
 
     void dec(CompressedLine& line, int repeat = 1)
     {
-        assert(!isEmpty());
-        const auto newValue = *value16() - repeat;
-        h.value = newValue >> 8;
-        l.value = newValue % 256;
+        if(!isEmpty())
+        {
+            const auto newValue = *value16() - repeat;
+            h.value = newValue >> 8;
+            l.value = newValue % 256;
+        }
 
         for (int i = 0; i < repeat; ++i)
         {
@@ -365,10 +373,12 @@ public:
 
     void inc(CompressedLine& line, int repeat = 1)
     {
-        assert(!isEmpty());
-        const auto newValue = *value16() + repeat;
-        h.value = newValue >> 8;
-        l.value = newValue % 256;
+        if(!isEmpty())
+        {
+            const auto newValue = *value16() + repeat;
+            h.value = newValue >> 8;
+            l.value = newValue % 256;
+        }
 
         for (int i = 0; i < repeat; ++i)
         {
@@ -568,54 +578,69 @@ Register16* findRegister(Registers& registers, const std::string& name)
     return nullptr;
 }
 
-CompressedLine compressLine(
+void compressLine(
+    CompressedLine&  result,
     int flags,
     int maxY,
-    CompressedData& compressedData,
     uint8_t buffer[zxScreenSize],
     Registers& registers,
     const Register8& a, //< bestByte
-    int y, bool* success)
+    int y,
+    int x,
+    bool* success);
+
+CompressedLine makeChoise(
+    int regIndex,
+    uint16_t word,
+    int flags,
+    int maxY,
+    uint8_t buffer[zxScreenSize],
+    Registers& registers,
+    const Register8& a, //< bestByte
+    int y, 
+    int x,
+    bool* success)
+{
+    CompressedLine result;
+
+    Register16& reg = registers[regIndex];
+    reg.updateToValue(result, word, registers, a);
+    reg.push(result);
+    compressLine(result, flags, maxY, buffer, registers, a, y, x + 2, success);
+    return result;
+}
+
+void compressLine(
+    CompressedLine&  result,
+    int flags,
+    int maxY,
+    uint8_t buffer[zxScreenSize],
+    Registers& registers,
+    const Register8& a, //< bestByte
+    int y, 
+    int x,
+    bool* success)
 {
     Register16 sp("sp");
-
-    if (!(flags & interlineRegisters))
-    {
-        for (auto& reg: registers)
-            reg.reset();
-    }
-
-    CompressedLine  result;
-    uint16_t* buffer16 = (uint16_t*) (buffer + y * 32);
-    std::map<uint16_t, int> uniqueWords;
-    for (int x = 0; x < 32; x += 2)
-    {
-        if (sameVerticalBytes(flags, buffer, x, y, maxY) < 2)
-            uniqueWords[*buffer16]++;
-        buffer16++;
-    }
-    for (const auto& [word, counter]: uniqueWords)
-        result.wordFrequency.emplace(counter, word);
-
-
     *success = true;
-    for (int x = 0; x < 32; x += 2)
-    {
-        int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
-        if (!(flags & oddVerticalCompression))
-            verticalRepCount &= ~1;
 
+    int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
+    if (!(flags & oddVerticalCompression))
+        verticalRepCount &= ~1;
+
+    while (x < 32)
+    {
+        uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
+        const uint16_t word = *buffer16;
+        const uint8_t lowByte = word >> 8;
+        const uint8_t highByte = word % 256;
+
+        assert(x < 32);
         if (x == 31 && !verticalRepCount)
         {
             *success = false;
-            return result;
+            return;
         }
-
-        const uint8_t lowByte = buffer[y*32 + x];
-        const uint8_t highByte = buffer[y*32 + x + 1];
-        const uint16_t word = lowByte + (uint16_t)highByte * 256;
-
-        bool isFilled = false;
 
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
@@ -625,57 +650,70 @@ CompressedLine compressLine(
             hl->updateToValue(result, -verticalRepCount, registers, a);
             hl->addSP(result);
             sp.load(result, *hl);
-            x += verticalRepCount - 2;
-            isFilled = true;
+            x += verticalRepCount;
+            continue;
         }
         else if (verticalRepCount > 2)
         {
             sp.dec(result, verticalRepCount);
-            isFilled = true;
-        }
-        if (isFilled)
+            x += verticalRepCount;
             continue;
+        }
 
         // push existing 16 bit value.
+        bool isChoised = false;
         for (auto& reg: registers)
         {
             if (reg.hasValue16(word))
             {
                 reg.push(result);
-                isFilled = true;
+                x += 2;
+                isChoised = true;
                 break;
             }
         }
-        if (isFilled)
+        if (isChoised) 
             continue;
 
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
         {
             sp.dec(result, verticalRepCount);
-            isFilled = true;
+            x += verticalRepCount;
+            continue;
         }
-        if (isFilled)
+
+        for (auto& reg: registers)
+        {
+            if (reg.isEmpty())
+            {
+                reg.updateToValue(result, word, registers, a);
+                reg.push(result);
+                x += 2;
+                isChoised = true;
+                break;
+            }
+        }
+        if (isChoised)
             continue;
 
-        // Try to compine 8-bit registers to create required 16 bit value
-        Register16* reg = nullptr;
-        //if (result.uniqueWords.size() > registers.size())
+        CompressedLine choisedLine;
+        Registers chosedRegisters = registers;
+        for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
         {
-            reg = choiseRegister(result, buffer, x, y, registers,
-                [highByte, lowByte](const Register16& reg)
-                {
-                    return reg.hasValue8(highByte) || reg.hasValue8(lowByte);
-                });
+            Registers regCopy = registers;
+            auto newLine = makeChoise(regIndex, word, flags, maxY,  buffer, regCopy, a, y, x, success);
+            if (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks)
+            {
+                chosedRegisters = regCopy;
+                choisedLine = newLine;
+            }
         }
-        if (!reg)
-            reg = choiseRegister(result, buffer, x, y, registers);
-
-        reg->updateToValue(result, word, registers, a);
-        reg->push(result);
+        result += choisedLine;
+        registers = chosedRegisters;
+        return;
     }
 
-    return result;
 }
 
 CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
@@ -688,7 +726,6 @@ CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
         ++bytesCount[buffer[i]];
 
     Register8 a('a');
-    Registers registers = {Register16("bc"), Register16("de"), Register16("hl")};
     const int maxY = 192;
 
     int bestCounter = 0;
@@ -705,18 +742,22 @@ CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
     {
         for (int y = 0; y < 192; y += 8)
         {
+            Registers registers = {Register16("bc"), Register16("de"), Register16("hl")};
+
             int line = y + i;
 
-            bool success;
+            std::cout << "compress line #" << line << std::endl;
 
+            bool success;
+            CompressedLine line1, line2;
             auto regBeforeLine1 = registers;
-            auto line1 = compressLine(flags | oddVerticalCompression, maxY,
-                compressedData, buffer, registers, a, line, &success);
+            compressLine(line1, flags | oddVerticalCompression, maxY,
+                buffer, registers, a, line, 0, &success);
             auto regAfterLine1 = registers;
 
             registers = regBeforeLine1;
-            auto line2 = compressLine(flags, maxY,
-                compressedData, buffer, registers, a, line, &success);
+            compressLine(line2, flags, maxY,
+                buffer, registers, a, line, 0, &success);
             if (success && line2.data.size() < line1.data.size())
             {
                 compressedData.data.push_back(line2);
@@ -1033,8 +1074,9 @@ CompressedData  compressColors(uint8_t* buffer)
     for (int y = 0; y < 24; y ++)
     {
         bool success;
-        auto line = compressLine(0, 24 /*maxY*/, 
-            compressedData, buffer, registers, a, y, &success);
+        CompressedLine line;
+        compressLine(line, 0 /*flags*/, 24 /*maxY*/, 
+            buffer, registers, a, y, 0, &success);
         compressedData.data.push_back(line);
     }
 
