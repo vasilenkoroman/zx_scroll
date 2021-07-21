@@ -16,11 +16,10 @@ static const int zxScreenSize = 6144;
 uint8_t DEC_SP_CODE = 0x3b;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
-static const int verticalCompressionL = 2; //< Skip drawwing data if it exists on the screen from the previous step.
-static const int verticalCompressionH = 4; //< Skip drawwing data if it exists on the screen from the previous step.
+static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
+static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
-const int maxY = 192;
 
 class ZxData
 {
@@ -97,11 +96,22 @@ struct CompressedData
 {
     std::vector<CompressedLine> data;
 
-    int ticks() const
+
+    void replace(int lineNum, int count, std::vector<CompressedLine>::iterator srcData)
+    {
+        for (int i = lineNum; i < lineNum + count; ++i)
+        {
+            data[i] = *srcData;
+            srcData++;
+        }
+    }
+
+    int ticks(int from = 0, int count = -1) const
     {
         int result = 0;
-        for (const auto& line : data)
-            result += line.drawTicks;
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].drawTicks;
         return result;
     }
 
@@ -150,7 +160,7 @@ public:
     std::optional<uint8_t> value;
     int reg8Index;
 
-    Register8(const char name): name(name) 
+    Register8(const char name): name(name)
     {
         reg8Index = calculateIndex();
     }
@@ -247,9 +257,9 @@ public:
     Register8 l;
     bool isAlt = false;
 
-    Register16(const std::string& name, std::optional<uint16_t> value = std::nullopt): 
-        h(name[0]), 
-        l(name[1]) 
+    Register16(const std::string& name, std::optional<uint16_t> value = std::nullopt):
+        h(name[0]),
+        l(name[1])
     {
         isAlt = name.length() > 2 && name[2] == '\'';
         if (value.has_value())
@@ -282,7 +292,7 @@ public:
             line.data.push_back(0x39); //< LD HL, SP
         else if (h.name == 's' && reg.h.name == 'h')
             line.data.push_back(0xf9); //< LD SP, HL
-        else 
+        else
             assert(0);
         line.drawTicks += 6;
     }
@@ -634,7 +644,7 @@ CompressedLine makeChoise(
     uint8_t buffer[zxScreenSize],
     Registers& registers,
     const Register8& a, //< bestByte
-    int y, 
+    int y,
     int x,
     bool* success)
 {
@@ -654,7 +664,7 @@ void compressLine(
     uint8_t buffer[zxScreenSize],
     Registers& registers,
     const Register8& a, //< bestByte
-    int y, 
+    int y,
     int x,
     bool* success)
 {
@@ -709,7 +719,7 @@ void compressLine(
                 break;
             }
         }
-        if (isChoised) 
+        if (isChoised)
             continue;
 
         // Decrement stack if line has same value from previous step (vertical compression)
@@ -755,7 +765,6 @@ void compressLine(
 
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int line)
 {
-    std::cout << "compress line #" << line << std::endl;
     return std::async(
         [flags, buffer, &a, line]()
         {
@@ -764,10 +773,10 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
 
             bool success;
             CompressedLine line1, line2;
-            compressLine(line1, flags | oddVerticalCompression, maxY,
+            compressLine(line1, flags | oddVerticalCompression, imageHeight,
                 buffer, registers1, a, line, 0, &success);
 
-            compressLine(line2, flags, maxY,
+            compressLine(line2, flags, imageHeight,
                 buffer, registers2, a, line, 0, &success);
             if (success && line2.data.size() < line1.data.size())
                 return line2;
@@ -777,87 +786,82 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     );
 }
 
-CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
+CompressedData compressLinesAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int y, int count)
 {
     CompressedData compressedData;
 
-    // Detect the most common byte in image
-    std::vector<uint8_t> bytesCount(256);
-    for (int i = 0; i < 6144; ++i)
-        ++bytesCount[buffer[i]];
+    std::vector<std::future<CompressedLine>> compressors(count);
+    for (int i = 0; i < count; ++i)
+        compressors[i] = compressLineAsync(flags, buffer, a, y++);
 
-    Register8 a('a');
-
-    int bestCounter = 0;
-    for (int i = 0; i < 256; ++i)
-    {
-        if (bytesCount[i] > bestCounter)
-        {
-            a.value = (uint8_t) i;
-            bestCounter = bytesCount[i];
-        }
-    }
-
-    static const int threads = 8;
-
-    for (int i = 0; i < 8; ++i)
-    {
-        for (int y = 0; y < 192;)
-        {
-            std::array<std::future<CompressedLine>, threads> compressors;
-            for (auto& compressor: compressors)
-            {
-                compressor = compressLineAsync(flags, buffer, a, y + i);
-                y += 8;
-            }
-            for (auto& compressor: compressors)
-                compressedData.data.push_back(compressor.get());
-        }
-    }
+    for (auto& compressor: compressors)
+        compressedData.data.push_back(compressor.get());
 
     return compressedData;
 }
 
 CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
 {
-    auto result = compressData(flags, buffer);
+    // Detect the most common byte in image
+    std::vector<uint8_t> bytesCount(256);
+    for (int i = 0; i < 6144; ++i)
+        ++bytesCount[buffer[i]];
+
+    Register8 a('a');
+    int bestCounter = 0;
+    for (int i = 0; i < 256; ++i)
+    {
+        if (bytesCount[i] > bestCounter)
+        {
+            a.value = (uint8_t)i;
+            bestCounter = bytesCount[i];
+        }
+    }
+
+    CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
-    for (int y = 0; y < 24; ++y)
+    for (int y = 0; y < imageHeight / 8; ++y)
     {
         for (int x = 0; x < 32; x += 2)
         {
+            std::cout << "Check block " << y << ":" << x  << std::endl;
+
+            int lineNum = y * 8;
+            int count = lineNum < imageHeight - 8 ? 9 : 8;
+
             inversBlock(buffer, x, y);
-            auto candidateLeft = compressData(flags, buffer);
+            auto candidateLeft = compressLinesAsync(flags, buffer, a, lineNum, count);
 
             inversBlock(buffer, x+1, y);
-            auto candidateBoth = compressData(flags, buffer);
+            auto candidateBoth = compressLinesAsync(flags, buffer, a, lineNum, count);
 
             inversBlock(buffer, x, y);
-            auto candidateRight = compressData(flags, buffer);
+            auto candidateRight = compressLinesAsync(flags, buffer, a, lineNum, count);
             inversBlock(buffer, x + 1, y);
 
-            if (candidateLeft.ticks() < result.ticks()
+            const int resultTicks = result.ticks(lineNum, count);
+            if (candidateLeft.ticks() < resultTicks
                 && candidateLeft.ticks() < candidateBoth.ticks()
                 && candidateLeft.ticks() < candidateRight.ticks())
             {
-                result = candidateLeft;
+                result.replace(lineNum, count, candidateLeft.data.begin());
                 inversBlock(buffer, x, y);
             }
-            else if (candidateBoth.ticks() < result.ticks()
+            else if (candidateBoth.ticks() < resultTicks
                 && candidateBoth.ticks() < candidateLeft.ticks()
                 && candidateBoth.ticks() < candidateRight.ticks())
             {
-                result = candidateBoth;
+                result.replace(lineNum, count, candidateBoth.data.begin());
                 inversBlock(buffer, x, y);
                 inversBlock(buffer, x + 1, y);
             }
-            else if (candidateRight.ticks() < result.ticks()
+            else if (candidateRight.ticks() < resultTicks
                 && candidateRight.ticks() < candidateLeft.ticks()
                 && candidateRight.ticks() < candidateBoth.ticks())
             {
-                result = candidateRight;
+                result.replace(lineNum, count, candidateRight.data.begin());
                 inversBlock(buffer, x + 1, y);
             }
         }
@@ -892,7 +896,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     Register16& bc1(registers1[0]);
     Register16& de1(registers1[1]);
     Register16& hl1(registers1[2]);
-    
+
     Register8& l(hl.l);
     Register8 a('a');
 
@@ -917,7 +921,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
         hl.reset();
     }
 
-    auto pushIfNeed = 
+    auto pushIfNeed =
         [&](auto* reg)
         {
             if (!reg)
@@ -973,7 +977,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     auto selHl1 = choiseRegister(hl1, 0, registers1);
 
     // Done preparing data in 64 ticks
-    
+
     // <--------------- Step 1: Start drawing here.
     // Wait 3 words before start pusing data (24 ticks).
 
@@ -1120,7 +1124,7 @@ CompressedData  compressColors(uint8_t* buffer)
     {
         bool success;
         CompressedLine line;
-        compressLine(line, 0 /*flags*/, 24 /*maxY*/, 
+        compressLine(line, 0 /*flags*/, 24 /*maxY*/,
             buffer, registers, a, y, 0, &success);
         compressedData.data.push_back(line);
     }
@@ -1266,6 +1270,6 @@ int main(int argc, char** argv)
         const auto& line = data.data[y];
         mainDataFile.write((const char*) line.data.data(), line.data.size());
     }
-    
+
     return 0;
 }
