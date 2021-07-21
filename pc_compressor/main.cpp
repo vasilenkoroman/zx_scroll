@@ -9,6 +9,7 @@
 #include <string>
 #include <deque>
 #include <chrono>
+#include <future>
 
 static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
@@ -19,6 +20,7 @@ static const int verticalCompressionL = 2; //< Skip drawwing data if it exists o
 static const int verticalCompressionH = 4; //< Skip drawwing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
+const int maxY = 192;
 
 class ZxData
 {
@@ -28,9 +30,11 @@ class ZxData
 public:
     inline bool empty() const { return m_size == 0; }
 
+    uint8_t last() const { return m_buffer[m_size]; }
+
     inline void push_back(uint8_t value)
     {
-        assert([m_size < sizeof(m_buffer));
+        assert(m_size < sizeof(m_buffer));
         m_buffer[m_size++] = value;
     }
 
@@ -134,6 +138,8 @@ class Register8
             return 6;
         else if (name == 'a')
             return 7;
+        else if (name == 'p')
+            return -1; //< SP
 
         assert(0);
         return 0;
@@ -747,6 +753,30 @@ void compressLine(
 
 }
 
+std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int line)
+{
+    std::cout << "compress line #" << line << std::endl;
+    return std::async(
+        [flags, buffer, &a, line]()
+        {
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl")};
+            Registers registers2 = registers1;
+
+            bool success;
+            CompressedLine line1, line2;
+            compressLine(line1, flags | oddVerticalCompression, maxY,
+                buffer, registers1, a, line, 0, &success);
+
+            compressLine(line2, flags, maxY,
+                buffer, registers2, a, line, 0, &success);
+            if (success && line2.data.size() < line1.data.size())
+                return line2;
+            else
+                return line1;
+        }
+    );
+}
+
 CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
 {
     CompressedData compressedData;
@@ -757,7 +787,6 @@ CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
         ++bytesCount[buffer[i]];
 
     Register8 a('a');
-    const int maxY = 192;
 
     int bestCounter = 0;
     for (int i = 0; i < 256; ++i)
@@ -769,35 +798,20 @@ CompressedData compressData(int flags, uint8_t buffer[zxScreenSize])
         }
     }
 
+    static const int threads = 8;
+
     for (int i = 0; i < 8; ++i)
     {
-        for (int y = 0; y < 192; y += 8)
+        for (int y = 0; y < 192;)
         {
-            Registers registers = {Register16("bc"), Register16("de"), Register16("hl")};
-
-            int line = y + i;
-
-            std::cout << "compress line #" << line << std::endl;
-
-            bool success;
-            CompressedLine line1, line2;
-            auto regBeforeLine1 = registers;
-            compressLine(line1, flags | oddVerticalCompression, maxY,
-                buffer, registers, a, line, 0, &success);
-            auto regAfterLine1 = registers;
-
-            registers = regBeforeLine1;
-            compressLine(line2, flags, maxY,
-                buffer, registers, a, line, 0, &success);
-            if (success && line2.data.size() < line1.data.size())
+            std::array<std::future<CompressedLine>, threads> compressors;
+            for (auto& compressor: compressors)
             {
-                compressedData.data.push_back(line2);
+                compressor = compressLineAsync(flags, buffer, a, y + i);
+                y += 8;
             }
-            else
-            {
-                registers = regAfterLine1;
-                compressedData.data.push_back(line1);
-            }
+            for (auto& compressor: compressors)
+                compressedData.data.push_back(compressor.get());
         }
     }
 
@@ -939,7 +953,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     {
         for (int i = 0; i < trailingDecSp; ++i)
         {
-            assert(*line.data.rbegin() == DEC_SP_CODE);
+            assert(line.data.last() == DEC_SP_CODE);
             line.data.pop_back();
             line.drawTicks -= 6;
         }
