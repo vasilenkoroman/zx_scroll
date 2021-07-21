@@ -1179,7 +1179,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int flags = verticalCompressionH | verticalCompressionL; // | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionH | verticalCompressionL | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
     auto data = compress(flags, buffer);
