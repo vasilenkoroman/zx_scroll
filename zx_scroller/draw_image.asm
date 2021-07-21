@@ -121,7 +121,7 @@ draw_4_lines_and_rt_colors:
                 ex de, hl       ; save descriptor to de         ; 4
 
                 ; update generated code line
-                ld (hl), JP_HL_CODE                             ; 11
+                ld (hl), JP_HL_CODE                             ; 10
                 ld ix, bc                                       ; 16
                 exx                                             ; 4
                 ld hl, $ + 5    ; return address                ; 10
@@ -130,13 +130,14 @@ draw_4_lines_and_rt_colors:
                 exx                                             ; 10
 
                 ; restore data
-                ld (hl), LD_BC_XXXX_CODE                        ; 11
+                ld (hl), LD_BC_XXXX_CODE                        ; 10
                 ex de, hl                                       ; 4
 
-                // total ticks: 126
+                // total ticks: 124
 
                 // draw RT colors (1 line)
 
+                ; de - address to execute colors
                 ld d, (hl)                                      ; 7
                 inc l                                           ; 4
                 ld e, (hl)                                      ; 7
@@ -157,45 +158,62 @@ draw_4_lines_and_rt_colors:
                 ; restore stack
                 ld sp, (stack_bottom + 2)                       ; 20
 
-                // total ticks:118 for colors, total: 118 + 126 = 244
+                // total ticks:118 for colors, total: 124 + 118  = 242
 
 
                 jp iy      ; ret                                               ; 10 ticks
 
 
-draw_64_lines_2:
+draw_4_lines_and_rt_colors_2:
                 // sp - descriptor
-                // de - destinatin screen address to draw
+                // (stack_bottom + 2) - destinatin screen address to draw
+                // iy - destinatin color address to draw
 
-                ; bc - address to execute
-                pop ix                                          ; 10
+                ; ix - address to execute
+                pop ix                                          ; 14
 
                 ; hl - end execute address
                 pop hl                                          ; 10
 
+                ; bc - colors to execute
+                pop bc                                          ; 10
+
                 ; save descriptor
-                ld (stack_bottom + 2), sp                       ; 20
+                ld (stack_bottom), sp                           ; 20
 
-                ld (hl), JP_HL_CODE                             ; 11
+                ; drawing address
+                ld sp, (stack_bottom + 2)                       ; 20
 
-                ex de, hl ; save end address in de              ; 4
-                ld sp, hl                                       ; 6
+                ld (hl), JP_HL_CODE                             ; 10
 
+                exx                                             ; 4
                 ld hl, $ + 6    ; return address                ; 10
-                ; free registers to use: bc, de, bc'
+                ; free registers to use: bc, de, de'
                 jp ix                                           ; 8
+                exx                                             ; 4
 
                 ; restore data
-                ex de, hl                                       ; 4
-                ld (hl), LD_BC_XXXX_CODE                        ; 11
+                ld (hl), LD_BC_XXXX_CODE                        ; 10
 
-                ld hl, 0                                        ; 10
-                add hl, sp                                      ; 11
-                ex de, hl                                       ; 4
-                ld sp, (stack_bottom + 2)                       ; 20
-                // total ticks: 139
+                // draw RT colors (1 line)
 
-                jp iy      ; ret                                               ; 10 ticks
+                ; save main draw address
+                ld (stack_bottom + 2), sp                       ; 20
+                ; set stack to color draw address
+                ld sp, iy                                       ; 10
+
+                ld hl, bc                                       ; 8
+                jp hl                                           ; 4
+
+                ; Move destination color address to the next line
+                ld iy, -32                                      ; 14 
+                add iy, sp                                      ; 15
+                ; restore descriptor
+                ld sp, (stack_bottom)                           ; 20
+
+                // total ticks: 211
+end_draw:
+                jp 00      ; ret                                ; 10 ticks
 
 /*************** Main. ******************/
 main:
