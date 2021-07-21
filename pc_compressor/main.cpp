@@ -116,24 +116,7 @@ using Registers = std::array<Register16, registersCount>;
 
 class Register8
 {
-public:
-
-    char name;
-    std::optional<uint8_t> value;
-
-    Register8(const char name): name(name) {}
-
-    inline bool hasValue(uint8_t byte) const
-    {
-        return value && *value == byte;
-    }
-
-    inline bool isEmpty() const
-    {
-        return !value;
-    }
-
-    inline int reg8Index() const
+    int calculateIndex() const
     {
         if (name == 'b')
             return 0;
@@ -155,11 +138,31 @@ public:
         assert(0);
         return 0;
     }
+public:
+
+    char name;
+    std::optional<uint8_t> value;
+    int reg8Index;
+
+    Register8(const char name): name(name) 
+    {
+        reg8Index = calculateIndex();
+    }
+
+    inline bool hasValue(uint8_t byte) const
+    {
+        return value && *value == byte;
+    }
+
+    inline bool isEmpty() const
+    {
+        return !value.has_value();
+    }
 
     void add(CompressedLine& line, const Register8& reg)
     {
         assert(name == 'a');
-        line.data.push_back(0x80 + reg.reg8Index()); //< ADD a, reg8
+        line.data.push_back(0x80 + reg.reg8Index); //< ADD a, reg8
         line.drawTicks += 4;
     }
 
@@ -167,7 +170,7 @@ public:
     {
         value = byte;
         line.drawTicks += 7;
-        line.data.push_back(uint8_t(0x06 + 0x10 * reg8Index()));
+        line.data.push_back(uint8_t(0x06 + 0x10 * reg8Index));
         line.data.push_back(byte);
     }
 
@@ -176,7 +179,7 @@ public:
         value = reg.value;
         line.drawTicks += 4;
 
-        const uint8_t data = 0x40 + reg8Index() * 8 + reg.reg8Index();
+        const uint8_t data = 0x40 + reg8Index * 8 + reg.reg8Index;
         line.data.push_back(data);
     }
 
@@ -185,7 +188,7 @@ public:
         value = *value + 1;
         line.drawTicks += 4;
 
-        const uint8_t data = 0x04 + 8 * reg8Index();
+        const uint8_t data = 0x04 + 8 * reg8Index;
         line.data.push_back(data);
     }
 
@@ -194,7 +197,7 @@ public:
         value = *value - 1;
         line.drawTicks += 4;
 
-        const uint8_t data = 0x05 + 8 * reg8Index();
+        const uint8_t data = 0x05 + 8 * reg8Index;
         line.data.push_back(data);
     }
 
@@ -202,7 +205,7 @@ public:
     {
         assert(bit < 8);
         line.data.push_back(0xcb);
-        line.data.push_back(0xc0 + reg8Index() + bit * 8);
+        line.data.push_back(0xc0 + reg8Index + bit * 8);
         line.drawTicks += 8;
     }
 
@@ -255,9 +258,9 @@ public:
         return std::string() + h.name + l.name;
     }
 
-    int reg16Index() const
+    inline int reg16Index() const
     {
-        return h.reg8Index();
+        return h.reg8Index;
     }
 
 
@@ -281,7 +284,7 @@ public:
     void loadXX(CompressedLine& line, uint16_t value)
     {
         h.value = value >> 8;
-        l.value = value % 256;
+        l.value = (uint8_t) value;
         line.drawTicks += 10;
         line.data.push_back(uint8_t(0x01 + 0x8 * reg16Index()));
         line.data.push_back(*l.value);
@@ -311,10 +314,8 @@ public:
         return value == data;
     }
 
-    inline std::optional<uint16_t> value16() const
+    inline uint16_t value16() const
     {
-        if (h.isEmpty() || l.isEmpty())
-            return std::nullopt;
         return *h.value * 256 + *l.value;
     }
 
@@ -338,7 +339,7 @@ public:
             return;
 
         const uint8_t hiByte = value >> 8;
-        const uint8_t lowByte = value % 256;
+        const uint8_t lowByte = (uint8_t) value;
 
         if (h.hasValue(hiByte))
         {
@@ -393,7 +394,7 @@ public:
     {
         if(!isEmpty())
         {
-            const auto newValue = *value16() - repeat;
+            const auto newValue = value16() - repeat;
             h.value = newValue >> 8;
             l.value = newValue % 256;
         }
@@ -409,7 +410,7 @@ public:
     {
         if(!isEmpty())
         {
-            const auto newValue = *value16() + repeat;
+            const uint16_t newValue = value16() + repeat;
             h.value = newValue >> 8;
             l.value = newValue % 256;
         }
@@ -433,12 +434,6 @@ public:
 
 void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Registers& registers16, const Register8& a)
 {
-    if (isEmpty())
-    {
-        loadX(line, byte);
-        return;
-    }
-
     for (const auto& reg16: registers16)
     {
         if (reg16.h.hasValue(byte))
@@ -458,7 +453,9 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Register
         return;
     }
 
-    if (*value == byte - 1)
+    if (isEmpty())
+        loadX(line, byte);
+    else if (*value == byte - 1)
         decValue(line);
     else if (*value == byte + 1)
         incValue(line);
@@ -666,8 +663,8 @@ void compressLine(
     {
         uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
         const uint16_t word = *buffer16;
-        const uint8_t lowByte = word >> 8;
-        const uint8_t highByte = word % 256;
+        const uint8_t highByte = word >> 8;
+        const uint8_t lowByte = (uint8_t) word;
 
         assert(x < 32);
         if (x == 31 && !verticalRepCount)
@@ -929,7 +926,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
             const auto word = buffer[number];
             for (auto& reg16 : registers)
             {
-                if (reg16.value16() == word)
+                if (reg16.hasValue16(word))
                     return &reg16;
             }
 
