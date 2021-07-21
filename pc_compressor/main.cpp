@@ -8,6 +8,7 @@
 #include <functional>
 #include <string>
 #include <deque>
+#include <chrono>
 
 static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
@@ -19,9 +20,42 @@ static const int verticalCompressionH = 4; //< Skip drawwing data if it exists o
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
 
+class ZxData
+{
+    uint8_t m_buffer[64];
+    int m_size = 0;
+
+public:
+    inline bool empty() const { return m_size == 0; }
+
+    inline void push_back(uint8_t value)
+    {
+        assert([m_size < sizeof(m_buffer));
+        m_buffer[m_size++] = value;
+    }
+
+    inline void pop_back()
+    {
+        --m_size;
+    }
+
+    inline int size() const { return m_size;  }
+    inline const uint8_t* data() const { return m_buffer; }
+
+    inline void append(const ZxData& other)
+    {
+        memcpy(m_buffer + m_size, other.m_buffer, other.m_size);
+        m_size += other.m_size;
+    }
+};
+
 
 struct CompressedLine
 {
+
+    CompressedLine()
+    {
+    }
 
     void exx()
     {
@@ -44,17 +78,15 @@ struct CompressedLine
 
     void operator +=(const CompressedLine& other)
     {
-        data.insert(data.end(), other.data.begin(), other.data.end());
+        data.append(other.data);
         drawTicks += other.drawTicks;
     }
 
-    std::vector<uint8_t> data;
+    ZxData data;
     int drawTicks = 0;
     bool isAltReg = false;
     int prelineTicks = 0;
 
-    // statistics
-    std::multimap<int, uint16_t> wordFrequency;
 };
 
 struct CompressedData
@@ -78,6 +110,10 @@ struct CompressedData
     }
 };
 
+static const int registersCount = 3;
+class Register16;
+using Registers = std::array<Register16, registersCount>;
+
 class Register8
 {
 public:
@@ -87,17 +123,17 @@ public:
 
     Register8(const char name): name(name) {}
 
-    bool hasValue(uint8_t byte) const
+    inline bool hasValue(uint8_t byte) const
     {
         return value && *value == byte;
     }
 
-    bool isEmpty() const
+    inline bool isEmpty() const
     {
         return !value;
     }
 
-    int reg8Index() const
+    inline int reg8Index() const
     {
         if (name == 'b')
             return 0;
@@ -172,12 +208,6 @@ public:
 
     void updateToValue(CompressedLine& line, uint8_t byte, const std::vector<Register8>& registers)
     {
-        if (isEmpty())
-        {
-            loadX(line, byte);
-            return;
-        }
-
         for (const auto& reg: registers)
         {
             if (reg.hasValue(byte))
@@ -187,18 +217,18 @@ public:
             }
         }
 
-        if (*value == byte - 1)
+        if (isEmpty())
+            loadX(line, byte);
+        else if (*value == byte - 1)
             decValue(line);
         else if (*value == byte + 1)
             incValue(line);
         else
             loadX(line, byte);
     }
-};
 
-static const int registersCount = 3;
-class Register16;
-using Registers = std::array<Register16, registersCount>;
+    void updateToValue(CompressedLine& line, uint8_t byte, const Registers& registers16, const Register8& a);
+};
 
 class Register16
 {
@@ -268,12 +298,12 @@ public:
         line.drawTicks += 11;
     }
 
-    bool isEmpty() const
+    inline bool isEmpty() const
     {
         return h.isEmpty() || l.isEmpty();
     }
 
-    bool hasValue16(uint16_t data) const
+    inline bool hasValue16(uint16_t data) const
     {
         if (!h.value || !l.value)
             return false;
@@ -281,7 +311,7 @@ public:
         return value == data;
     }
 
-    std::optional<uint16_t> value16() const
+    inline std::optional<uint16_t> value16() const
     {
         if (h.isEmpty() || l.isEmpty())
             return std::nullopt;
@@ -289,7 +319,7 @@ public:
     }
 
 
-    bool hasValue8(uint8_t value) const
+    inline bool hasValue8(uint8_t value) const
     {
         return h.hasValue(value) || l.hasValue(value);
     }
@@ -310,31 +340,13 @@ public:
         const uint8_t hiByte = value >> 8;
         const uint8_t lowByte = value % 256;
 
-        std::vector<Register8> registers8;
-        for (const auto& register16: registers)
-        {
-            registers8.push_back(register16.h);
-            registers8.push_back(register16.l);
-        }
-        registers8.push_back(a);
-
-        const Register8* regH = nullptr;
-        const Register8* regL = nullptr;
-        for (const auto& reg: registers8)
-        {
-            if (reg.hasValue(hiByte))
-                regH = &reg;
-            else if (reg.hasValue(lowByte))
-                regL = &reg;
-        }
-
         if (h.hasValue(hiByte))
         {
-          l.updateToValue(line, lowByte, registers8);
+          l.updateToValue(line, lowByte, registers, a);
         }
         else if (l.hasValue(lowByte))
         {
-          h.updateToValue(line, hiByte, registers8);
+          h.updateToValue(line, hiByte, registers, a);
         }
         else if (!isEmpty() && value16() == value + 1)
         {
@@ -344,14 +356,36 @@ public:
         {
             dec(line);
         }
-        else if (regH && regL)
-        {
-            h.loadFromReg(line, *regH);
-            l.loadFromReg(line, *regL);
-        }
         else
         {
-            loadXX(line, value);
+            const Register8* regH = nullptr;
+            const Register8* regL = nullptr;
+
+            for (const auto& reg16: registers)
+            {
+                if (reg16.h.hasValue(hiByte))
+                    regH = &reg16.h;
+                else if (reg16.h.hasValue(lowByte))
+                    regL = &reg16.h;
+                else if (reg16.l.hasValue(hiByte))
+                    regH = &reg16.l;
+                else if (reg16.l.hasValue(lowByte))
+                    regL = &reg16.l;
+            }
+            if (a.hasValue(hiByte))
+                regH = &a;
+            else if (a.hasValue(lowByte))
+                regL = &a;
+
+            if (regH && regL)
+            {
+                h.loadFromReg(line, *regH);
+                l.loadFromReg(line, *regL);
+            }
+            else
+            {
+                loadXX(line, value);
+            }
         }
     }
 
@@ -396,6 +430,41 @@ public:
         line.drawTicks += 16;
     }
 };
+
+void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Registers& registers16, const Register8& a)
+{
+    if (isEmpty())
+    {
+        loadX(line, byte);
+        return;
+    }
+
+    for (const auto& reg16: registers16)
+    {
+        if (reg16.h.hasValue(byte))
+        {
+            loadFromReg(line, reg16.h);
+            return;
+        }
+        else if (reg16.l.hasValue(byte))
+        {
+            loadFromReg(line, reg16.l);
+            return;
+        }
+    }
+    if (a.hasValue(byte))
+    {
+        loadFromReg(line, a);
+        return;
+    }
+
+    if (*value == byte - 1)
+        decValue(line);
+    else if (*value == byte + 1)
+        incValue(line);
+    else
+        loadX(line, byte);
+}
 
 void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileName)
 {
@@ -475,22 +544,24 @@ int sameVerticalBytes(int flags, uint8_t buffer[zxScreenSize], int x, int y, int
     if (!(flags & (verticalCompressionL | verticalCompressionH)))
         return 0;
 
+    uint8_t* ptr = buffer + y * 32 + x;
     for (; x < 32; ++x)
     {
-        uint8_t currentByte = buffer[y * 32 + x];
+        uint8_t currentByte = *ptr;
         if (y > 0 && (flags & verticalCompressionH))
         {
-            uint8_t upperByte = buffer[(y - 1) * 32 + x];
+            uint8_t upperByte = *(ptr-32);
             if (upperByte != currentByte)
                 return result;
         }
         if (y < maxY && (flags & verticalCompressionL))
         {
-            uint8_t lowerByte = buffer[(y + 1) * 32 + x];
+            uint8_t lowerByte = *(ptr+32);
             if (lowerByte != currentByte)
                 return result;
         }
         ++result;
+        ++ptr;
     };
     return result;
 }
@@ -529,43 +600,6 @@ int sameVerticalBytesOnRow(uint8_t buffer[zxScreenSize], int y)
             ++result;
     };
     return result;
-}
-
-Register16* choiseRegister(
-    CompressedLine& compressedLine,
-    uint8_t buffer[zxScreenSize],
-    int x, int y,
-    Registers& registers,
-    std::function<bool(const Register16&)> filter = nullptr)
-{
-    uint16_t* buffer16 = (uint16_t*)(buffer + y * 32 + x);
-    uint16_t word = *buffer16;
-
-    auto itr = compressedLine.wordFrequency.rbegin();
-    for (int i = 0; i < registers.size() && itr != compressedLine.wordFrequency.rend(); ++i, ++itr)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-
-        if (word == itr->second)
-            return &registers[i];
-    }
-
-    for (int i = registers.size() -1 ; i >= 0; --i)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-        if (registers[i].isEmpty())
-            return &registers[i];
-    }
-
-    for (int i = registers.size() - 1; i >= 0; --i)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-        return &registers[i];
-    }
-    return nullptr;
 }
 
 Register16* findRegister(Registers& registers, const std::string& name)
@@ -621,7 +655,7 @@ void compressLine(
     int x,
     bool* success)
 {
-    Register16 sp("sp");
+    static Register16 sp("sp");
     *success = true;
 
     int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
@@ -1130,8 +1164,15 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int flags = verticalCompressionH | verticalCompressionL | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionH | verticalCompressionL; // | inverseColors; // | interlineRegisters
+
+    const auto t1 = std::chrono::system_clock::now();
     auto data = compress(flags, buffer);
+    const auto t2 = std::chrono::system_clock::now();
+
+    std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
+
+
     auto colorData = compressColors(colorBuffer);
     auto realTimeColor = compressRealTimeColors(colorBuffer, 24);
 
