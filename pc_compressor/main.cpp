@@ -23,13 +23,13 @@ static const int inverseColors = 16;
 
 class ZxData
 {
-    uint8_t m_buffer[64];
+    uint8_t m_buffer[64 + 32];
     int m_size = 0;
 
 public:
     inline bool empty() const { return m_size == 0; }
 
-    uint8_t last() const { return m_buffer[m_size]; }
+    uint8_t last() const { return m_buffer[m_size-1]; }
 
     inline void push_back(uint8_t value)
     {
@@ -829,7 +829,14 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
             std::cout << "Check block " << y << ":" << x  << std::endl;
 
             int lineNum = y * 8;
-            int count = lineNum < imageHeight - 8 ? 9 : 8;
+            int count = 8;
+            if (y > 0)
+            {
+                --lineNum;
+                ++count;
+            }
+            if (y < imageHeight - 8)
+                ++count;
 
             inversBlock(buffer, x, y);
             auto candidateLeft = compressLinesAsync(flags, buffer, a, lineNum, count);
@@ -1209,22 +1216,27 @@ int main(int argc, char** argv)
     std::deque<int> ticksSum;
     int last4LineTicks = 0;
     int last4LineTicksMax = 0;
+    int worseLine = 0;
     for (int i = 0; i < 8; ++i)
     {
         for (int y = 0; y < 192; y += 8)
         {
             int line = y + i;
-            ticksSum.push_back(data.data[i].drawTicks);
-            last4LineTicks += data.data[i].drawTicks;
+            ticksSum.push_back(data.data[line].drawTicks);
+            last4LineTicks += data.data[line].drawTicks;
             if (ticksSum.size() > 4)
             {
                 last4LineTicks -= ticksSum.front();
                 ticksSum.pop_front();
             }
-            last4LineTicksMax = std::max(last4LineTicksMax, last4LineTicks);
+            if (last4LineTicks > last4LineTicksMax)
+            {
+                last4LineTicksMax = last4LineTicks;
+                worseLine = line;
+            }
         }
     }
-    std::cout << "max 4 line ticks: " << last4LineTicksMax << std::endl;
+    std::cout << "max 4 line ticks: " << last4LineTicksMax << " worseLine=" << worseLine << std::endl;
 
     int maxColorTicks = 0;
     for (int i = 0; i < 24; ++i)
