@@ -115,11 +115,12 @@ struct CompressedData
         return result;
     }
 
-    int size() const
+    int size(int from = 0, int count = -1) const
     {
         int result = 0;
-        for (const auto& line : data)
-            result += line.data.size();
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].data.size();
         return result;
     }
 };
@@ -159,6 +160,7 @@ public:
     char name;
     std::optional<uint8_t> value;
     int reg8Index;
+    bool isAlt = false;
 
     Register8(const char name): name(name)
     {
@@ -262,6 +264,7 @@ public:
         l(name[1])
     {
         isAlt = name.length() > 2 && name[2] == '\'';
+        l.isAlt = h.isAlt = isAlt;
         if (value.has_value())
         {
             h.value = *value >> 8;
@@ -380,6 +383,8 @@ public:
 
             for (const auto& reg16: registers)
             {
+                if (reg16.isAlt != isAlt)
+                    continue;
                 if (reg16.h.hasValue(hiByte))
                     regH = &reg16.h;
                 else if (reg16.h.hasValue(lowByte))
@@ -452,6 +457,8 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Register
 {
     for (const auto& reg16: registers16)
     {
+        if (name != 'a' && isAlt != reg16.isAlt)
+            continue;
         if (reg16.h.hasValue(byte))
         {
             loadFromReg(line, reg16.h);
@@ -651,6 +658,8 @@ CompressedLine makeChoise(
     CompressedLine result;
 
     Register16& reg = registers[regIndex];
+    if (reg.isAlt != result.isAltReg)
+        result.exx();
     reg.updateToValue(result, word, registers, a);
     reg.push(result);
     compressLine(result, flags, maxY, buffer, registers, a, y, x + 2, success);
@@ -693,14 +702,16 @@ void compressLine(
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4)
         {
-            auto hl = findRegister(registers, "hl");
-            hl->updateToValue(result, -verticalRepCount, registers, a);
-            hl->addSP(result);
-            sp.load(result, *hl);
-            x += verticalRepCount;
-            continue;
+            if (auto hl = findRegister(registers, "hl"))
+            {
+                hl->updateToValue(result, -verticalRepCount, registers, a);
+                hl->addSP(result);
+                sp.load(result, *hl);
+                x += verticalRepCount;
+                continue;
+            }
         }
-        else if (verticalRepCount > 2)
+        if (verticalRepCount > 2)
         {
             sp.dec(result, verticalRepCount);
             x += verticalRepCount;
@@ -711,7 +722,7 @@ void compressLine(
         bool isChoised = false;
         for (auto& reg: registers)
         {
-            if (reg.hasValue16(word))
+            if (result.isAltReg == reg.isAlt && reg.hasValue16(word))
             {
                 reg.push(result);
                 x += 2;
@@ -732,7 +743,7 @@ void compressLine(
 
         for (auto& reg: registers)
         {
-            if (reg.isEmpty())
+            if (result.isAltReg == reg.isAlt && reg.isEmpty())
             {
                 reg.updateToValue(result, word, registers, a);
                 reg.push(result);
@@ -760,7 +771,8 @@ void compressLine(
         registers = chosedRegisters;
         return;
     }
-
+    if (result.isAltReg)
+        result.exx();
 }
 
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int line)
@@ -768,7 +780,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     return std::async(
         [flags, buffer, &a, line]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("de'")};
             Registers registers2 = registers1;
 
             bool success;
@@ -778,6 +790,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
 
             compressLine(line2, flags, imageHeight,
                 buffer, registers2, a, line, 0, &success);
+
             if (success && line2.data.size() < line1.data.size())
                 return line2;
             else
@@ -1139,6 +1152,17 @@ CompressedData  compressColors(uint8_t* buffer)
     return compressedData;
 }
 
+CompressedData interleaveData(const CompressedData& data)
+{
+    CompressedData result;
+    for (int i = 0; i < 8; ++i)
+    {
+        for (int y = 0; y < data.data.size(); y += 8)
+            result.data.push_back(data.data[y + i]);
+    }
+    return result;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -1186,7 +1210,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int flags = verticalCompressionH | verticalCompressionL | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionH | verticalCompressionL; // | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
     auto data = compress(flags, buffer);
@@ -1245,38 +1269,42 @@ int main(int argc, char** argv)
     }
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
+    data = interleaveData(data);
+
 #pragma pack(push)
 #pragma pack(1)
-    struct LineDescriptor
+    struct Line8Descriptor
     {
-        uint16_t offset = 0;  //< Line offset in bytes.
-        uint8_t next8Len = 0; //< length of this line and next 7 lines.
-        uint8_t next4Len = 0; //< length of this line and next 3 lines.
+        uint16_t addressBegin = 0;
+        uint16_t addressEnd = 0;
     };
 #pragma pack(pop)
+    std::vector<Line8Descriptor> descriptors;
 
-    for (int lineNum = 0; lineNum < imageHeight; ++lineNum)
+
+    int bankSizeInLines = imageHeight / 8;
+    for (int d = 0; d < imageHeight / 8; ++d)
     {
-        LineDescriptor descriptor;
-        int bank = lineNum % 8;
-        int numberInBank = lineNum / 8;
-        int linesBefore = imageHeight / 8 * bank + numberInBank;
-        for (int i = 0; i < linesBefore; ++i)
-            descriptor.offset += data.data[i].data.size();
+        int lineBank = d % 8;
+        int lineGroupInBank = d / 8;
+        int lineNum = bankSizeInLines * lineBank + lineGroupInBank * 8;
 
-        for (int i = 0; i < 8; ++i)
+        Line8Descriptor descriptor;
+        int line8Size = 0;
+        for (int l = 0; l < 8; ++l)
         {
-            if (lineNum + i < imageHeight)
-            {
-                const auto& line = data.data[lineNum + i];
-                descriptor.next8Len += line.data.size();
-                if ( i < 4)
-                    descriptor.next4Len += line.data.size();
-            }
+            const auto& line = data.data[lineNum + l];
+            line8Size += line.data.size();
         }
-        lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));
+        descriptor.addressBegin = data.size(0, lineNum);
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
+        descriptors.push_back(descriptor);
     }
 
+    for (const auto& descriptor: descriptors)
+        lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));
+
+    
     for (int y = 0; y < data.data.size(); ++y)
     {
         const auto& line = data.data[y];

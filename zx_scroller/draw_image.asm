@@ -15,6 +15,9 @@ generated_code: equ 32768
     org generated_code
 
         INCBIN "resources/thanos.bin.main"
+        align	4
+descriptors_data
+        INCBIN "resources/thanos.bin.descriptor"
 color_data:
         //INCBIN "resources/thanos.bin", 6144, 768
 data_end:
@@ -31,49 +34,6 @@ LD_DE_XXXX_CODE equ 11h
         ENDM
 
 /*************** Draw 8 lines of image.  ******************/
-JP_IY_COMMAND equ 0000
-
-        MACRO draw_8_lines_with_iy
-                ; hl - descriptor
-                ; sp - destinatin screen address to draw
-
-                ; bc = descriptor[line].offset (exec address)
-                ld c, (hl)      ; 7
-                inc  l          ; 4
-                ld b, (hl)      ; 7     
-                inc l           ; 4
-
-                ld d, 1                                         ; 7
-                ld e, (hl)                                      ; 7
-                inc l                                           ; 4
-                inc hl                                          ; 6
-                ex de, hl                                       ; 4
-                add hl, bc                                      ; 11
-                ; hl now point to execution address end, de - saved descriptor
-
-
-                ld (hl), high(JP_IY_COMMAND)                                                    ; 10
-                inc hl                                                                          ; 6
-                ld c, (hl)      ; save only 2-nd byte. Assume 1-st byte is always LD bc, xx     ; 7
-                ld (hl), low(JP_IY_COMMAND)                                                     ; 10
-
-                ld ix, bc                                                                       ; 16
-                exx                                                                             ; 4
-                ; TODO: put here 'the most used byte' from generated code
-                ld a, 0xff                                                                      ; 7
-                ld iy, $ + 5 ; return addr                                                      ; 14
-                jp ix ; draw                                                                    ; 8
-                exx                                                                             ; 4
-
-                // restore code back
-                ld (hl), c                                                                      ; 7
-                dec hl                                                                          ; 6
-                ld (hl), LD_BC_XXXX_CODE                                                        ; 10
-                ex de, hl                                                                       ; 4
-
-                // itself total 174 ticks per 8 lines, avg 21.75 ticks overhead/line
-        ENDM
-
 
 copy_colors:
         ld hl, color_data
@@ -101,70 +61,7 @@ prepare_interruption_table:
         im 2
         ret
 
-
 draw_4_lines_and_rt_colors:
-                // hl - descriptor
-                // sp - destinatin screen address to draw
-                // iy - color address to draw
-
-                ; bc - address to execute
-                ld c, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld b, (hl)                                      ; 7
-                inc l                                           ; 4
-
-                ; exec address end
-                ld e, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld d, (hl)                                      ; 7
-                inc hl                                          ; 10
-                ex de, hl       ; save descriptor to de         ; 4
-
-                ; update generated code line
-                ld (hl), JP_HL_CODE                             ; 10
-                ld ix, bc                                       ; 16
-                exx                                             ; 4
-                ld hl, $ + 5    ; return address                ; 10
-                ; free registers to use: bc, de, bc'.   hl -return addr, hl' - exec end addr to restore, de' - descriptor
-                jp ix                                           ; 8
-                exx                                             ; 10
-
-                ; restore data
-                ld (hl), LD_BC_XXXX_CODE                        ; 10
-                ex de, hl                                       ; 4
-
-                // total ticks: 124
-
-                // draw RT colors (1 line)
-
-                ; de - address to execute colors
-                ld d, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld e, (hl)                                      ; 7
-                inc hl                                          ; 10
-
-                ; save descriptor
-                ld (stack_bottom), hl                           ; 16
-                ; save stack
-                ld (stack_bottom + 2), sp                       ; 20
-                ; set stack to color attributes
-                ld sp, iy                                       ; 10
-
-                ex de, hl                                       ; 4
-                ld ix, $ + 4    ; return address                ; 14
-                jp hl                                           ; 4
-                ; restore descriptor
-                ld hl, (stack_bottom)                           ; 16
-                ; restore stack
-                ld sp, (stack_bottom + 2)                       ; 20
-
-                // total ticks:118 for colors, total: 124 + 118  = 242
-
-
-                jp iy      ; ret                                               ; 10 ticks
-
-
-draw_4_lines_and_rt_colors_2:
                 // sp - descriptor
                 // (stack_bottom + 2) - destinatin screen address to draw
                 // iy - destinatin color address to draw
@@ -215,6 +112,70 @@ draw_4_lines_and_rt_colors_2:
 end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
+draw_64_lines
+        ld b, 8
+
+draw_8_lines
+                // hl - descriptor
+                // sp - destinatin screen address to draw
+
+                ; ix - address to execute
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld d, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld ix, de                                       ; 16
+
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld d, (hl)                                      ; 7
+                inc hl                                          ; 6
+                ex de, hl                                       ; 4
+
+                ld (hl), JP_HL_CODE                             ; 10
+
+                exx                                             ; 4
+                ld hl, $ + 6    ; return address                ; 10
+                ; free registers to use: bc, de, de'
+                jp ix                                           ; 8
+                exx                                             ; 4
+
+                ; restore data
+                ld (hl), LD_BC_XXXX_CODE                        ; 10
+                ex de, hl                                       ; 4
+
+                // total ticks: 116
+
+        djnz draw_8_lines
+        jp iy      ; ret                                        ; 8 ticks
+
+draw_image
+        ; bc - line number
+        ; a - best byte constant
+
+        ; hl = bc * sizeof(descriptor)
+        ld hl, bc
+        add hl, bc
+        add hl, bc
+
+        ld bc, descriptors_data
+        add hl, bc
+
+        ld sp, 16384 + 1024 * 2
+        ld iy, $ + 7
+        jp draw_64_lines
+
+        ld sp, 16384 + 1024 * 4
+        ld iy, $ + 7
+        jp draw_64_lines
+
+        ld sp, 16384 + 1024 * 6
+        ld iy, $ + 7
+        jp draw_64_lines
+
+
+        ret                
+
 /*************** Main. ******************/
 main:
         di
@@ -258,7 +219,7 @@ max_scroll_offset equ 191
 
         push bc                         ; 11 ticks
         push de                         ; 11 ticks
-        //call draw_image                 ; 67103 ticks
+        call draw_image                 ; 67103 ticks
         halt
         pop de                          ; 10 ticks
         pop bc                          ; 10 ticks
