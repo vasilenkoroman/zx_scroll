@@ -675,6 +675,7 @@ void compressLine(
     bool* success);
 
 CompressedLine makeChoise(
+    bool isAlt,
     int regIndex,
     uint16_t word,
     int flags,
@@ -687,6 +688,7 @@ CompressedLine makeChoise(
     bool* success)
 {
     CompressedLine result;
+    result.isAltReg = isAlt;
 
     Register16& reg = registers[regIndex];
     if (reg.isAlt != result.isAltReg)
@@ -711,12 +713,12 @@ void compressLine(
     static Register16 sp("sp");
     *success = true;
 
-    int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
-    if (!(flags & oddVerticalCompression))
-        verticalRepCount &= ~1;
-
     while (x < 32)
     {
+        int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
+        if (!(flags & oddVerticalCompression))
+            verticalRepCount &= ~1;
+
         uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
         const uint16_t word = *buffer16;
         const uint8_t highByte = word >> 8;
@@ -791,14 +793,21 @@ void compressLine(
         for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
         {
             Registers regCopy = registers;
-            auto newLine = makeChoise(regIndex, word, flags, maxY,  buffer, regCopy, a, y, x, success);
-            if (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks)
+            bool successChoise = false;
+            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, regCopy, a, y, x, &successChoise);
+            if (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks && successChoise)
             {
                 chosedRegisters = regCopy;
                 choisedLine = newLine;
             }
         }
+        if (choisedLine.data.empty())
+        {
+            *success = false;
+            return;
+        }
         result += choisedLine;
+        result.isAltReg = choisedLine.isAltReg;
         registers = chosedRegisters;
         return;
     }

@@ -14,6 +14,7 @@ generated_code: equ screen_end + 1024
     org generated_code
 
         INCBIN "resources/thanos.bin.main"
+best_byte db 127        
         align	4
 descriptors_data
         INCBIN "resources/thanos.bin.descriptor"
@@ -112,8 +113,8 @@ end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
 draw_64_lines
-        ld b, 8
-
+                ex af, af'
+                ld a, 8
 draw_8_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
@@ -134,19 +135,22 @@ draw_8_lines
                 ex de, hl                                       ; 4
                 ld (hl), JP_HL_CODE                             ; 10
 
+                ex af, af'
                 exx                                             ; 4
                 ld hl, $ + 5    ; return address                ; 10
                 ; free registers to use: bc, de, bc'
                 jp ix                                           ; 8
                 exx                                             ; 4
+                ex af, af'
 
                 ; restore data
                 ld (hl), LD_BC_XXXX_CODE                        ; 10
                 ex de, hl                                       ; 4
 
                 // total ticks: 116
-
-        djnz draw_8_lines
+                dec a
+        jr nz, draw_8_lines
+                ex af, af'
         jp iy      ; ret                                        ; 8 ticks
 
 draw_image
@@ -220,6 +224,7 @@ max_scroll_offset equ 191
 
         push bc                         ; 11 ticks
         push de                         ; 11 ticks
+        ld a, (best_byte)
         call draw_image                 ; 67103 ticks
         halt
         pop de                          ; 10 ticks
@@ -269,6 +274,7 @@ stack_top:
 
         ; it need to update code. Currently it don't increment low part of the register.
 data_segment_end:
+counter1 db 0
 
 /*************** Commands to SJ asm ******************/
 
