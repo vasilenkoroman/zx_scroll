@@ -6,8 +6,7 @@
 screen_addr:    equ 16384
 screen_size:    equ 6144
 screen_end:     equ screen_addr + screen_size
-//generated_code: equ 0x5b00 ; screen_end + 768
-generated_code: equ 32768
+generated_code: equ 0x5b00 ; screen_end + 768
                 ASSERT generated_code % 256 == 0
 
 /*************** Image data. ******************/
@@ -130,13 +129,13 @@ draw_8_lines
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
                 inc hl                                          ; 6
-                ex de, hl                                       ; 4
 
+                ex de, hl                                       ; 4
                 ld (hl), JP_HL_CODE                             ; 10
 
                 exx                                             ; 4
                 ld hl, $ + 6    ; return address                ; 10
-                ; free registers to use: bc, de, de'
+                ; free registers to use: bc, de, bc'
                 jp ix                                           ; 8
                 exx                                             ; 4
 
@@ -161,7 +160,7 @@ draw_image
         ld bc, descriptors_data
         add hl, bc
 
-        ld sp, 16384 + 1024 * 2
+        ld sp, 16384 + 1024 * 6
         ld iy, $ + 7
         jp draw_64_lines
 
@@ -169,7 +168,7 @@ draw_image
         ld iy, $ + 7
         jp draw_64_lines
 
-        ld sp, 16384 + 1024 * 6
+        ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
 

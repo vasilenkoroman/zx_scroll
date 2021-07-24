@@ -14,6 +14,7 @@
 static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
 uint8_t DEC_SP_CODE = 0x3b;
+static const int lineSize = 32;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
 static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
@@ -533,13 +534,43 @@ void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileNa
     free(img);
 }
 
+void mirrorBuffer8(uint8_t* buffer, int imageHeight)
+{
+    int dataSize = lineSize * imageHeight;
+    
+    uint8_t* bufferEnd = buffer + dataSize - 1;
+    while (buffer < bufferEnd)
+    {
+        uint8_t value = *buffer;
+        *buffer = *bufferEnd;
+        *bufferEnd = value;
 
-void deinterlaceBuffer(uint8_t* buffer)
+        --bufferEnd;
+        ++buffer;
+    }
+}
+
+void mirrorBuffer16(uint16_t* buffer, int imageHeight)
+{
+    int dataSize = lineSize * imageHeight;
+    
+    uint16_t* bufferEnd = buffer + dataSize / 2 - 1;
+    while (buffer < bufferEnd)
+    {
+        uint16_t value = *buffer;
+        *buffer = *bufferEnd;
+        *bufferEnd = value;
+
+        --bufferEnd;
+        ++buffer;
+    }
+}
+
+void deinterlaceBuffer(uint8_t* buffer, int imageHeight)
 {
     uint8_t tempBuffer[zxScreenSize];
-    static const int lineSize = 32;
 
-    for (int srcY = 0; srcY < 192; ++ srcY)
+    for (int srcY = 0; srcY < imageHeight; ++ srcY)
     {
         int dstY = (srcY % 8) * 8 + (srcY % 64) / 8 + (srcY / 64) * 64;
         memcpy(tempBuffer + dstY * lineSize, buffer + srcY * lineSize, lineSize); //< Copy screen line
@@ -780,7 +811,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     return std::async(
         [flags, buffer, &a, line]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("de'")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'")};
             Registers registers2 = registers1;
 
             bool success;
@@ -1187,7 +1218,9 @@ int main(int argc, char** argv)
     uint8_t colorBuffer[768];
 
     fileIn.read((char*) buffer, sizeof(buffer));
-    deinterlaceBuffer(buffer);
+    //mirrorBuffer8(buffer, imageHeight);
+    mirrorBuffer16((uint16_t*) buffer, imageHeight);
+    deinterlaceBuffer(buffer, imageHeight);
     writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
 
     fileIn.read((char*) colorBuffer, sizeof(colorBuffer));
@@ -1283,6 +1316,7 @@ int main(int argc, char** argv)
 
 
     int bankSizeInLines = imageHeight / 8;
+    const int codeOffset = 0x5b00;
     for (int d = 0; d < imageHeight / 8; ++d)
     {
         int lineBank = d % 8;
@@ -1296,8 +1330,8 @@ int main(int argc, char** argv)
             const auto& line = data.data[lineNum + l];
             line8Size += line.data.size();
         }
-        descriptor.addressBegin = data.size(0, lineNum);
-        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
+        descriptor.addressBegin = data.size(0, lineNum) + codeOffset;
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8) + codeOffset;
         descriptors.push_back(descriptor);
     }
 
