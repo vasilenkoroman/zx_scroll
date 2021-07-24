@@ -154,6 +154,8 @@ draw_8_lines
         jp iy      ; ret                                        ; 8 ticks
 
 draw_image
+        ld (stack_bottom), sp
+
         ; bc - line number
         ; a - best byte constant
 
@@ -177,6 +179,7 @@ draw_image
         ld iy, $ + 7
         jp draw_64_lines
 
+        ld sp, (stack_bottom)
 
         ret                
 

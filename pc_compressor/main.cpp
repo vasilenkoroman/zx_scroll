@@ -14,6 +14,7 @@
 static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
 uint8_t DEC_SP_CODE = 0x3b;
+uint8_t LD_BC_CODE = 1;
 static const int lineSize = 32;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
@@ -28,6 +29,9 @@ class ZxData
     int m_size = 0;
 
 public:
+
+    uint8_t* buffer() { return m_buffer; }
+
     inline bool empty() const { return m_size == 0; }
 
     uint8_t last() const { return m_buffer[m_size-1]; }
@@ -448,8 +452,8 @@ public:
     {
         assert(h.name == 'h');
         line.data.push_back(0x22); //< LD (**), HL
-        line.data.push_back(*l.value);
-        line.data.push_back(*h.value);
+        line.data.push_back((uint8_t)address);
+        line.data.push_back(address >> 8);
         line.drawTicks += 16;
     }
 };
@@ -795,7 +799,7 @@ void compressLine(
             Registers regCopy = registers;
             bool successChoise = false;
             auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, regCopy, a, y, x, &successChoise);
-            if (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks && successChoise)
+            if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
             {
                 chosedRegisters = regCopy;
                 choisedLine = newLine;
@@ -825,10 +829,10 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
 
             bool success;
             CompressedLine line1, line2;
-            compressLine(line1, flags | oddVerticalCompression, imageHeight,
+            compressLine(line1, flags, imageHeight,
                 buffer, registers1, a, line, 0, &success);
 
-            compressLine(line2, flags, imageHeight,
+            compressLine(line2, flags | oddVerticalCompression, imageHeight,
                 buffer, registers2, a, line, 0, &success);
 
             if (success && line2.data.size() < line1.data.size())
@@ -1192,6 +1196,31 @@ CompressedData  compressColors(uint8_t* buffer)
     return compressedData;
 }
 
+void moveLoadBcFirst(CompressedData& data)
+{
+    for (auto& line: data.data)
+    {
+        uint8_t* buffer = line.data.buffer();
+        for (int i = 0; i < line.data.size(); ++i)
+        {
+            if (buffer[i] == DEC_SP_CODE)
+                continue;
+            else if (buffer[i] == LD_BC_CODE)
+            {
+                uint8_t tmpBuffer[3];
+                memcpy(tmpBuffer, buffer + i, 3);
+                memmove(buffer + 3, buffer, i);
+                memcpy(buffer, tmpBuffer, 3);
+                break;
+            }
+            else
+            {
+                assert(0);
+            }
+        }
+    }
+}
+
 CompressedData interleaveData(const CompressedData& data)
 {
     CompressedData result;
@@ -1227,10 +1256,11 @@ int main(int argc, char** argv)
     uint8_t colorBuffer[768];
 
     fileIn.read((char*) buffer, sizeof(buffer));
-    //mirrorBuffer8(buffer, imageHeight);
-    mirrorBuffer16((uint16_t*) buffer, imageHeight);
     deinterlaceBuffer(buffer, imageHeight);
     writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
+
+    //mirrorBuffer8(buffer, imageHeight);
+    mirrorBuffer16((uint16_t*)buffer, imageHeight);
 
     fileIn.read((char*) colorBuffer, sizeof(colorBuffer));
 
@@ -1311,6 +1341,7 @@ int main(int argc, char** argv)
     }
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
+    moveLoadBcFirst(data);
     data = interleaveData(data);
 
 #pragma pack(push)
