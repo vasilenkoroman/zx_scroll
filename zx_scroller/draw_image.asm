@@ -4,10 +4,10 @@
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
 screen_addr:    equ 16384
-screen_size:    equ 6144
+screen_size:    equ 1024 * 6 + 768
 screen_end:     equ screen_addr + screen_size
-generated_code: equ 0x5b00 ; screen_end + 768
-                ASSERT generated_code % 256 == 0
+//generated_code: equ 0x5b00 ; screen_end + 768
+generated_code: equ screen_end + 1024
 
 /*************** Image data. ******************/
 
@@ -125,6 +125,7 @@ draw_8_lines
                 inc l                                           ; 4
                 ld ix, de                                       ; 16
 
+                ; de - end exec address
                 ld e, (hl)                                      ; 7
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
@@ -134,7 +135,7 @@ draw_8_lines
                 ld (hl), JP_HL_CODE                             ; 10
 
                 exx                                             ; 4
-                ld hl, $ + 6    ; return address                ; 10
+                ld hl, $ + 5    ; return address                ; 10
                 ; free registers to use: bc, de, bc'
                 jp ix                                           ; 8
                 exx                                             ; 4
@@ -210,7 +211,8 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
 max_scroll_offset equ 191
 
-        ld bc, max_scroll_offset        ; 10  ticks
+        //ld bc, max_scroll_offset        ; 10  ticks
+        ld bc, 0
         ld de, -1                       ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
@@ -265,9 +267,6 @@ stack_bottom:
         defs STACK_SIZE * 2, 0
 stack_top:
 
-line_descriptor:
-        INCBIN "resources/thanos.bin.descriptor"
-line_descriptor_end:
         ; it need to update code. Currently it don't increment low part of the register.
 data_segment_end:
 

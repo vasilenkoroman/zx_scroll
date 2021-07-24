@@ -189,7 +189,7 @@ public:
     {
         value = byte;
         line.drawTicks += 7;
-        line.data.push_back(uint8_t(0x06 + 0x10 * reg8Index));
+        line.data.push_back(uint8_t(0x06 + reg8Index * 8));
         line.data.push_back(byte);
     }
 
@@ -306,7 +306,7 @@ public:
         h.value = value >> 8;
         l.value = (uint8_t) value;
         line.drawTicks += 10;
-        line.data.push_back(uint8_t(0x01 + 0x8 * reg16Index()));
+        line.data.push_back(uint8_t(0x01 + reg16Index() * 8));
         line.data.push_back(*l.value);
         line.data.push_back(*h.value);
     }
@@ -348,7 +348,7 @@ public:
     void push(CompressedLine& line) const
     {
         assert(isAlt == line.isAltReg);
-        line.data.push_back(0xc5 + 0x10 * reg16Index());
+        line.data.push_back(0xc5 + reg16Index() * 8);
         line.drawTicks += 11;
     }
 
@@ -1314,9 +1314,9 @@ int main(int argc, char** argv)
 #pragma pack(pop)
     std::vector<Line8Descriptor> descriptors;
 
-
+    
     int bankSizeInLines = imageHeight / 8;
-    const int codeOffset = 0x5b00;
+    const int codeOffset = 0x5b00 + 1024;
     for (int d = 0; d < imageHeight / 8; ++d)
     {
         int lineBank = d % 8;
@@ -1331,7 +1331,7 @@ int main(int argc, char** argv)
             line8Size += line.data.size();
         }
         descriptor.addressBegin = data.size(0, lineNum) + codeOffset;
-        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8) + codeOffset;
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
         descriptors.push_back(descriptor);
     }
 
