@@ -1174,6 +1174,8 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
         }
     }
 
+    std::cout << "use reg A = " << (int) *a.value << std::endl;
+
     CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight);
     if (!(flags & inverseColors))
         return result;
@@ -1585,17 +1587,16 @@ int main(int argc, char** argv)
     }
     
     //int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
-    int flags = verticalCompressionH; // | inverseColors;
+    int flags = 0;// verticalCompressionH; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
-    auto data = compress(flags, buffer);
+    CompressedData data = compress(flags, buffer);
     const auto t2 = std::chrono::system_clock::now();
 
     std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
 
-
-    auto colorData = compressColors(colorBuffer);
-    auto realTimeColor = compressRealTimeColors(colorBuffer, 24);
+    CompressedData colorData = compressColors(colorBuffer);
+    CompressedData realTimeColor = compressRealTimeColors(colorBuffer, 24);
 
     static const int uncompressedTicks = 21 * 16 * imageHeight;
     static const int uncompressedColorTicks = 21 * 768 / 2;
@@ -1609,14 +1610,13 @@ int main(int argc, char** argv)
         << realTimeColor.ticks() << ", ratio: " << realTimeColor.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() +  realTimeColor.ticks() << std::endl;
 
-
     std::deque<int> ticksSum;
     int last4LineTicks = 0;
     int last4LineTicksMax = 0;
     int worseLine = 0;
     for (int i = 0; i < 8; ++i)
     {
-        for (int y = 0; y < imageHeight; y += 8)
+        for (int y = 0; y < data.data.size(); y += 8)
         {
             int line = y + i;
             ticksSum.push_back(data.data[line].drawTicks);
@@ -1645,6 +1645,15 @@ int main(int argc, char** argv)
     moveLoadBcFirst(data);
     data = interleaveData(data);
 
+    // color buffer stats
+    int sameLines = 0;
+    for (int y = 0; y < 24; ++y)
+    {
+        if (sameVerticalBytes(verticalCompressionL, colorBuffer, 0, y, 24) == 32)
+            ++sameLines;
+    }
+    std::cout << "equal lines in color buffer: " << sameLines << std::endl;
+
 #pragma pack(push)
 #pragma pack(1)
     struct Line8Descriptor
@@ -1655,14 +1664,45 @@ int main(int argc, char** argv)
 #pragma pack(pop)
     std::vector<Line8Descriptor> descriptors;
 
+    data.data.resize(imageHeight);
+
     
     int bankSizeInLines = imageHeight / 8;
     const int codeOffset = 0x5b00 + 1024;
-    for (int d = 0; d < imageHeight / 8; ++d)
+
+#if 0
+    for (int descriptorBank = 0; descriptorBank < 8; ++descriptorBank)
+    {
+        for (int d = 0; d < imageHeight / 8; ++d)
+        {
+            int lineBank = (d + descriptorBank) % 8;
+            int lineGroupInBank = d / 8;
+
+            int lineInGroupOffset = descriptorBank + d >= 8 ? 1 : 0;
+
+            int lineNum = bankSizeInLines * lineBank + lineGroupInBank * 8 + lineInGroupOffset;
+
+            Line8Descriptor descriptor;
+            int line8Size = 0;
+            for (int l = 0; l < 8; ++l)
+            {
+                const auto& line = data.data[lineNum + l];
+                line8Size += line.data.size();
+            }
+            descriptor.addressBegin = data.size(0, lineNum) + codeOffset;
+            descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
+            descriptors.push_back(descriptor);
+        }
+    }
+#else
+    for (int d = 0; d < imageHeight; ++d)
     {
         int lineBank = d % 8;
-        int lineGroupInBank = d / 8;
-        int lineNum = bankSizeInLines * lineBank + lineGroupInBank * 8;
+        int lineInBank = d / 8;
+
+        int lineNum = bankSizeInLines * lineBank + lineInBank;
+        if (lineNum + 8 > imageHeight)
+            break;
 
         Line8Descriptor descriptor;
         int line8Size = 0;
@@ -1675,6 +1715,7 @@ int main(int argc, char** argv)
         descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
         descriptors.push_back(descriptor);
     }
+#endif
 
     for (const auto& descriptor: descriptors)
         lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));

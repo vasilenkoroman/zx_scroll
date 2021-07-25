@@ -13,11 +13,11 @@ generated_code: equ screen_end + 1024
 
     org generated_code
 
-        INCBIN "resources/thanos.bin.main"
-best_byte db 127        
+        INCBIN "resources/samanasuke.bin.main"
+best_byte db 247
         align	4
 descriptors_data
-        INCBIN "resources/thanos.bin.descriptor"
+        INCBIN "resources/samanasuke.bin.descriptor"
 color_data:
         //INCBIN "resources/thanos.bin", 6144, 768
 data_end:
@@ -160,21 +160,24 @@ draw_image
         ; a - best byte constant
 
         ; hl = bc * sizeof(descriptor)
-        ld hl, bc
-        add hl, bc
-        add hl, bc
-
-        ld bc, descriptors_data
-        add hl, bc
+        ld hl, bc                                       ; 8
+        add hl, bc                                      ; 11
+        add hl, hl                                      ; 11
+        ld bc, descriptors_data                         ; 10
+        add hl, bc                                      ; 11
 
         ld sp, 16384 + 1024 * 6
         ld iy, $ + 7
         jp draw_64_lines
 
+        ld de, (64 - 8) * 4                             ; 10
+        add hl, de                                      ; 11
         ld sp, 16384 + 1024 * 4
         ld iy, $ + 7
         jp draw_64_lines
 
+        ld de, (64 - 8) * 4                             ; 10
+        add hl, de                                      ; 11
         ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
@@ -216,11 +219,10 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait - 10 - 10 - 7
 
-max_scroll_offset equ 191
+max_scroll_offset equ 192
 
-        //ld bc, max_scroll_offset        ; 10  ticks
-        ld bc, 0
-        ld de, -1                       ; 10 ticks
+        ld bc, 0                        ; 10  ticks
+        ld de, 1                       ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -229,7 +231,7 @@ max_scroll_offset equ 191
         push de                         ; 11 ticks
         ld a, (best_byte)
         call draw_image                 ; 67103 ticks
-        halt
+        
         pop de                          ; 10 ticks
         pop bc                          ; 10 ticks
 
@@ -253,7 +255,6 @@ max_scroll_offset equ 191
         jp .common_branch               ; 10 ticks
 .zero_reached:
         ld de, 1                        ; 10 ticks
-        wait_ticks 42
         jp .common_branch               ; 10 ticks
 .upper_limit_reached:
         ld de, -1                        ; 10 ticks
@@ -262,8 +263,8 @@ max_scroll_offset equ 191
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 67300
-        //wait_ticks (screen_ticks - .total_ticks_per_loop)
+.total_ticks_per_loop: equ 60687
+        wait_ticks (screen_ticks - .total_ticks_per_loop)
 
         jr .loop                        ; 12 ticks
  
@@ -277,7 +278,6 @@ stack_top:
 
         ; it need to update code. Currently it don't increment low part of the register.
 data_segment_end:
-counter1 db 0
 
 /*************** Commands to SJ asm ******************/
 
