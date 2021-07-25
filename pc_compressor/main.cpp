@@ -805,6 +805,24 @@ void compressLine(
                 choisedLine = newLine;
             }
         }
+
+        if ((flags & oddVerticalCompression) && choisedLine.data.empty() && x % 2 == 0)
+        {
+            // try to reset flags for the rest of the line
+            const auto flags1 = flags & ~oddVerticalCompression;
+            for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
+            {
+                Registers regCopy = registers;
+                bool successChoise = false;
+                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, regCopy, a, y, x, &successChoise);
+                if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
+                {
+                    chosedRegisters = regCopy;
+                    choisedLine = newLine;
+                }
+            }
+        }
+
         if (choisedLine.data.empty())
         {
             *success = false;
