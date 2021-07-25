@@ -991,6 +991,34 @@ void compressLine(
             return;
         }
 
+        // Decrement stack if line has same value from previous step (vertical compression)
+        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
+        if (verticalRepCount > 4 && !result.isAltReg)
+        {
+            if (auto hl = findRegister(registers, "hl"))
+            {
+                hl->updateToValue(result, -verticalRepCount, registers, a);
+                hl->addSP(result);
+                sp.loadFromReg16(result, *hl);
+                x += verticalRepCount;
+                continue;
+            }
+        }
+        if (verticalRepCount > 5 && !result.isAltReg)
+        {
+            if (auto de = findRegister(registers, "de"))
+            {
+                de->exxHl(result);
+                Register16 hl("hl");
+                hl.loadXX(result, -verticalRepCount);
+                hl.addSP(result);
+                sp.loadFromReg16(result, hl);
+                de->exxHl(result);
+                x += verticalRepCount;
+                continue;
+            }
+        }
+
         // push existing 16 bit value.
         bool isChoised = false;
         for (auto& reg : registers)
@@ -1006,33 +1034,6 @@ void compressLine(
         if (isChoised)
             continue;
 
-        // Decrement stack if line has same value from previous step (vertical compression)
-        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
-        if (verticalRepCount > 4)
-        {
-            if (auto hl = findRegister(registers, "hl"))
-            {
-                hl->updateToValue(result, -verticalRepCount, registers, a);
-                hl->addSP(result);
-                sp.loadFromReg16(result, *hl);
-                x += verticalRepCount;
-                continue;
-            }
-        }
-        if (verticalRepCount > 5)
-        {
-            if (auto de = findRegister(registers, "de"))
-            {
-                de->exxHl(result);
-                Register16 hl("hl");
-                hl.loadXX(result, -verticalRepCount);
-                hl.addSP(result);
-                sp.loadFromReg16(result, hl);
-                de->exxHl(result);
-                x += verticalRepCount;
-                continue;
-            }
-        }
 
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
@@ -1122,7 +1123,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     return std::async(
         [flags, buffer, &a, line]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("ix")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'")};
             Registers registers2 = registers1;
 
             bool success;
