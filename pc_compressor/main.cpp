@@ -351,7 +351,7 @@ public:
 
     void push(CompressedLine& line) const
     {
-        assert(isAlt == line.isAltReg);
+        //assert(isAlt == line.isAltReg);
         line.data.push_back(0xc5 + reg16Index() * 8);
         line.drawTicks += 11;
     }
@@ -667,8 +667,167 @@ Register16* findRegister(Registers& registers, const std::string& name)
     return nullptr;
 }
 
+#if 0
+
+Register16* choiseRegister(
+    const std::multimap<int, uint16_t>& wordFrequency,
+    uint8_t buffer[zxScreenSize],
+    int x, int y,
+    Registers& registers,
+    std::function<bool(const Register16&)> filter = nullptr)
+{
+    uint16_t* buffer16 = (uint16_t*)(buffer + y * 32 + x);
+    uint16_t word = *buffer16;
+
+    auto itr = wordFrequency.rbegin();
+    for (int i = 0; i < registers.size() && itr != wordFrequency.rend(); ++i, ++itr)
+    {
+        if (filter && !filter(registers[i]))
+            continue;
+
+        if (word == itr->second)
+            return &registers[i];
+    }
+
+    for (int i = registers.size() - 1; i >= 0; --i)
+    {
+        if (filter && !filter(registers[i]))
+            continue;
+        if (registers[i].isEmpty())
+            return &registers[i];
+    }
+
+    for (int i = registers.size() - 1; i >= 0; --i)
+    {
+        if (filter && !filter(registers[i]))
+            continue;
+        return &registers[i];
+    }
+    return nullptr;
+}
+
+
 void compressLine(
-    CompressedLine&  result,
+    CompressedLine& result,
+    int flags,
+    int maxY,
+    uint8_t buffer[zxScreenSize],
+    Registers& registers,
+    const Register8& a, //< bestByte
+    int y, 
+    int unused,
+    bool* success)
+{
+    Register16 sp("sp");
+    if (!(flags & interlineRegisters))
+    {
+        for (auto& reg : registers)
+            reg.reset();
+    }
+
+    uint16_t* buffer16 = (uint16_t*)(buffer + y * 32);
+    std::map<uint16_t, int> uniqueWords;
+    for (int x = 0; x < 32; x += 2)
+    {
+        if (sameVerticalBytes(flags, buffer, x, y, maxY) < 2)
+            uniqueWords[*buffer16]++;
+        buffer16++;
+    }
+    std::multimap<int, uint16_t> wordFrequency;
+    for (const auto& [word, counter] : uniqueWords)
+        wordFrequency.emplace(counter, word);
+
+
+    *success = true;
+    for (int x = 0; x < 32; x += 2)
+    {
+        int verticalRepCount = sameVerticalBytes(flags, buffer, x, y, maxY);
+        if (!(flags & oddVerticalCompression))
+            verticalRepCount &= ~1;
+
+        if (x == 31 && !verticalRepCount)
+        {
+            *success = false;
+            return;
+        }
+
+        const uint8_t lowByte = buffer[y * 32 + x];
+        const uint8_t highByte = buffer[y * 32 + x + 1];
+        const uint16_t word = lowByte + (uint16_t)highByte * 256;
+
+        bool isFilled = false;
+
+        // Decrement stack if line has same value from previous step (vertical compression)
+        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
+        if (verticalRepCount > 4)
+        {
+            if (auto hl = findRegister(registers, "hl"))
+            {
+                hl->updateToValue(result, -verticalRepCount, registers, a);
+                hl->addSP(result);
+                sp.load(result, *hl);
+                x += verticalRepCount - 2;
+                isFilled = true;
+            }
+        }
+        if (isFilled)
+            continue;
+
+        if (verticalRepCount > 2)
+        {
+            sp.dec(result, verticalRepCount);
+            x += verticalRepCount - 2;
+            isFilled = true;
+        }
+        if (isFilled)
+            continue;
+
+        // push existing 16 bit value.
+        for (auto& reg : registers)
+        {
+            if (reg.hasValue16(word))
+            {
+                reg.push(result);
+                isFilled = true;
+                break;
+            }
+        }
+        if (isFilled)
+            continue;
+        
+        // Decrement stack if line has same value from previous step (vertical compression)
+        if (verticalRepCount > 0)
+        {
+            sp.dec(result, verticalRepCount);
+            x += verticalRepCount - 2;
+            isFilled = true;
+        }
+        if (isFilled)
+            continue;
+
+        // Try to compine 8-bit registers to create required 16 bit value
+        Register16* reg = nullptr;
+        //if (result.uniqueWords.size() > registers.size())
+        {
+            reg = choiseRegister(wordFrequency, buffer, x, y, registers,
+                [highByte, lowByte](const Register16& reg)
+                {
+                    return reg.hasValue8(highByte) || reg.hasValue8(lowByte);
+                });
+        }
+        if (!reg)
+            reg = choiseRegister(wordFrequency, buffer, x, y, registers);
+
+        reg->updateToValue(result, word, registers, a);
+        reg->push(result);
+    }
+
+}
+
+#else
+
+void compressLine(
+    CompressedLine& result,
     int flags,
     int maxY,
     uint8_t buffer[zxScreenSize],
@@ -836,6 +995,8 @@ void compressLine(
     if (result.isAltReg)
         result.exx();
 }
+
+#endif
 
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int line)
 {
