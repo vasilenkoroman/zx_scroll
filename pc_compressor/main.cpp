@@ -1123,7 +1123,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     return std::async(
         [flags, buffer, &a, line]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("ix")};
             Registers registers2 = registers1;
 
             bool success;
@@ -1160,7 +1160,7 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
 {
     // Detect the most common byte in image
     std::vector<uint8_t> bytesCount(256);
-    for (int i = 0; i < 6144; ++i)
+    for (int i = 0; i < 32 * imageHeight; ++i)
         ++bytesCount[buffer[i]];
 
     Register8 a('a');
@@ -1480,14 +1480,14 @@ CompressedData  compressColors(uint8_t* buffer)
     Register8 a('a');
     Register16 bc("bc");
     Register16 de("de");
-    Register16 hl("hl");
+    Register16 hl("bc'");
     Registers registers = {bc, de, hl};
 
     for (int y = 0; y < 24; y ++)
     {
         bool success;
         CompressedLine line;
-        compressLine(line, 0 /*flags*/, 24 /*maxY*/,
+        compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, 24 /*maxY*/,
             buffer, registers, a, y, 0, &success);
         compressedData.data.push_back(line);
     }
@@ -1582,7 +1582,7 @@ int main(int argc, char** argv)
     }
     
     //int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
-    int flags = verticalCompressionL | inverseColors;
+    int flags = verticalCompressionH; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     auto data = compress(flags, buffer);
