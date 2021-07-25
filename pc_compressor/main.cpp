@@ -15,6 +15,9 @@ static const int imageHeight = 192;
 static const int zxScreenSize = 6144;
 uint8_t DEC_SP_CODE = 0x3b;
 uint8_t LD_BC_CODE = 1;
+uint8_t  IX_REG_PREFIX = 0xdd;
+uint8_t  IY_REG_PREFIX = 0xfd;
+
 static const int lineSize = 32;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
@@ -146,9 +149,9 @@ class Register8
             return 2;
         else if (name == 'e')
             return 3;
-        else if (name == 'h')
+        else if (name == 'h' || name == 'i')
             return 4;
-        else if (name == 'l')
+        else if (name == 'l' || name == 'x' || name == 'y')
             return 5;
         else if (name == 's') //< SP
             return 6;
@@ -166,10 +169,15 @@ public:
     std::optional<uint8_t> value;
     int reg8Index;
     bool isAlt = false;
+    uint8_t indexRegPrefix = 0;
 
     Register8(const char name): name(name)
     {
         reg8Index = calculateIndex();
+        if (name == 'x')
+            indexRegPrefix = IX_REG_PREFIX;
+        else if (name == 'y')
+            indexRegPrefix = IY_REG_PREFIX;
     }
 
     inline bool hasValue(uint8_t byte) const
@@ -192,6 +200,13 @@ public:
     void loadX(CompressedLine& line, uint8_t byte)
     {
         value = byte;
+
+        if (indexRegPrefix)
+        {
+            line.data.push_back(indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
         line.drawTicks += 7;
         line.data.push_back(uint8_t(0x06 + reg8Index * 8));
         line.data.push_back(byte);
@@ -200,8 +215,14 @@ public:
     void loadFromReg(CompressedLine& line, const Register8& reg)
     {
         value = reg.value;
-        line.drawTicks += 4;
 
+        if (indexRegPrefix)
+        {
+            line.data.push_back(indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
+        line.drawTicks += 4;
         const uint8_t data = 0x40 + reg8Index * 8 + reg.reg8Index;
         line.data.push_back(data);
     }
@@ -209,8 +230,14 @@ public:
     void incValue(CompressedLine& line)
     {
         value = *value + 1;
-        line.drawTicks += 4;
 
+        if (indexRegPrefix)
+        {
+            line.data.push_back(indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
+        line.drawTicks += 4;
         const uint8_t data = 0x04 + 8 * reg8Index;
         line.data.push_back(data);
     }
@@ -218,8 +245,14 @@ public:
     void decValue(CompressedLine& line)
     {
         value = *value - 1;
-        line.drawTicks += 4;
 
+        if (indexRegPrefix)
+        {
+            line.data.push_back(indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
+        line.drawTicks += 4;
         const uint8_t data = 0x05 + 8 * reg8Index;
         line.data.push_back(data);
     }
@@ -270,6 +303,7 @@ public:
     {
         isAlt = name.length() > 2 && name[2] == '\'';
         l.isAlt = h.isAlt = isAlt;
+        h.indexRegPrefix = l.indexRegPrefix;
         if (value.has_value())
         {
             h.value = *value >> 8;
@@ -294,15 +328,34 @@ public:
         l.value.reset();
     }
 
-    void load(CompressedLine& line, const Register16& reg)
+    void loadFromReg16(CompressedLine& line, const Register16& reg) const
     {
-        if (h.name == 'h' && reg.h.name == 's')
-            line.data.push_back(0x39); //< LD HL, SP
-        else if (h.name == 's' && reg.h.name == 'h')
+        assert(!l.indexRegPrefix || !reg.l.indexRegPrefix);
+        if (l.indexRegPrefix)
+        {
+            line.data.push_back(l.indexRegPrefix);
+            line.drawTicks += 4;
+        }
+        else if (reg.l.indexRegPrefix)
+        {
+            line.data.push_back(reg.l.indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
+        if ((h.name == 'h' || h.name == 'i') && reg.h.name == 's')
+            line.data.push_back(0x39); //< ADD HL, SP
+        else if (h.name == 's' && (reg.h.name == 'h' || reg.h.name == 'i'))
             line.data.push_back(0xf9); //< LD SP, HL
         else
             assert(0);
         line.drawTicks += 6;
+    }
+
+    void exxHl(CompressedLine& line)
+    {
+        assert(h.name = 'd');
+        line.data.push_back(0xeb);
+        line.drawTicks += 4;
     }
 
     void loadXX(CompressedLine& line, uint16_t value)
@@ -310,6 +363,13 @@ public:
         h.value = value >> 8;
         l.value = (uint8_t) value;
         line.drawTicks += 10;
+
+        if (h.name == 'i')
+        {
+            line.data.push_back(l.indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
         line.data.push_back(uint8_t(0x01 + reg16Index() * 8));
         line.data.push_back(*l.value);
         line.data.push_back(*h.value);
@@ -317,10 +377,22 @@ public:
 
     void addSP(CompressedLine& line)
     {
-        if (h.name != 'h')
+        if (h.name != 'h' && h.name != 'i')
             assert(0);
         h.value.reset();
         l.value.reset();
+
+        if (l.name == 'x')
+        {
+            line.data.push_back(IX_REG_PREFIX);
+            line.drawTicks += 4;
+        }
+        else if (l.name == 'y')
+        {
+            line.data.push_back(IY_REG_PREFIX);
+            line.drawTicks += 4;
+        }
+
         line.data.push_back(0x39);
         line.drawTicks += 11;
     }
@@ -351,7 +423,12 @@ public:
 
     void push(CompressedLine& line) const
     {
-        //assert(isAlt == line.isAltReg);
+        assert(isAlt == line.isAltReg);
+        if (h.name == 'i')
+        {
+            line.data.push_back(l.indexRegPrefix);
+            line.drawTicks += 4;
+        }
         line.data.push_back(0xc5 + reg16Index() * 8);
         line.drawTicks += 11;
     }
@@ -381,7 +458,7 @@ public:
         {
             dec(line);
         }
-        else
+        else if (h.name != 'i')
         {
             const Register8* regH = nullptr;
             const Register8* regL = nullptr;
@@ -414,6 +491,10 @@ public:
                 loadXX(line, value);
             }
         }
+        else
+        {
+            loadXX(line, value);
+        }
     }
 
     void dec(CompressedLine& line, int repeat = 1)
@@ -427,7 +508,12 @@ public:
 
         for (int i = 0; i < repeat; ++i)
         {
-            line.data.push_back(0x0b + reg16Index() * 8); //< dec sp
+            if (l.indexRegPrefix)
+            {
+                line.data.push_back(l.indexRegPrefix);
+                line.drawTicks +=4;
+            }
+            line.data.push_back(0x0b + reg16Index() * 8); //< dec
             line.drawTicks += 6;
         }
     }
@@ -443,7 +529,13 @@ public:
 
         for (int i = 0; i < repeat; ++i)
         {
-            line.data.push_back(0x03 + reg16Index() * 8); //< dec sp
+            if (l.indexRegPrefix)
+            {
+                line.data.push_back(l.indexRegPrefix);
+                line.drawTicks += 4;
+            }
+
+            line.data.push_back(0x03 + reg16Index() * 8); //< inc
             line.drawTicks += 6;
         }
     }
@@ -462,8 +554,11 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Register
 {
     for (const auto& reg16: registers16)
     {
-        if (name != 'a' && isAlt != reg16.isAlt)
+        if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
             continue;
+        if (reg16.h.name == 'i')
+            continue;
+
         if (reg16.h.hasValue(byte))
         {
             loadFromReg(line, reg16.h);
@@ -854,9 +949,10 @@ CompressedLine makeChoise(
     result.isAltReg = isAlt;
 
     Register16& reg = registers[regIndex];
-    if (reg.isAlt != result.isAltReg)
+    if (reg.h.name != 'i' && reg.isAlt != result.isAltReg)
         result.exx();
     reg.updateToValue(result, word, registers, a);
+
     reg.push(result);
     compressLine(result, flags, maxY, buffer, registers, a, y, x + 2, success);
     return result;
@@ -874,6 +970,7 @@ void compressLine(
     bool* success)
 {
     static Register16 sp("sp");
+
     *success = true;
 
     while (x < 32)
@@ -894,29 +991,9 @@ void compressLine(
             return;
         }
 
-        // Decrement stack if line has same value from previous step (vertical compression)
-        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
-        if (verticalRepCount > 4)
-        {
-            if (auto hl = findRegister(registers, "hl"))
-            {
-                hl->updateToValue(result, -verticalRepCount, registers, a);
-                hl->addSP(result);
-                sp.load(result, *hl);
-                x += verticalRepCount;
-                continue;
-            }
-        }
-        if (verticalRepCount > 2)
-        {
-            sp.dec(result, verticalRepCount);
-            x += verticalRepCount;
-            continue;
-        }
-
         // push existing 16 bit value.
         bool isChoised = false;
-        for (auto& reg: registers)
+        for (auto& reg : registers)
         {
             if (result.isAltReg == reg.isAlt && reg.hasValue16(word))
             {
@@ -930,6 +1007,34 @@ void compressLine(
             continue;
 
         // Decrement stack if line has same value from previous step (vertical compression)
+        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
+        if (verticalRepCount > 4)
+        {
+            if (auto hl = findRegister(registers, "hl"))
+            {
+                hl->updateToValue(result, -verticalRepCount, registers, a);
+                hl->addSP(result);
+                sp.loadFromReg16(result, *hl);
+                x += verticalRepCount;
+                continue;
+            }
+        }
+        if (verticalRepCount > 5)
+        {
+            if (auto de = findRegister(registers, "de"))
+            {
+                de->exxHl(result);
+                Register16 hl("hl");
+                hl.loadXX(result, -verticalRepCount);
+                hl.addSP(result);
+                sp.loadFromReg16(result, hl);
+                de->exxHl(result);
+                x += verticalRepCount;
+                continue;
+            }
+        }
+
+        // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
         {
             sp.dec(result, verticalRepCount);
@@ -937,9 +1042,10 @@ void compressLine(
             continue;
         }
 
+#if 0
         for (auto& reg: registers)
         {
-            if (result.isAltReg == reg.isAlt && reg.isEmpty())
+            if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name != 'i')
             {
                 reg.updateToValue(result, word, registers, a);
                 reg.push(result);
@@ -948,6 +1054,19 @@ void compressLine(
                 break;
             }
         }
+#else
+        for (auto& reg : registers)
+        {
+            if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name == 'b')
+            {
+                reg.updateToValue(result, word, registers, a);
+                reg.push(result);
+                x += 2;
+                isChoised = true;
+                break;
+            }
+        }
+#endif
         if (isChoised)
             continue;
 
@@ -1003,7 +1122,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     return std::async(
         [flags, buffer, &a, line]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("ix")};
             Registers registers2 = registers1;
 
             bool success;
@@ -1151,7 +1270,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     int updateSpAddress2 = 0;
     if (useSlowMode)
     {
-        hl.load(line, sp);
+        hl.loadFromReg16(line, sp);
         l.setBit(line, 4); //< l = l + 16 (8 words).
         hl.poke(line, generatedCodeMemAddress); //< Need to update value later, after exact address will be discovered
         updateSpAddress1 = line.data.size() - 2;
@@ -1252,7 +1371,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
         // Move stack to 3 + 8 == 11 words in 27 ticks.
         hl1.loadXX(line, (3 + 8) * 2 - trailingCopy);
         hl1.addSP(line);
-        sp.load(line,hl1);
+        sp.loadFromReg16(line,hl1);
     }
 
     selHl1 = choiseRegister(hl1, 3, registers1);
@@ -1298,7 +1417,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
         // Have enough ticks here to update SP in the regular way
         hl.loadXX(line, spDelta);
         hl.addSP(line);
-        sp.load(line, hl);
+        sp.loadFromReg16(line, hl);
     }
     // Ticks spend on changing Sp = 10 + 11 + 6 = 27. spend ticks=253.  Ticks rest = 59
 
@@ -1460,8 +1579,9 @@ int main(int argc, char** argv)
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
     }
-
-    int flags = verticalCompressionH | verticalCompressionL; // | inverseColors; // | interlineRegisters
+    
+    //int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionL | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     auto data = compress(flags, buffer);
