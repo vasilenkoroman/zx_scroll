@@ -11,8 +11,8 @@
 #include <chrono>
 #include <future>
 
-static const int imageHeight = 192;
-static const int zxScreenSize = 6144;
+static const int imageHeight = 192 * 2;
+static const int zxScreenSize = imageHeight * 32;
 uint8_t DEC_SP_CODE = 0x3b;
 uint8_t LD_BC_CODE = 1;
 uint8_t  IX_REG_PREFIX = 0xdd;
@@ -1554,7 +1554,10 @@ int main(int argc, char** argv)
     uint8_t buffer[zxScreenSize];
     uint8_t colorBuffer[768];
 
-    fileIn.read((char*) buffer, sizeof(buffer));
+    fileIn.read((char*) buffer, 6144);
+    fileIn.seekg(0);
+    fileIn.read((char*) buffer + 6144, 6144);
+
     deinterlaceBuffer(buffer, imageHeight);
     writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
 
@@ -1594,10 +1597,8 @@ int main(int argc, char** argv)
     auto colorData = compressColors(colorBuffer);
     auto realTimeColor = compressRealTimeColors(colorBuffer, 24);
 
-    static const int uncompressedTicks = 21 * 6144 / 2;
+    static const int uncompressedTicks = 21 * 16 * imageHeight;
     static const int uncompressedColorTicks = 21 * 768 / 2;
-    static const int loadTicks = 10 * 6144 / 2;
-    static const int saveTicks = 11 * 6144 / 2;
     std::cout << "uncompressed ticks: " << uncompressedTicks << " compressed ticks: "
         << data.ticks() << ", ratio: " << (data.ticks() / float(uncompressedTicks))
         << ", data size:" << data.size() << std::endl;
@@ -1615,7 +1616,7 @@ int main(int argc, char** argv)
     int worseLine = 0;
     for (int i = 0; i < 8; ++i)
     {
-        for (int y = 0; y < 192; y += 8)
+        for (int y = 0; y < imageHeight; y += 8)
         {
             int line = y + i;
             ticksSum.push_back(data.data[line].drawTicks);
