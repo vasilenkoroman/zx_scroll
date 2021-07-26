@@ -172,22 +172,22 @@ draw_image
         ld hl, bc                                       ; 8
         add hl, bc                                      ; 11
         add hl, hl                                      ; 11
-        ld bc, descriptors_data                         ; 10
+        ld bc, descriptors_data + 4 * 128               ; 10
         add hl, bc                                      ; 11
 
-        ld sp, 16384 + 1024 * 6
+        ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
 
-        ld de, (64 - 8) * 4                             ; 10
+        ld de, (64 - 8 - 128) * 4                        ; 10
         add hl, de                                      ; 11
         ld sp, 16384 + 1024 * 4
         ld iy, $ + 7
         jp draw_64_lines
 
-        ld de, (64 - 8) * 4                             ; 10
+        ld de, (64 - 8 - 128) * 4                        ; 10
         add hl, de                                      ; 11
-        ld sp, 16384 + 1024 * 2
+        ld sp, 16384 + 1024 * 6
         ld iy, $ + 7
         jp draw_64_lines
 
