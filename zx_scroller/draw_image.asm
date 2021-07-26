@@ -273,7 +273,7 @@ max_scroll_offset equ 192
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 56346
+.total_ticks_per_loop: equ 55979
         wait_ticks (screen_ticks - .total_ticks_per_loop)
 
         jr .loop                        ; 12 ticks

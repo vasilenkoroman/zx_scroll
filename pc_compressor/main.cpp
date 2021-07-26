@@ -958,6 +958,12 @@ CompressedLine makeChoise(
     return result;
 }
 
+uint16_t swapBytes(uint16_t word)
+{
+    uint8_t* ptr = (uint8_t*)&word;
+    return ((uint16_t)ptr[0] << 8) + ptr[1];
+}
+
 void compressLine(
     CompressedLine&  result,
     int flags,
@@ -980,7 +986,8 @@ void compressLine(
             verticalRepCount &= ~1;
 
         uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
-        const uint16_t word = *buffer16;
+        uint16_t word = *buffer16;
+        word = swapBytes(word);
         const uint8_t highByte = word >> 8;
         const uint8_t lowByte = (uint8_t) word;
 
@@ -990,7 +997,7 @@ void compressLine(
             *success = false;
             return;
         }
-
+        
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4 && !result.isAltReg)
@@ -1564,8 +1571,8 @@ int main(int argc, char** argv)
     deinterlaceBuffer(buffer, imageHeight);
     writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
 
-    //mirrorBuffer8(buffer, imageHeight);
-    mirrorBuffer16((uint16_t*)buffer, imageHeight);
+    mirrorBuffer8(buffer, imageHeight);
+    //mirrorBuffer16((uint16_t*)buffer, imageHeight);
 
     fileIn.read((char*) colorBuffer, sizeof(colorBuffer));
 
