@@ -122,9 +122,7 @@ end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
 draw_64_lines
-                ex af, af'
-                ld a, 8
-draw_8_lines
+        MACRO draw_8_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
 
@@ -144,23 +142,19 @@ draw_8_lines
                 ex de, hl                                       ; 4
                 ld (hl), JP_HL_CODE                             ; 10
 
-                ex af, af'
                 exx                                             ; 4
                 ld hl, $ + 5    ; return address                ; 10
                 ; free registers to use: bc, de, bc'
                 jp ix                                           ; 8
                 exx                                             ; 4
-                ex af, af'
 
                 ; restore data
                 ld (hl), LD_BC_XXXX_CODE                        ; 10
                 ex de, hl                                       ; 4
-
                 // total ticks: 116
-                dec a
-        jr nz, draw_8_lines
-                ex af, af'
-        jp iy      ; ret                                        ; 8 ticks
+        ENDM                
+                .8 draw_8_lines
+                jp iy      ; ret                                        ; 8 ticks
 
 draw_image
         ld (stack_bottom), sp
@@ -205,7 +199,7 @@ main:
         out 0xfe,a
 
         call copy_image
-        //call copy_colors
+        call copy_colors
 	
         call prepare_interruption_table
         ei
