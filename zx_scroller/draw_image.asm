@@ -18,8 +18,10 @@ best_byte db 247
         align	4
 descriptors_data
         INCBIN "resources/samanasuke.bin.descriptor"
+src_data
+        INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
-        //INCBIN "resources/thanos.bin", 6144, 768
+        INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
 
 /*************** Ennd image data. ******************/
@@ -34,6 +36,13 @@ LD_DE_XXXX_CODE equ 11h
         ENDM
 
 /*************** Draw 8 lines of image.  ******************/
+
+copy_image:
+        ld hl, src_data
+        ld de, 16384
+        ld bc, 6144
+        ldir
+        ret
 
 copy_colors:
         ld hl, color_data
@@ -195,6 +204,7 @@ main:
         ld a, 1
         out 0xfe,a
 
+        call copy_image
         //call copy_colors
 	
         call prepare_interruption_table
@@ -263,7 +273,7 @@ max_scroll_offset equ 192
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 60687
+.total_ticks_per_loop: equ 56346
         wait_ticks (screen_ticks - .total_ticks_per_loop)
 
         jr .loop                        ; 12 ticks

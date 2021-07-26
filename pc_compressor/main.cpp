@@ -279,9 +279,9 @@ public:
         if (isEmpty())
             loadX(line, byte);
         else if (*value == byte - 1)
-            decValue(line);
-        else if (*value == byte + 1)
             incValue(line);
+        else if (*value == byte + 1)
+            decValue(line);
         else
             loadX(line, byte);
     }
@@ -452,11 +452,11 @@ public:
         }
         else if (!isEmpty() && value16() == value + 1)
         {
-            inc(line);
+            dec(line);
         }
         else if (!isEmpty() && value16() == value - 1)
         {
-            dec(line);
+            inc(line);
         }
         else if (h.name != 'i')
         {
@@ -579,9 +579,9 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Register
     if (isEmpty())
         loadX(line, byte);
     else if (*value == byte - 1)
-        decValue(line);
-    else if (*value == byte + 1)
         incValue(line);
+    else if (*value == byte + 1)
+        decValue(line);
     else
         loadX(line, byte);
 }
@@ -1014,6 +1014,7 @@ void compressLine(
                 hl.addSP(result);
                 sp.loadFromReg16(result, hl);
                 de->exxHl(result);
+                de->reset();
                 x += verticalRepCount;
                 continue;
             }
@@ -1586,8 +1587,7 @@ int main(int argc, char** argv)
         return -1;
     }
     
-    //int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
-    int flags = 0;// verticalCompressionH; // | inverseColors;
+    int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer);
