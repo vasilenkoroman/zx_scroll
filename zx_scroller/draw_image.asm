@@ -14,10 +14,12 @@ generated_code: equ screen_end + 1024
     org generated_code
 
         INCBIN "resources/samanasuke.bin.main"
-best_byte db 247
         align	4
-descriptors_data
+descriptors_file
         INCBIN "resources/samanasuke.bin.descriptor"
+best_byte equ descriptors_file
+descriptors equ descriptors_file + 4
+
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
@@ -166,7 +168,7 @@ draw_image
         ld hl, bc                                       ; 8
         add hl, bc                                      ; 11
         add hl, hl                                      ; 11
-        ld bc, descriptors_data + 4 * 128               ; 10
+        ld bc, descriptors + 4 * 128                    ; 10
         add hl, bc                                      ; 11
 
         ld sp, 16384 + 1024 * 2
@@ -267,7 +269,7 @@ max_scroll_offset equ 192
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 55979
+.total_ticks_per_loop: equ 55373
         wait_ticks (screen_ticks - .total_ticks_per_loop)
 
         jr .loop                        ; 12 ticks

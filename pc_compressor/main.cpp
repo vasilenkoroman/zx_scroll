@@ -100,39 +100,6 @@ struct CompressedLine
 
 };
 
-struct CompressedData
-{
-    std::vector<CompressedLine> data;
-
-
-    void replace(int lineNum, int count, std::vector<CompressedLine>::iterator srcData)
-    {
-        for (int i = lineNum; i < lineNum + count; ++i)
-        {
-            data[i] = *srcData;
-            srcData++;
-        }
-    }
-
-    int ticks(int from = 0, int count = -1) const
-    {
-        int result = 0;
-        int to = count == -1 ? data.size() : from + count;
-        for (int i = from; i < to; ++i)
-            result += data[i].drawTicks;
-        return result;
-    }
-
-    int size(int from = 0, int count = -1) const
-    {
-        int result = 0;
-        int to = count == -1 ? data.size() : from + count;
-        for (int i = from; i < to; ++i)
-            result += data[i].data.size();
-        return result;
-    }
-};
-
 static const int registersCount = 3;
 class Register16;
 using Registers = std::array<Register16, registersCount>;
@@ -585,6 +552,40 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Register
     else
         loadX(line, byte);
 }
+
+struct CompressedData
+{
+    std::vector<CompressedLine> data;
+    Register8 a{ 'a' };
+
+public:
+    void replace(int lineNum, int count, std::vector<CompressedLine>::iterator srcData)
+    {
+        for (int i = lineNum; i < lineNum + count; ++i)
+        {
+            data[i] = *srcData;
+            srcData++;
+        }
+    }
+
+    int ticks(int from = 0, int count = -1) const
+    {
+        int result = 0;
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].drawTicks;
+        return result;
+    }
+
+    int size(int from = 0, int count = -1) const
+    {
+        int result = 0;
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].data.size();
+        return result;
+    }
+};
 
 void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileName)
 {
@@ -1239,6 +1240,8 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
             }
         }
     }
+
+    result.a = a;
     return result;
 }
 
@@ -1586,6 +1589,28 @@ int main(int argc, char** argv)
     }
 
     ofstream lineDescriptorFile;
+
+    #pragma pack(push)
+    #pragma pack(1)
+    struct DescriptorsHeader
+    {
+        uint8_t a = 0;
+        uint8_t reserved0 = 0;
+        uint16_t reserved1 = 0;
+    };
+    struct Line8Descriptor
+    {
+        uint16_t addressBegin = 0;
+        uint16_t addressEnd = 0;
+    };
+    #pragma pack(pop)
+
+    /**
+     * File format: 
+     * DescriptorsHeader,
+     * vector<Line8Descriptor>
+    */
+
     std::string lineDescriptorFileName = inputFileName + ".descriptor";
     lineDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
     if (!lineDescriptorFile.is_open())
@@ -1661,14 +1686,6 @@ int main(int argc, char** argv)
     }
     std::cout << "equal lines in color buffer: " << sameLines << std::endl;
 
-#pragma pack(push)
-#pragma pack(1)
-    struct Line8Descriptor
-    {
-        uint16_t addressBegin = 0;
-        uint16_t addressEnd = 0;
-    };
-#pragma pack(pop)
     std::vector<Line8Descriptor> descriptors;
 
     data.data.resize(imageHeight);
@@ -1677,31 +1694,6 @@ int main(int argc, char** argv)
     int bankSizeInLines = imageHeight / 8;
     const int codeOffset = 0x5b00 + 1024;
 
-#if 0
-    for (int descriptorBank = 0; descriptorBank < 8; ++descriptorBank)
-    {
-        for (int d = 0; d < imageHeight / 8; ++d)
-        {
-            int lineBank = (d + descriptorBank) % 8;
-            int lineGroupInBank = d / 8;
-
-            int lineInGroupOffset = descriptorBank + d >= 8 ? 1 : 0;
-
-            int lineNum = bankSizeInLines * lineBank + lineGroupInBank * 8 + lineInGroupOffset;
-
-            Line8Descriptor descriptor;
-            int line8Size = 0;
-            for (int l = 0; l < 8; ++l)
-            {
-                const auto& line = data.data[lineNum + l];
-                line8Size += line.data.size();
-            }
-            descriptor.addressBegin = data.size(0, lineNum) + codeOffset;
-            descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
-            descriptors.push_back(descriptor);
-        }
-    }
-#else
     for (int d = 0; d < imageHeight; ++d)
     {
         int lineBank = d % 8;
@@ -1722,8 +1714,10 @@ int main(int argc, char** argv)
         descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
         descriptors.push_back(descriptor);
     }
-#endif
 
+    DescriptorsHeader descriptorHeader;
+    descriptorHeader.a = *data.a.value;
+    lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
     for (const auto& descriptor: descriptors)
         lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));
 
