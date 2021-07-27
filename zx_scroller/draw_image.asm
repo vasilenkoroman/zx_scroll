@@ -25,6 +25,9 @@ descriptors equ descriptors_file + 4
 color_descriptor
         INCBIN "resources/samanasuke.bin.color_descriptor"
 
+timings_data
+        INCBIN "resources/samanasuke.bin.timings"
+
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
@@ -314,6 +317,61 @@ draw_colors
 
         ret                
 
+/************** delay routine *************/
+
+d1      equ     17+15+21+11+15+14
+d2      equ     16
+d3      equ     20+10+11+12
+
+        ALIGN 256
+base    
+        org     base+256-58
+
+delay   xor     a               ; 4
+        or      h               ; 4
+        jr      nz,wait1        ; 12/7  20/15
+        ld      a,l             ; 4
+        sub     d1              ; 7
+        ld      hl,base+d2      ; 10    21
+wait2   sub     l               ; 4
+        jr      nc,wait2        ; 12/7  16/11
+        ld      l,a             ; 4
+        ld      l,(hl)          ; 7
+        jp      (hl)            ; 4     15
+wait1   ld      de,-d3          ; 10
+        add     hl,de           ; 11
+        jr      delay           ; 12    33
+
+t26     nop
+t22     nop
+t18     nop
+t14     nop
+        ret
+
+t27     nop
+t23     nop
+t19     nop
+t15     ret     nc
+        ret
+
+t28     nop
+t24     nop
+t20     nop
+t16     inc     hl
+        ret
+
+t29     nop
+t25     nop
+t21     nop
+t17     ld a, (hl)
+        ret
+
+table   db      t14&255,t15&255,t16&255,t17&255
+        db      t18&255,t19&255,t20&255,t21&255
+        db      t22&255,t23&255,t24&255,t25&255
+        db      t26&255,t27&255,t28&255,t29&255
+
+
 /*************** Main. ******************/
 main:
         di
@@ -363,6 +421,25 @@ max_scroll_offset equ 192
         call draw_image_and_color       ; ~55000 ticks
 
         pop bc                          ; 10 ticks
+
+        ld a, 2                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
+
+        ; delay
+        ; hl = delay
+        ld hl, bc
+        add hl, bc
+        ld de, timings_data
+        add hl, de
+        ld a, (hl)
+        inc hl
+        ld h, (hl)
+        ld l, a
+        ld de, -4365 ;  // extra delay
+        add hl, de
+
+        call delay
+
         pop de                          ; 10 ticks
 
         ; do increment
@@ -390,13 +467,11 @@ max_scroll_offset equ 192
         ld de, -8                        ; 10 ticks
 .common_branch:
 
-        ld a, 2                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
-
+/*
 .total_ticks_per_loop: equ 65725 - 3
         wait_ticks (screen_ticks - .total_ticks_per_loop)
-
         //.50 wait_ticks screen_ticks
+*/
 
         jp .loop                        ; 12 ticks
  

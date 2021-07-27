@@ -13,6 +13,7 @@
 
 static const int imageHeight = 192 * 2;
 static const int zxScreenSize = imageHeight * 32;
+static const int totalTicksPerFrame = 71680;
 const int codeOffset = 0x5b00 + 1024;
 
 uint8_t DEC_SP_CODE = 0x3b;
@@ -1695,6 +1696,31 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     return size;
 }
 
+int serializeTimingData(const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
+{
+    using namespace std;
+
+    ofstream timingDataFile;
+    std::string timingDataFileName = inputFileName + ".timings";
+    timingDataFile.open(timingDataFileName, std::ios::binary);
+    if (!timingDataFile.is_open())
+    {
+        std::cerr << "Can not write timing file" << std::endl;
+        return -1;
+    }
+
+    for (int i = 0; i < imageHeight - 191; ++i)
+    {
+        int ticks = data.ticks(i, 192);
+        int colorLine = i / 8;
+        ticks += color.ticks(colorLine, 24);
+        uint16_t freeTicks = totalTicksPerFrame - ticks;
+        timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
+    }
+    
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -1800,6 +1826,8 @@ int main(int argc, char** argv)
 
     int mainDataSize = serializeMainData(data, inputFileName, codeOffset);
     serializeColorData(colorData, inputFileName, codeOffset + mainDataSize);
+    
+    serializeTimingData(data, colorData, inputFileName);
 
     return 0;
 }

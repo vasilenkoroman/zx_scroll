@@ -1,4 +1,6 @@
-        MACRO delay   
+
+
+        MACRO delay_8   
         sub     36 + 9 + 19                                 ; 7         
         ld      h, high($)                                  ; 7         14
         jr      nc,wait2                                    ; 12/7      21
