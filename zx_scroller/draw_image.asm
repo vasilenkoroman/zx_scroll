@@ -197,23 +197,9 @@ draw_image
 
         ret                
 
-draw_colors
-        ; bc - line number
-
-        ld (stack_bottom), sp
-
-        ld a, c
-        srl b
-        rra
-        and ~3
-
-        ; hl = bc/8 * sizeof(descriptor)
-        ld h, b
-        ld l, a
-        ld bc, color_descriptor                         ; 10
-        add hl, bc                                      ; 11
-
-        ld sp, 16384 + 1024 * 6 + 768
+draw_64_color_lines
+        // hl - descriptor
+        // sp - destinatin screen address to draw
 
         ; ix - address to execute
         ld e, (hl)                                      ; 7
@@ -226,6 +212,7 @@ draw_colors
         ld e, (hl)                                      ; 7
         inc l                                           ; 4
         ld d, (hl)                                      ; 7
+        inc hl                                          ; 6
 
         ex de, hl                                       ; 4
         ld (hl), JP_HL_CODE                             ; 10
@@ -238,6 +225,41 @@ draw_colors
 
         ; restore data
         ld (hl), LD_BC_XXXX_CODE                        ; 10
+        ex de, hl                                       ; 4
+
+        jp iy
+
+draw_colors
+        ld (stack_bottom), sp
+
+        ; bc - line number
+
+        ld a, c
+        srl b
+        rra
+        and ~3
+
+        ; hl = bc/8 * sizeof(descriptor)
+        ld h, b
+        ld l, a
+        ld bc, color_descriptor + 4 * 16                ; 10
+        add hl, bc                                      ; 11
+
+        ld sp, 16384 + 1024 * 6 + 256
+        ld iy, $ + 7
+        jp draw_64_color_lines
+
+        ld de, -9 * 4                                   ; 10
+        add hl, de                                      ; 11
+        ld sp, 16384 + 1024 * 6 + 256 * 2
+        ld iy, $ + 7
+        jp draw_64_color_lines
+
+        ld de, -9 * 4                                   ; 10
+        add hl, de                                      ; 11
+        ld sp, 16384 + 1024 * 6 + 256 * 3
+        ld iy, $ + 7
+        jp draw_64_color_lines
 
         ld sp, (stack_bottom)
 
@@ -328,7 +350,7 @@ max_scroll_offset equ 192 - 8
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 65317 - 2
+.total_ticks_per_loop: equ 65725 - 3
         wait_ticks (screen_ticks - .total_ticks_per_loop)
 
         //.50 wait_ticks screen_ticks

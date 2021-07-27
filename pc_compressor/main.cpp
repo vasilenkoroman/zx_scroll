@@ -452,8 +452,16 @@ public:
 
             if (regH && regL)
             {
-                h.loadFromReg(line, *regH);
-                l.loadFromReg(line, *regL);
+                if (regL->name == h.name)
+                {
+                    l.loadFromReg(line, *regL);
+                    h.loadFromReg(line, *regH);
+                }
+                else
+                {
+                    h.loadFromReg(line, *regH);
+                    l.loadFromReg(line, *regL);
+                }
             }
             else
             {
@@ -1655,14 +1663,14 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
         return -1;
     }
 
-
+    
     std::vector<LineDescriptor> descriptors;
-
-    for (int lineNum = 0; lineNum < data.data.size() - 23; ++lineNum)
+    
+    for (int lineNum = 0; lineNum < data.data.size() - 7; ++lineNum)
     {
         LineDescriptor descriptor;
         descriptor.addressBegin = data.size(0, lineNum) + offset;
-        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 24);
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
         descriptors.push_back(descriptor);
     }
 
