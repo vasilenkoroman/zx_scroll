@@ -16,7 +16,6 @@ generated_code: equ screen_end + 1024
         INCBIN "resources/samanasuke.bin.main"
 color_code        
         INCBIN "resources/samanasuke.bin.color"
-
         align	4
 descriptors_file
         INCBIN "resources/samanasuke.bin.main_descriptor"
@@ -164,7 +163,7 @@ draw_64_lines
                 .8 draw_8_lines
                 jp iy      ; ret                                        ; 8 ticks
 
-draw_image
+draw_image_and_color
         ld (stack_bottom), sp
 
         ; bc - line number
@@ -172,15 +171,47 @@ draw_image
 
         ; hl = bc * sizeof(descriptor)
         ld hl, bc                                       ; 8
+        ; save color descriptor
+        ld (stack_bottom + 2), hl                       ; 16
+
         add hl, bc                                      ; 11
         add hl, hl                                      ; 11
         ld bc, descriptors + 4 * 128                    ; 10
         add hl, bc                                      ; 11
 
+        ; draw image (top 3-th part)
+        ld a, (best_byte)
         ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
+        
+        ; save image descriptor
+        ld (stack_bottom + 4), hl                       ; 16
 
+        ; draw colors (top 3-th part)
+        ; hl = bc/8 * sizeof(descriptor)
+        ld hl, (stack_bottom + 2)                       ; 16
+        ld a, l
+        srl h
+        rra
+        and ~3
+        ld l, a
+
+        ld bc, color_descriptor + 4 * 16                ; 10
+        add hl, bc                                      ; 11
+
+        ld sp, 16384 + 1024 * 6 + 256
+        ld iy, $ + 7
+        jp draw_64_color_lines
+
+        ; save color descriptor
+        ld (stack_bottom + 2), hl                       ; 16
+
+        ; restore image descriptor
+        ld hl, (stack_bottom + 4)                       ; 16
+        ld a, (best_byte)
+
+        ; draw image (middle and bottom 3-th)
         ld de, (64 - 8 - 128) * 4                        ; 10
         add hl, de                                      ; 11
         ld sp, 16384 + 1024 * 4
@@ -192,6 +223,24 @@ draw_image
         ld sp, 16384 + 1024 * 6
         ld iy, $ + 7
         jp draw_64_lines
+
+        ; draw colors (middle and bottom 3-th)
+
+        ; restore color descriptor
+        ld hl, (stack_bottom + 2)                       ; 16
+        ld de, -9 * 4                                   ; 10
+        add hl, de                                      ; 11
+
+        ld sp, 16384 + 1024 * 6 + 256 * 2
+        ld iy, $ + 7
+        jp draw_64_color_lines
+
+        ld de, -9 * 4                                   ; 10
+        add hl, de                                      ; 11
+        ld sp, 16384 + 1024 * 6 + 256 * 3
+        ld iy, $ + 7
+        jp draw_64_color_lines
+
 
         ld sp, (stack_bottom)
 
@@ -300,10 +349,10 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait - 10 - 10 - 7
 
-max_scroll_offset equ 192 - 8
+max_scroll_offset equ 192
 
-        ld bc, 0                        ; 10  ticks
-        ld de, 8                       ; 10 ticks
+        ld bc, max_scroll_offset       ; 10  ticks
+        ld de, -8                      ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -311,14 +360,8 @@ max_scroll_offset equ 192 - 8
         push de                         ; 11 ticks
         push bc                         ; 11 ticks
 
-        ld a, (best_byte)
-        call draw_image                 ; ~55000 ticks
+        call draw_image_and_color       ; ~55000 ticks
 
-        pop bc                          ; 10 ticks
-        push bc                         ; 11 ticks
-        call draw_colors
-
-        
         pop bc                          ; 10 ticks
         pop de                          ; 10 ticks
 

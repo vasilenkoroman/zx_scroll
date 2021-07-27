@@ -1631,13 +1631,17 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     for (const auto& descriptor : descriptors)
         lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
+    int size = 0;
     for (int y = 0; y < data.data.size(); ++y)
     {
         const auto& line = data.data[y];
         mainDataFile.write((const char*)line.data.data(), line.data.size());
+        size += line.data.size();
     }
-
-    return 0;
+    uint16_t filler = 0; // reserved space for the BD_BC_CODE for the last line
+    mainDataFile.write((const char*) &filler, sizeof(filler));
+    size += sizeof(filler);
+    return size;
 }
 
 int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
@@ -1677,13 +1681,18 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     for (const auto& descriptor : descriptors)
         colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
+    int size = 0;
     for (int y = 0; y < data.data.size(); ++y)
     {
         const auto& line = data.data[y];
         colorDataFile.write((const char*)line.data.data(), line.data.size());
+        size += line.data.size();
     }
 
-    return 0;
+    uint16_t filler = 0; // reserved space for the BD_BC_CODE for the last line
+    colorDataFile.write((const char*)&filler, sizeof(filler));
+    size += sizeof(filler);
+    return size;
 }
 
 int main(int argc, char** argv)
@@ -1789,8 +1798,8 @@ int main(int argc, char** argv)
     }
     std::cout << "equal lines in color buffer: " << sameLines << std::endl;
 
-    serializeMainData(data, inputFileName, codeOffset);
-    serializeColorData(colorData, inputFileName, codeOffset + data.size(0, data.data.size()));
+    int mainDataSize = serializeMainData(data, inputFileName, codeOffset);
+    serializeColorData(colorData, inputFileName, codeOffset + mainDataSize);
 
     return 0;
 }
