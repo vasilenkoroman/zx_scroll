@@ -14,11 +14,17 @@ generated_code: equ screen_end + 1024
     org generated_code
 
         INCBIN "resources/samanasuke.bin.main"
+color_code        
+        INCBIN "resources/samanasuke.bin.color"
+
         align	4
 descriptors_file
-        INCBIN "resources/samanasuke.bin.descriptor"
+        INCBIN "resources/samanasuke.bin.main_descriptor"
 best_byte equ descriptors_file
 descriptors equ descriptors_file + 4
+
+color_descriptor
+        INCBIN "resources/samanasuke.bin.color_descriptor"
 
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
@@ -191,6 +197,52 @@ draw_image
 
         ret                
 
+draw_colors
+        ; bc - line number
+
+        ld (stack_bottom), sp
+
+        ld a, c
+        srl b
+        rra
+        and ~3
+
+        ; hl = bc/8 * sizeof(descriptor)
+        ld h, b
+        ld l, a
+        ld bc, color_descriptor                         ; 10
+        add hl, bc                                      ; 11
+
+        ld sp, 16384 + 1024 * 6 + 768
+
+        ; ix - address to execute
+        ld e, (hl)                                      ; 7
+        inc l                                           ; 4
+        ld d, (hl)                                      ; 7
+        inc l                                           ; 4
+        ld ix, de                                       ; 16
+
+        ; de - end exec address
+        ld e, (hl)                                      ; 7
+        inc l                                           ; 4
+        ld d, (hl)                                      ; 7
+
+        ex de, hl                                       ; 4
+        ld (hl), JP_HL_CODE                             ; 10
+
+        exx                                             ; 4
+        ld hl, $ + 5    ; return address                ; 10
+        ; free registers to use: bc, de, bc', de'
+        jp ix                                           ; 8
+        exx                                             ; 4
+
+        ; restore data
+        ld (hl), LD_BC_XXXX_CODE                        ; 10
+
+        ld sp, (stack_bottom)
+
+        ret                
+
 /*************** Main. ******************/
 main:
         di
@@ -203,6 +255,7 @@ main:
         call copy_image
         call copy_colors
 	
+       
         call prepare_interruption_table
         ei
         halt
@@ -225,21 +278,27 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait - 10 - 10 - 7
 
-max_scroll_offset equ 192
+max_scroll_offset equ 192 - 8
 
         ld bc, 0                        ; 10  ticks
-        ld de, 1                       ; 10 ticks
+        ld de, 8                       ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        push bc                         ; 11 ticks
         push de                         ; 11 ticks
+        push bc                         ; 11 ticks
+
         ld a, (best_byte)
-        call draw_image                 ; 67103 ticks
-        
-        pop de                          ; 10 ticks
+        call draw_image                 ; ~55000 ticks
+
         pop bc                          ; 10 ticks
+        push bc                         ; 11 ticks
+        call draw_colors
+
+        
+        pop bc                          ; 10 ticks
+        pop de                          ; 10 ticks
 
         ; do increment
         ld hl, bc
@@ -260,19 +319,21 @@ max_scroll_offset equ 192
         jp c, .upper_limit_reached      ; 10 ticks
         jp .common_branch               ; 10 ticks
 .zero_reached:
-        ld de, 1                        ; 10 ticks
+        ld de, 8                        ; 10 ticks
         jp .common_branch               ; 10 ticks
 .upper_limit_reached:
-        ld de, -1                        ; 10 ticks
+        ld de, -8                        ; 10 ticks
 .common_branch:
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-.total_ticks_per_loop: equ 55373
+.total_ticks_per_loop: equ 65317 - 2
         wait_ticks (screen_ticks - .total_ticks_per_loop)
 
-        jr .loop                        ; 12 ticks
+        //.50 wait_ticks screen_ticks
+
+        jp .loop                        ; 12 ticks
  
         ret
 

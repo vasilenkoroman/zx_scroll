@@ -13,6 +13,8 @@
 
 static const int imageHeight = 192 * 2;
 static const int zxScreenSize = imageHeight * 32;
+const int codeOffset = 0x5b00 + 1024;
+
 uint8_t DEC_SP_CODE = 0x3b;
 uint8_t LD_BC_CODE = 1;
 uint8_t  IX_REG_PREFIX = 0xdd;
@@ -1186,6 +1188,7 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
     std::cout << "use reg A = " << (int) *a.value << std::endl;
 
     CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight);
+    result.a = a;
     if (!(flags & inverseColors))
         return result;
 
@@ -1491,16 +1494,17 @@ CompressedData  compressColors(uint8_t* buffer)
     CompressedData compressedData;
 
     Register8 a('a');
-    Register16 bc("bc");
-    Register16 de("de");
-    Register16 hl("bc'");
-    Registers registers = {bc, de, hl};
 
-    for (int y = 0; y < 24; y ++)
+    for (int y = 0; y < imageHeight / 8; y ++)
     {
+        Register16 bc("bc");
+        Register16 de("de");
+        Register16 hl("bc'");
+        Registers registers = { bc, de, hl };
+
         bool success;
         CompressedLine line;
-        compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, 24 /*maxY*/,
+        compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
             buffer, registers, a, y, 0, &success);
         compressedData.data.push_back(line);
     }
@@ -1533,15 +1537,145 @@ void moveLoadBcFirst(CompressedData& data)
     }
 }
 
-CompressedData interleaveData(const CompressedData& data)
+void interleaveData(CompressedData& data)
 {
-    CompressedData result;
+    std::vector<CompressedLine> newData;
     for (int i = 0; i < 8; ++i)
     {
         for (int y = 0; y < data.data.size(); y += 8)
-            result.data.push_back(data.data[y + i]);
+            newData.push_back(data.data[y + i]);
     }
-    return result;
+    data.data = newData;
+}
+
+#pragma pack(push)
+#pragma pack(1)
+struct DescriptorsHeader
+{
+    uint8_t a = 0;
+    uint8_t reserved0 = 0;
+    uint16_t reserved1 = 0;
+};
+struct LineDescriptor
+{
+    uint16_t addressBegin = 0;
+    uint16_t addressEnd = 0;
+};
+#pragma pack(pop)
+
+
+int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
+{
+    using namespace std;
+
+    ofstream mainDataFile;
+    std::string mainDataFileName = inputFileName + ".main";
+    mainDataFile.open(mainDataFileName, std::ios::binary);
+    if (!mainDataFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+
+    /**
+     * File format:
+     * DescriptorsHeader,
+     * vector<LineDescriptor>
+    */
+
+    ofstream lineDescriptorFile;
+    std::string lineDescriptorFileName = inputFileName + ".main_descriptor";
+    lineDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
+    if (!lineDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+
+    std::vector<LineDescriptor> descriptors;
+
+    int bankSizeInLines = imageHeight / 8;
+
+    for (int d = 0; d < imageHeight; ++d)
+    {
+        int lineBank = d % 8;
+        int lineInBank = d / 8;
+
+        int lineNum = bankSizeInLines * lineBank + lineInBank;
+        if (lineNum + 8 > imageHeight)
+            break;
+
+        LineDescriptor descriptor;
+        int line8Size = 0;
+        for (int l = 0; l < 8; ++l)
+        {
+            const auto& line = data.data[lineNum + l];
+            line8Size += line.data.size();
+        }
+        descriptor.addressBegin = data.size(0, lineNum) + offset;
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
+        descriptors.push_back(descriptor);
+    }
+
+    DescriptorsHeader descriptorHeader;
+    descriptorHeader.a = *data.a.value;
+    lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
+    for (const auto& descriptor : descriptors)
+        lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+
+    for (int y = 0; y < data.data.size(); ++y)
+    {
+        const auto& line = data.data[y];
+        mainDataFile.write((const char*)line.data.data(), line.data.size());
+    }
+
+    return 0;
+}
+
+int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
+{
+    using namespace std;
+
+    ofstream colorDataFile;
+    std::string colorDataFileName = inputFileName + ".color";
+    colorDataFile.open(colorDataFileName, std::ios::binary);
+    if (!colorDataFile.is_open())
+    {
+        std::cerr << "Can not write color file" << std::endl;
+        return -1;
+    }
+
+    ofstream colorDescriptorFile;
+
+    std::string colorDescriptorFileName = inputFileName + ".color_descriptor";
+    colorDescriptorFile.open(colorDescriptorFileName, std::ios::binary);
+    if (!colorDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write color destination file" << std::endl;
+        return -1;
+    }
+
+
+    std::vector<LineDescriptor> descriptors;
+
+    for (int lineNum = 0; lineNum < data.data.size() - 23; ++lineNum)
+    {
+        LineDescriptor descriptor;
+        descriptor.addressBegin = data.size(0, lineNum) + offset;
+        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 24);
+        descriptors.push_back(descriptor);
+    }
+
+    for (const auto& descriptor : descriptors)
+        colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+
+    for (int y = 0; y < data.data.size(); ++y)
+    {
+        const auto& line = data.data[y];
+        colorDataFile.write((const char*)line.data.data(), line.data.size());
+    }
+
+    return 0;
 }
 
 int main(int argc, char** argv)
@@ -1565,61 +1699,21 @@ int main(int argc, char** argv)
     }
 
     uint8_t buffer[zxScreenSize];
-    uint8_t colorBuffer[768];
+    uint8_t colorBuffer[zxScreenSize / 8];
 
     fileIn.read((char*) buffer, 6144);
-    fileIn.seekg(0);
-    fileIn.read((char*) buffer + 6144, 6144);
+    memcpy(buffer + 6144, buffer, 6144);
+
+    fileIn.read((char*)colorBuffer, sizeof(colorBuffer));
+    memcpy(colorBuffer + 768, colorBuffer, 768);
 
     deinterlaceBuffer(buffer, imageHeight);
     writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
 
     mirrorBuffer8(buffer, imageHeight);
-    //mirrorBuffer16((uint16_t*)buffer, imageHeight);
+    mirrorBuffer8(colorBuffer, imageHeight / 8);
 
-    fileIn.read((char*) colorBuffer, sizeof(colorBuffer));
-
-    ofstream mainDataFile;
-    std::string mainDataFileName = inputFileName + ".main";
-    mainDataFile.open(mainDataFileName, std::ios::binary);
-    if (!mainDataFile.is_open())
-    {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
-    }
-
-    ofstream lineDescriptorFile;
-
-    #pragma pack(push)
-    #pragma pack(1)
-    struct DescriptorsHeader
-    {
-        uint8_t a = 0;
-        uint8_t reserved0 = 0;
-        uint16_t reserved1 = 0;
-    };
-    struct Line8Descriptor
-    {
-        uint16_t addressBegin = 0;
-        uint16_t addressEnd = 0;
-    };
-    #pragma pack(pop)
-
-    /**
-     * File format: 
-     * DescriptorsHeader,
-     * vector<Line8Descriptor>
-    */
-
-    std::string lineDescriptorFileName = inputFileName + ".descriptor";
-    lineDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
-    if (!lineDescriptorFile.is_open())
-    {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
-    }
-    
-    int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
+    int flags = 0; // verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer);
@@ -1631,7 +1725,7 @@ int main(int argc, char** argv)
     CompressedData realTimeColor = compressRealTimeColors(colorBuffer, 24);
 
     static const int uncompressedTicks = 21 * 16 * imageHeight;
-    static const int uncompressedColorTicks = 21 * 768 / 2;
+    static const int uncompressedColorTicks = uncompressedTicks / 8;
     std::cout << "uncompressed ticks: " << uncompressedTicks << " compressed ticks: "
         << data.ticks() << ", ratio: " << (data.ticks() / float(uncompressedTicks))
         << ", data size:" << data.size() << std::endl;
@@ -1675,7 +1769,8 @@ int main(int argc, char** argv)
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
     moveLoadBcFirst(data);
-    data = interleaveData(data);
+    interleaveData(data);
+    moveLoadBcFirst(colorData);
 
     // color buffer stats
     int sameLines = 0;
@@ -1686,47 +1781,8 @@ int main(int argc, char** argv)
     }
     std::cout << "equal lines in color buffer: " << sameLines << std::endl;
 
-    std::vector<Line8Descriptor> descriptors;
-
-    data.data.resize(imageHeight);
-
-    
-    int bankSizeInLines = imageHeight / 8;
-    const int codeOffset = 0x5b00 + 1024;
-
-    for (int d = 0; d < imageHeight; ++d)
-    {
-        int lineBank = d % 8;
-        int lineInBank = d / 8;
-
-        int lineNum = bankSizeInLines * lineBank + lineInBank;
-        if (lineNum + 8 > imageHeight)
-            break;
-
-        Line8Descriptor descriptor;
-        int line8Size = 0;
-        for (int l = 0; l < 8; ++l)
-        {
-            const auto& line = data.data[lineNum + l];
-            line8Size += line.data.size();
-        }
-        descriptor.addressBegin = data.size(0, lineNum) + codeOffset;
-        descriptor.addressEnd = descriptor.addressBegin + data.size(lineNum, 8);
-        descriptors.push_back(descriptor);
-    }
-
-    DescriptorsHeader descriptorHeader;
-    descriptorHeader.a = *data.a.value;
-    lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
-    for (const auto& descriptor: descriptors)
-        lineDescriptorFile.write((const char*) &descriptor, sizeof(descriptor));
-
-    
-    for (int y = 0; y < data.data.size(); ++y)
-    {
-        const auto& line = data.data[y];
-        mainDataFile.write((const char*) line.data.data(), line.data.size());
-    }
+    serializeMainData(data, inputFileName, codeOffset);
+    serializeColorData(colorData, inputFileName, codeOffset + data.size(0, data.data.size()));
 
     return 0;
 }
