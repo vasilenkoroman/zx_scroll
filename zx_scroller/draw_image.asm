@@ -363,7 +363,7 @@ t16     inc     hl
 t29     nop
 t25     nop
 t21     nop
-t17     ld a, (hl)
+t17     ld l, (hl)
         ret
 
 table   db      t14&255,t15&255,t16&255,t17&255
@@ -396,7 +396,7 @@ first_timing_in_interrupt equ 21
         ; remove interrupt data from stack
         pop af                          ; 10 ticks
 
-ticks_after_interrupt equ first_timing_in_interrupt + 12 + 10 + 4 + 10 ; jr + jp + di + pop
+ticks_after_interrupt equ first_timing_in_interrupt + 74
 
 screen_ticks  equ 71680
 first_rastr_line_tick equ  17920
@@ -405,7 +405,7 @@ ticks_per_line equ  224
 sync_tick equ first_rastr_line_tick + ticks_per_line * 64
 ticks_to_wait equ sync_tick - ticks_after_interrupt
 
-        wait_ticks ticks_to_wait - 10 - 10 - 7
+        wait_ticks ticks_to_wait
 
 max_scroll_offset equ 192
 
@@ -435,7 +435,7 @@ max_scroll_offset equ 192
         inc hl
         ld h, (hl)
         ld l, a
-        ld de, -4365 ;  // extra delay
+        ld de, -4144 ;  // extra delay
         add hl, de
 
         call delay
@@ -462,6 +462,7 @@ max_scroll_offset equ 192
         jp .common_branch               ; 10 ticks
 .zero_reached:
         ld de, 8                        ; 10 ticks
+        wait_ticks 42
         jp .common_branch               ; 10 ticks
 .upper_limit_reached:
         ld de, -8                        ; 10 ticks

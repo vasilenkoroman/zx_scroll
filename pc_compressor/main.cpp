@@ -1708,13 +1708,13 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         std::cerr << "Can not write timing file" << std::endl;
         return -1;
     }
-
-    for (int i = 0; i < imageHeight - 191; ++i)
+    
+    for (int line = 0; line <= imageHeight - 192; ++line)
     {
-        int ticks = data.ticks(i, 192);
-        int colorLine = i / 8;
-        ticks += color.ticks(colorLine, 24);
-        uint16_t freeTicks = totalTicksPerFrame - ticks;
+        int ticks = data.ticks(line, 192);
+        int colorLine = line / 8;
+        int colorTicks = color.ticks(colorLine, 24);
+        uint16_t freeTicks = totalTicksPerFrame - (ticks + colorTicks);
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
     }
     
@@ -1812,8 +1812,11 @@ int main(int argc, char** argv)
     std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
     moveLoadBcFirst(data);
-    interleaveData(data);
     moveLoadBcFirst(colorData);
+
+    serializeTimingData(data, colorData, inputFileName);
+
+    interleaveData(data);
 
     // color buffer stats
     int sameLines = 0;
@@ -1827,7 +1830,5 @@ int main(int argc, char** argv)
     int mainDataSize = serializeMainData(data, inputFileName, codeOffset);
     serializeColorData(colorData, inputFileName, codeOffset + mainDataSize);
     
-    serializeTimingData(data, colorData, inputFileName);
-
     return 0;
 }
