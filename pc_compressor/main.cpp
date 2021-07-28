@@ -11,8 +11,6 @@
 #include <chrono>
 #include <future>
 
-static const int imageHeight = 192 * 2;
-static const int zxScreenSize = imageHeight * 32;
 static const int totalTicksPerFrame = 71680;
 const int codeOffset = 0x5b00 + 1024;
 
@@ -677,16 +675,17 @@ void mirrorBuffer16(uint16_t* buffer, int imageHeight)
     }
 }
 
-void deinterlaceBuffer(uint8_t* buffer, int imageHeight)
+void deinterlaceBuffer(std::vector<uint8_t>& buffer)
 {
-    uint8_t tempBuffer[zxScreenSize];
-
+    int imageHeight = buffer.size() / 32;
+    std::vector<uint8_t> tempBuffer(buffer.size());
     for (int srcY = 0; srcY < imageHeight; ++ srcY)
     {
         int dstY = (srcY % 8) * 8 + (srcY % 64) / 8 + (srcY / 64) * 64;
-        memcpy(tempBuffer + dstY * lineSize, buffer + srcY * lineSize, lineSize); //< Copy screen line
+        memcpy(tempBuffer.data() + dstY * lineSize, 
+            buffer.data() + srcY * lineSize, lineSize); //< Copy screen line
     }
-    memcpy(buffer, tempBuffer, zxScreenSize);
+    memcpy(buffer.data(), tempBuffer.data(), imageHeight * 32);
 }
 
 
@@ -700,7 +699,7 @@ void inversBlock(uint8_t* buffer, int x, int y)
     }
 }
 
-int sameVerticalBytes(int flags, uint8_t buffer[zxScreenSize], int x, int y, int maxY)
+int sameVerticalBytes(int flags, uint8_t* buffer, int x, int y, int maxY)
 {
     int result = 0;
     if (!(flags & (verticalCompressionL | verticalCompressionH)))
@@ -728,7 +727,7 @@ int sameVerticalBytes(int flags, uint8_t buffer[zxScreenSize], int x, int y, int
     return result;
 }
 
-int sameVerticalWorlds(uint8_t buffer[zxScreenSize], int x, int y)
+int sameVerticalWorlds(uint8_t* buffer, int x, int y)
 {
     if (y == 191 || y == 0)
         return 0;
@@ -747,7 +746,7 @@ int sameVerticalWorlds(uint8_t buffer[zxScreenSize], int x, int y)
     return result;
 }
 
-int sameVerticalBytesOnRow(uint8_t buffer[zxScreenSize], int y)
+int sameVerticalBytesOnRow(uint8_t* buffer, int y)
 {
     if (y == 191 || y == 0)
         return 0;
@@ -778,7 +777,7 @@ Register16* findRegister(Registers& registers, const std::string& name)
 
 Register16* choiseRegister(
     const std::multimap<int, uint16_t>& wordFrequency,
-    uint8_t buffer[zxScreenSize],
+    uint8_t* buffer,
     int x, int y,
     Registers& registers,
     std::function<bool(const Register16&)> filter = nullptr)
@@ -818,7 +817,7 @@ void compressLine(
     CompressedLine& result,
     int flags,
     int maxY,
-    uint8_t buffer[zxScreenSize],
+    uint8_t* buffer,
     Registers& registers,
     const Register8& a, //< bestByte
     int y, 
@@ -937,7 +936,7 @@ void compressLine(
     CompressedLine& result,
     int flags,
     int maxY,
-    uint8_t buffer[zxScreenSize],
+    uint8_t* buffer,
     Registers& registers,
     const Register8& a, //< bestByte
     int y,
@@ -950,7 +949,7 @@ CompressedLine makeChoise(
     uint16_t word,
     int flags,
     int maxY,
-    uint8_t buffer[zxScreenSize],
+    uint8_t* buffer,
     Registers& registers,
     const Register8& a, //< bestByte
     int y,
@@ -980,7 +979,7 @@ void compressLine(
     CompressedLine&  result,
     int flags,
     int maxY,
-    uint8_t buffer[zxScreenSize],
+    uint8_t* buffer,
     Registers& registers,
     const Register8& a, //< bestByte
     int y,
@@ -1138,10 +1137,10 @@ void compressLine(
 
 #endif
 
-std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int line)
+std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const Register8& a, int line, int imageHeight)
 {
     return std::async(
-        [flags, buffer, &a, line]()
+        [flags, buffer, &a, line, imageHeight]()
         {
             Registers registers1 = {Register16("bc"), Register16("de"), Register16("ix")};
             Registers registers2 = registers1;
@@ -1162,13 +1161,13 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t buffer[zxScreen
     );
 }
 
-CompressedData compressLinesAsync(int flags, uint8_t buffer[zxScreenSize], const Register8& a, int y, int count)
+CompressedData compressLinesAsync(int flags, uint8_t* buffer, const Register8& a, int y, int count, int imageHeight)
 {
     CompressedData compressedData;
 
     std::vector<std::future<CompressedLine>> compressors(count);
     for (int i = 0; i < count; ++i)
-        compressors[i] = compressLineAsync(flags, buffer, a, y++);
+        compressors[i] = compressLineAsync(flags, buffer, a, y++, imageHeight);
 
     for (auto& compressor: compressors)
         compressedData.data.push_back(compressor.get());
@@ -1176,7 +1175,7 @@ CompressedData compressLinesAsync(int flags, uint8_t buffer[zxScreenSize], const
     return compressedData;
 }
 
-CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
+CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
 {
     // Detect the most common byte in image
     std::vector<uint8_t> bytesCount(256);
@@ -1196,7 +1195,7 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
 
     std::cout << "use reg A = " << (int) *a.value << std::endl;
 
-    CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight);
+    CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight, imageHeight);
     result.a = a;
     if (!(flags & inverseColors))
         return result;
@@ -1218,13 +1217,13 @@ CompressedData compress(int flags, uint8_t buffer[zxScreenSize])
                 ++count;
 
             inversBlock(buffer, x, y);
-            auto candidateLeft = compressLinesAsync(flags, buffer, a, lineNum, count);
+            auto candidateLeft = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
 
             inversBlock(buffer, x+1, y);
-            auto candidateBoth = compressLinesAsync(flags, buffer, a, lineNum, count);
+            auto candidateBoth = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
 
             inversBlock(buffer, x, y);
-            auto candidateRight = compressLinesAsync(flags, buffer, a, lineNum, count);
+            auto candidateRight = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
             inversBlock(buffer, x + 1, y);
 
             const int resultTicks = result.ticks(lineNum, count);
@@ -1498,7 +1497,7 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int maxY)
     return compressedData;
 }
 
-CompressedData  compressColors(uint8_t* buffer)
+CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
 
@@ -1576,7 +1575,7 @@ struct LineDescriptor
 int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
 {
     using namespace std;
-
+    const int imageHeight = data.data.size();
     ofstream mainDataFile;
     std::string mainDataFileName = inputFileName + ".main";
     mainDataFile.open(mainDataFileName, std::ios::binary);
@@ -1700,6 +1699,7 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
 {
     using namespace std;
 
+    const int imageHeight = data.data.size();
     ofstream timingDataFile;
     std::string timingDataFileName = inputFileName + ".timings";
     timingDataFile.open(timingDataFileName, std::ios::binary);
@@ -1727,45 +1727,56 @@ int main(int argc, char** argv)
 
     ifstream fileIn;
 
-    if (argc < 2)
+    if (argc < 3)
     {
-        std::cerr << "Usage: scroll_image_compress <file_name>";
+        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name>";
         return -1;
     }
 
-    std::string inputFileName = argv[1];
-    fileIn.open(inputFileName, std::ios::binary);
-    if (!fileIn.is_open())
+    int fileCount = argc - 2;
+    int imageHeight = 192 * fileCount;
+
+    std::vector<uint8_t> buffer(fileCount * 6144);
+    std::vector<uint8_t> colorBuffer(fileCount * 768);
+
+    uint8_t* bufferPtr = buffer.data();
+    uint8_t* colorBufferPtr = colorBuffer.data();
+    
+    for (int i = 1; i <= fileCount; ++i)
     {
-        std::cerr << "Can not read source file" << std::endl;
-        return -1;
+        std::string inputFileName = argv[i];
+        fileIn.open(inputFileName, std::ios::binary);
+        if (!fileIn.is_open())
+        {
+            std::cerr << "Can not read source file " << inputFileName << std::endl;
+            return -1;
+        }
+
+        fileIn.read((char*) bufferPtr, 6144);
+        fileIn.read((char*) colorBufferPtr, 768);
+        bufferPtr += 6144;
+        colorBufferPtr += 768;
+        fileIn.close();
     }
 
-    uint8_t buffer[zxScreenSize];
-    uint8_t colorBuffer[zxScreenSize / 8];
+    const std::string outputFileName = argv[argc - 1];
 
-    fileIn.read((char*) buffer, 6144);
-    memcpy(buffer + 6144, buffer, 6144);
+    deinterlaceBuffer(buffer);
+    writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
 
-    fileIn.read((char*)colorBuffer, sizeof(colorBuffer));
-    memcpy(colorBuffer + 768, colorBuffer, 768);
-
-    deinterlaceBuffer(buffer, imageHeight);
-    writeTestBitmap(256, 192, buffer, inputFileName + ".bmp");
-
-    mirrorBuffer8(buffer, imageHeight);
-    mirrorBuffer8(colorBuffer, imageHeight / 8);
+    mirrorBuffer8(buffer.data(), imageHeight);
+    mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
     int flags = 0; // verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
-    CompressedData data = compress(flags, buffer);
+    CompressedData data = compress(flags, buffer.data(), imageHeight);
     const auto t2 = std::chrono::system_clock::now();
 
     std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
 
-    CompressedData colorData = compressColors(colorBuffer);
-    CompressedData realTimeColor = compressRealTimeColors(colorBuffer, 24);
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
+    CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight/ 8);
 
     static const int uncompressedTicks = 21 * 16 * imageHeight;
     static const int uncompressedColorTicks = uncompressedTicks / 8;
@@ -1814,21 +1825,12 @@ int main(int argc, char** argv)
     moveLoadBcFirst(data);
     moveLoadBcFirst(colorData);
 
-    serializeTimingData(data, colorData, inputFileName);
+    serializeTimingData(data, colorData, outputFileName);
 
     interleaveData(data);
 
-    // color buffer stats
-    int sameLines = 0;
-    for (int y = 0; y < 24; ++y)
-    {
-        if (sameVerticalBytes(verticalCompressionL, colorBuffer, 0, y, 24) == 32)
-            ++sameLines;
-    }
-    std::cout << "equal lines in color buffer: " << sameLines << std::endl;
-
-    int mainDataSize = serializeMainData(data, inputFileName, codeOffset);
-    serializeColorData(colorData, inputFileName, codeOffset + mainDataSize);
+    int mainDataSize = serializeMainData(data, outputFileName, codeOffset);
+    serializeColorData(colorData, outputFileName, codeOffset + mainDataSize);
     
     return 0;
 }

@@ -13,23 +13,25 @@ generated_code: equ screen_end + 1024
 
     org generated_code
 
-        INCBIN "resources/samanasuke.bin.main"
+        INCBIN "resources/compressed_data.main"
 color_code        
-        INCBIN "resources/samanasuke.bin.color"
+        INCBIN "resources/compressed_data.color"
         align	4
 descriptors_file
-        INCBIN "resources/samanasuke.bin.main_descriptor"
+        INCBIN "resources/compressed_data.main_descriptor"
 best_byte equ descriptors_file
 descriptors equ descriptors_file + 4
 
 color_descriptor
-        INCBIN "resources/samanasuke.bin.color_descriptor"
+        INCBIN "resources/compressed_data.color_descriptor"
 
 timings_data
-        INCBIN "resources/samanasuke.bin.timings"
-
+        INCBIN "resources/compressed_data.timings"
+timings_data_end
+/*
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
+*/        
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
@@ -47,13 +49,14 @@ LD_DE_XXXX_CODE equ 11h
 
 /*************** Draw 8 lines of image.  ******************/
 
+/*
 copy_image:
         ld hl, src_data
         ld de, 16384
         ld bc, 6144
         ldir
         ret
-
+*/
 copy_colors:
         ld hl, color_data
         ld de, 16384 + 6144
@@ -381,7 +384,7 @@ main:
         ld a, 1
         out 0xfe,a
 
-        call copy_image
+        //call copy_image
         call copy_colors
 	
        
@@ -407,7 +410,7 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait
 
-max_scroll_offset equ 192
+max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
         ld bc, max_scroll_offset       ; 10  ticks
         ld de, -8                      ; 10 ticks
