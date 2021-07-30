@@ -76,6 +76,13 @@ struct CompressedLine
         drawTicks += 4;
     }
 
+    void exAf()
+    {
+        data.push_back(0x08);
+        drawTicks += 4;
+        isAltAf = !isAltAf;
+    }
+
     void nop()
     {
         data.push_back(0x00);
@@ -97,6 +104,7 @@ struct CompressedLine
     ZxData data;
     int drawTicks = 0;
     bool isAltReg = false;
+    bool isAltAf = false;
     int prelineTicks = 0;
 
 };
@@ -126,6 +134,8 @@ class Register8
             return 7;
         else if (name == 'p')
             return -1; //< SP
+        else if (name == 'f')
+            return -1; //< AF
 
         assert(0);
         return 0;
@@ -234,7 +244,7 @@ public:
 
 
     template <typename T>
-    void updateToValue(CompressedLine& line, uint8_t byte, const T& registers16, const Register8& a);
+    void updateToValue(CompressedLine& line, uint8_t byte, const T& registers16);
 };
 
 class Register16
@@ -244,6 +254,11 @@ public:
     Register8 h;
     Register8 l;
     bool isAlt = false;
+
+    bool hasReg8(const Register8* reg) const
+    {
+        return &h == reg || &l == reg;
+    }
 
     Register16(const std::string& name, std::optional<uint16_t> value = std::nullopt):
         h(name[0]),
@@ -306,6 +321,12 @@ public:
         line.drawTicks += 4;
     }
 
+    void setValue(uint16_t value)
+    {
+        h.value = value >> 8;
+        l.value = (uint8_t)value;
+    }
+
     void loadXX(CompressedLine& line, uint16_t value)
     {
         h.value = value >> 8;
@@ -323,7 +344,7 @@ public:
         line.data.push_back(*h.value);
     }
 
-    void addSP(CompressedLine& line)
+    void addSP(CompressedLine& line, Register8* f = nullptr)
     {
         if (h.name != 'h' && h.name != 'i')
             assert(0);
@@ -343,6 +364,12 @@ public:
 
         line.data.push_back(0x39);
         line.drawTicks += 11;
+
+        if (f)
+        {
+
+        }
+
     }
 
     inline bool isEmpty() const
@@ -381,23 +408,34 @@ public:
         line.drawTicks += 11;
     }
 
+
     template <class T>
-    void updateToValue(CompressedLine& line, uint16_t value,
-        const T& registers, const Register8& a = Register8('a'))
+    bool updateToValueForAF(CompressedLine& line, uint16_t value,
+        const T& registers)
+    {
+        return false;
+    }
+
+    template <class T>
+    bool updateToValue(CompressedLine& line, uint16_t value,
+        const T& registers)
     {
         if (hasValue16(value))
-            return;
+            return true;
+        
+        if (h.name == 'a')
+            return updateToValueForAF(line, value, registers);
 
         const uint8_t hiByte = value >> 8;
         const uint8_t lowByte = (uint8_t) value;
 
         if (h.hasValue(hiByte))
         {
-          l.updateToValue(line, lowByte, registers, a);
+          l.updateToValue(line, lowByte, registers);
         }
         else if (l.hasValue(lowByte))
         {
-          h.updateToValue(line, hiByte, registers, a);
+          h.updateToValue(line, hiByte, registers);
         }
         else if (!isEmpty() && value16() == value + 1)
         {
@@ -416,19 +454,15 @@ public:
             {
                 if (reg16.isAlt != isAlt)
                     continue;
-                if (reg16.h.hasValue(hiByte))
+                if (reg16.h.hasValue(hiByte) && !reg16.hasReg8(regL))
                     regH = &reg16.h;
-                else if (reg16.h.hasValue(lowByte))
+                else if (reg16.h.hasValue(lowByte) && !reg16.hasReg8(regH))
                     regL = &reg16.h;
-                else if (reg16.l.hasValue(hiByte))
+                else if (reg16.l.name != 'f' && reg16.l.hasValue(hiByte) && !reg16.hasReg8(regL))
                     regH = &reg16.l;
-                else if (reg16.l.hasValue(lowByte))
+                else if (reg16.l.name != 'f' && reg16.l.hasValue(lowByte) && !reg16.hasReg8(regH))
                     regL = &reg16.l;
             }
-            if (a.hasValue(hiByte))
-                regH = &a;
-            else if (a.hasValue(lowByte))
-                regL = &a;
 
             if (regH && regL)
             {
@@ -452,6 +486,7 @@ public:
         {
             loadXX(line, value);
         }
+        return true;
     }
 
     void dec(CompressedLine& line, int repeat = 1)
@@ -508,7 +543,7 @@ public:
 };
 
 template <typename T>
-void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& registers16, const Register8& a)
+void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& registers16)
 {
     for (const auto& reg16: registers16)
     {
@@ -528,11 +563,6 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& regis
             return;
         }
     }
-    if (a.hasValue(byte))
-    {
-        loadFromReg(line, a);
-        return;
-    }
 
     if (isEmpty())
         loadX(line, byte);
@@ -547,7 +577,7 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& regis
 struct CompressedData
 {
     std::vector<CompressedLine> data;
-    Register8 a{ 'a' };
+    Register16 af{"af"};
 
 public:
     void replace(int lineNum, int count, std::vector<CompressedLine>::iterator srcData)
@@ -762,7 +792,6 @@ void compressLine(
     int maxY,
     uint8_t* buffer,
     Registers& registers,
-    const Register8& a, //< bestByte
     int y,
     int x,
     bool* success);
@@ -775,7 +804,6 @@ CompressedLine makeChoise(
     int maxY,
     uint8_t* buffer,
     Registers& registers,
-    const Register8& a, //< bestByte
     int y,
     int x,
     bool* success)
@@ -786,10 +814,14 @@ CompressedLine makeChoise(
     Register16& reg = registers[regIndex];
     if (reg.h.name != 'i' && reg.isAlt != result.isAltReg)
         result.exx();
-    reg.updateToValue(result, word, registers, a);
+    if (!reg.updateToValue(result, word, registers))
+    {
+        *success = false;
+        return result;
+    }
 
     reg.push(result);
-    compressLine(result, flags, maxY, buffer, registers, a, y, x + 2, success);
+    compressLine(result, flags, maxY, buffer, registers, y, x + 2, success);
     return result;
 }
 
@@ -805,7 +837,6 @@ void compressLine(
     int maxY,
     uint8_t* buffer,
     Registers& registers,
-    const Register8& a, //< bestByte
     int y,
     int x,
     bool* success)
@@ -839,13 +870,16 @@ void compressLine(
         {
             if (auto hl = findRegister(registers, "hl"))
             {
-                hl->updateToValue(result, -verticalRepCount, registers, a);
+                if (!result.isAltAf)
+                    ;// result.exAf();
+                hl->updateToValue(result, -verticalRepCount, registers);
                 hl->addSP(result);
                 sp.loadFromReg16(result, *hl);
                 x += verticalRepCount;
                 continue;
             }
         }
+
         if (verticalRepCount > 5 && !result.isAltReg)
         {
             if (auto de = findRegister(registers, "de"))
@@ -861,9 +895,10 @@ void compressLine(
                 continue;
             }
         }
-
+        
         // push existing 16 bit value.
         bool isChoised = false;
+
         for (auto& reg : registers)
         {
             if (result.isAltReg == reg.isAlt && reg.hasValue16(word))
@@ -877,7 +912,6 @@ void compressLine(
         if (isChoised)
             continue;
 
-
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
         {
@@ -890,7 +924,7 @@ void compressLine(
         {
             if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name == 'b')
             {
-                reg.updateToValue(result, word, registers, a);
+                reg.updateToValue(result, word, registers);
                 reg.push(result);
                 x += 2;
                 isChoised = true;
@@ -906,7 +940,7 @@ void compressLine(
         {
             Registers regCopy = registers;
             bool successChoise = false;
-            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, regCopy, a, y, x, &successChoise);
+            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, regCopy, y, x, &successChoise);
             if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
             {
                 chosedRegisters = regCopy;
@@ -922,7 +956,7 @@ void compressLine(
             {
                 Registers regCopy = registers;
                 bool successChoise = false;
-                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, regCopy, a, y, x, &successChoise);
+                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, regCopy, y, x, &successChoise);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
                 {
                     chosedRegisters = regCopy;
@@ -943,12 +977,14 @@ void compressLine(
     }
     if (result.isAltReg)
         result.exx();
+    if (result.isAltAf)
+        result.exAf();
 }
 
-std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const Register8& a, int line, int imageHeight)
+std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int line, int imageHeight)
 {
     return std::async(
-        [flags, buffer, &a, line, imageHeight]()
+        [flags, buffer, line, imageHeight]()
         {
             Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl") };
             Registers registers2 = registers1;
@@ -956,10 +992,10 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const 
             bool success;
             CompressedLine line1, line2;
             compressLine(line1, flags, imageHeight,
-                buffer, registers1, a, line, 0, &success);
+                buffer, registers1, line, 0, &success);
 
             compressLine(line2, flags | oddVerticalCompression, imageHeight,
-                buffer, registers2, a, line, 0, &success);
+                buffer, registers2, line, 0, &success);
 
             if (success && line2.data.size() < line1.data.size())
                 return line2;
@@ -969,13 +1005,13 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const 
     );
 }
 
-CompressedData compressLinesAsync(int flags, uint8_t* buffer, const Register8& a, int y, int count, int imageHeight)
+CompressedData compressLinesAsync(int flags, uint8_t* buffer, const Register16& af, int y, int count, int imageHeight)
 {
     CompressedData compressedData;
 
     std::vector<std::future<CompressedLine>> compressors(count);
     for (int i = 0; i < count; ++i)
-        compressors[i] = compressLineAsync(flags, buffer, a, y++, imageHeight);
+        compressors[i] = compressLineAsync(flags, buffer, y++, imageHeight);
 
     for (auto& compressor: compressors)
         compressedData.data.push_back(compressor.get());
@@ -990,21 +1026,38 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
     for (int i = 0; i < 32 * imageHeight; ++i)
         ++bytesCount[buffer[i]];
 
-    Register8 a('a');
+    Register16 af("af");
     int bestCounter = 0;
     for (int i = 0; i < 256; ++i)
     {
         if (bytesCount[i] > bestCounter)
         {
-            a.value = (uint8_t)i;
+            af.h.value = (uint8_t)i;
             bestCounter = bytesCount[i];
         }
     }
 
-    std::cout << "use reg A = " << (int) *a.value << std::endl;
+    std::vector<int> wordsCount(65536);
+    uint16_t* buffer16 = (uint16_t*)buffer;
+    for (int i = 0; i < 16 * imageHeight; ++i)
+        ++wordsCount[buffer16[i]];
 
-    CompressedData result = compressLinesAsync(flags, buffer, a, 0, imageHeight, imageHeight);
-    result.a = a;
+#if 0
+    int bestWordCounter = 0;
+    for (int i = 0; i < 65536; ++i)
+    {
+        if (wordsCount[i] > bestWordCounter)
+        {
+            af.setValue((uint16_t) i);
+            bestWordCounter = wordsCount[i];
+        }
+    }
+#endif
+    
+    std::cout << "best A = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
+    af.reset();
+
+    CompressedData result = compressLinesAsync(flags, buffer, af, 0, imageHeight, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
@@ -1025,13 +1078,13 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
                 ++count;
 
             inversBlock(buffer, x, y);
-            auto candidateLeft = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
+            auto candidateLeft = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
 
             inversBlock(buffer, x+1, y);
-            auto candidateBoth = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
+            auto candidateBoth = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
 
             inversBlock(buffer, x, y);
-            auto candidateRight = compressLinesAsync(flags, buffer, a, lineNum, count, imageHeight);
+            auto candidateRight = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
             inversBlock(buffer, x + 1, y);
 
             const int resultTicks = result.ticks(lineNum, count);
@@ -1060,7 +1113,6 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
         }
     }
 
-    result.a = a;
     return result;
 }
 
@@ -1309,16 +1361,16 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
 
-    Register8 a('a');
+    Register16 af("af");
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        Registers registers = { Register16("bc"), Register16("de"), Register16("bc'")};
+        Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
 
         bool success;
         CompressedLine line;
         compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
-            buffer, registers, a, y, 0, &success);
+            buffer, registers, y, 0, &success);
         compressedData.data.push_back(line);
     }
 
@@ -1431,7 +1483,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     }
 
     DescriptorsHeader descriptorHeader;
-    descriptorHeader.a = *data.a.value;
+    //descriptorHeader.a = *data.af;
     lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
     for (const auto& descriptor : descriptors)
         lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
