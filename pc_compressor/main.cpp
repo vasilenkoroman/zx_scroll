@@ -950,7 +950,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const 
     return std::async(
         [flags, buffer, &a, line, imageHeight]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'") };
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl") };
             Registers registers2 = registers1;
 
             bool success;
@@ -986,7 +986,7 @@ CompressedData compressLinesAsync(int flags, uint8_t* buffer, const Register8& a
 CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
 {
     // Detect the most common byte in image
-    std::vector<uint8_t> bytesCount(256);
+    std::vector<int> bytesCount(256);
     for (int i = 0; i < 32 * imageHeight; ++i)
         ++bytesCount[buffer[i]];
 
