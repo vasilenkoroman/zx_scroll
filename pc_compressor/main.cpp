@@ -101,9 +101,8 @@ struct CompressedLine
 
 };
 
-static const int registersCount = 3;
 class Register16;
-using Registers = std::array<Register16, registersCount>;
+using Registers = std::array<Register16, 3>;
 
 class Register8
 {
@@ -233,28 +232,9 @@ public:
         line.drawTicks += 8;
     }
 
-    void updateToValue(CompressedLine& line, uint8_t byte, const std::vector<Register8>& registers)
-    {
-        for (const auto& reg: registers)
-        {
-            if (reg.hasValue(byte))
-            {
-                loadFromReg(line, reg);
-                return;
-            }
-        }
 
-        if (isEmpty())
-            loadX(line, byte);
-        else if (*value == byte - 1)
-            incValue(line);
-        else if (*value == byte + 1)
-            decValue(line);
-        else
-            loadX(line, byte);
-    }
-
-    void updateToValue(CompressedLine& line, uint8_t byte, const Registers& registers16, const Register8& a);
+    template <typename T>
+    void updateToValue(CompressedLine& line, uint8_t byte, const T& registers16, const Register8& a);
 };
 
 class Register16
@@ -401,8 +381,9 @@ public:
         line.drawTicks += 11;
     }
 
+    template <class T>
     void updateToValue(CompressedLine& line, uint16_t value,
-        const Registers& registers, const Register8& a = Register8('a'))
+        const T& registers, const Register8& a = Register8('a'))
     {
         if (hasValue16(value))
             return;
@@ -526,7 +507,8 @@ public:
     }
 };
 
-void Register8::updateToValue(CompressedLine& line, uint8_t byte, const Registers& registers16, const Register8& a)
+template <typename T>
+void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& registers16, const Register8& a)
 {
     for (const auto& reg16: registers16)
     {
@@ -773,164 +755,6 @@ Register16* findRegister(Registers& registers, const std::string& name)
     return nullptr;
 }
 
-#if 0
-
-Register16* choiseRegister(
-    const std::multimap<int, uint16_t>& wordFrequency,
-    uint8_t* buffer,
-    int x, int y,
-    Registers& registers,
-    std::function<bool(const Register16&)> filter = nullptr)
-{
-    uint16_t* buffer16 = (uint16_t*)(buffer + y * 32 + x);
-    uint16_t word = *buffer16;
-
-    auto itr = wordFrequency.rbegin();
-    for (int i = 0; i < registers.size() && itr != wordFrequency.rend(); ++i, ++itr)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-
-        if (word == itr->second)
-            return &registers[i];
-    }
-
-    for (int i = registers.size() - 1; i >= 0; --i)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-        if (registers[i].isEmpty())
-            return &registers[i];
-    }
-
-    for (int i = registers.size() - 1; i >= 0; --i)
-    {
-        if (filter && !filter(registers[i]))
-            continue;
-        return &registers[i];
-    }
-    return nullptr;
-}
-
-
-void compressLine(
-    CompressedLine& result,
-    int flags,
-    int maxY,
-    uint8_t* buffer,
-    Registers& registers,
-    const Register8& a, //< bestByte
-    int y, 
-    int unused,
-    bool* success)
-{
-    Register16 sp("sp");
-    if (!(flags & interlineRegisters))
-    {
-        for (auto& reg : registers)
-            reg.reset();
-    }
-
-    uint16_t* buffer16 = (uint16_t*)(buffer + y * 32);
-    std::map<uint16_t, int> uniqueWords;
-    for (int x = 0; x < 32; x += 2)
-    {
-        if (sameVerticalBytes(flags, buffer, x, y, maxY) < 2)
-            uniqueWords[*buffer16]++;
-        buffer16++;
-    }
-    std::multimap<int, uint16_t> wordFrequency;
-    for (const auto& [word, counter] : uniqueWords)
-        wordFrequency.emplace(counter, word);
-
-
-    *success = true;
-    for (int x = 0; x < 32; x += 2)
-    {
-        int verticalRepCount = sameVerticalBytes(flags, buffer, x, y, maxY);
-        if (!(flags & oddVerticalCompression))
-            verticalRepCount &= ~1;
-
-        if (x == 31 && !verticalRepCount)
-        {
-            *success = false;
-            return;
-        }
-
-        const uint8_t lowByte = buffer[y * 32 + x];
-        const uint8_t highByte = buffer[y * 32 + x + 1];
-        const uint16_t word = lowByte + (uint16_t)highByte * 256;
-
-        bool isFilled = false;
-
-        // Decrement stack if line has same value from previous step (vertical compression)
-        // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
-        if (verticalRepCount > 4)
-        {
-            if (auto hl = findRegister(registers, "hl"))
-            {
-                hl->updateToValue(result, -verticalRepCount, registers, a);
-                hl->addSP(result);
-                sp.load(result, *hl);
-                x += verticalRepCount - 2;
-                isFilled = true;
-            }
-        }
-        if (isFilled)
-            continue;
-
-        if (verticalRepCount > 2)
-        {
-            sp.dec(result, verticalRepCount);
-            x += verticalRepCount - 2;
-            isFilled = true;
-        }
-        if (isFilled)
-            continue;
-
-        // push existing 16 bit value.
-        for (auto& reg : registers)
-        {
-            if (reg.hasValue16(word))
-            {
-                reg.push(result);
-                isFilled = true;
-                break;
-            }
-        }
-        if (isFilled)
-            continue;
-        
-        // Decrement stack if line has same value from previous step (vertical compression)
-        if (verticalRepCount > 0)
-        {
-            sp.dec(result, verticalRepCount);
-            x += verticalRepCount - 2;
-            isFilled = true;
-        }
-        if (isFilled)
-            continue;
-
-        // Try to compine 8-bit registers to create required 16 bit value
-        Register16* reg = nullptr;
-        //if (result.uniqueWords.size() > registers.size())
-        {
-            reg = choiseRegister(wordFrequency, buffer, x, y, registers,
-                [highByte, lowByte](const Register16& reg)
-                {
-                    return reg.hasValue8(highByte) || reg.hasValue8(lowByte);
-                });
-        }
-        if (!reg)
-            reg = choiseRegister(wordFrequency, buffer, x, y, registers);
-
-        reg->updateToValue(result, word, registers, a);
-        reg->push(result);
-    }
-
-}
-
-#else
 
 void compressLine(
     CompressedLine& result,
@@ -1062,19 +886,6 @@ void compressLine(
             continue;
         }
 
-#if 0
-        for (auto& reg: registers)
-        {
-            if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name != 'i')
-            {
-                reg.updateToValue(result, word, registers, a);
-                reg.push(result);
-                x += 2;
-                isChoised = true;
-                break;
-            }
-        }
-#else
         for (auto& reg : registers)
         {
             if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name == 'b')
@@ -1086,7 +897,6 @@ void compressLine(
                 break;
             }
         }
-#endif
         if (isChoised)
             continue;
 
@@ -1135,14 +945,12 @@ void compressLine(
         result.exx();
 }
 
-#endif
-
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, const Register8& a, int line, int imageHeight)
 {
     return std::async(
         [flags, buffer, &a, line, imageHeight]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("ix")};
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("bc'") };
             Registers registers2 = registers1;
 
             bool success;
@@ -1274,8 +1082,8 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     CompressedLine line;
 
 
-    Registers registers = {Register16("bc"), Register16("de"), Register16("hl")};
-    Registers registers1 = {Register16("bc'"), Register16("de'"), Register16("hl'")};
+    std::vector<Register16> registers = {Register16("bc"), Register16("de"), Register16("hl")};
+    std::vector<Register16> registers1 = {Register16("bc'"), Register16("de'"), Register16("hl'")};
 
     Register16& bc(registers[0]);
     Register16& de(registers[1]);
@@ -1324,12 +1132,12 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
         };
 
     auto choiseRegister =
-        [&](Register16& reg, int number, Registers& registers) -> Register16*
+        [&](Register16& reg, int number, std::vector<Register16>& registers) -> Register16*
         {
             if (nextLine && buffer[number] == nextLine[number])
                 return nullptr;
             const auto word = buffer[number];
-            for (auto& reg16 : registers)
+            for (auto& reg16: registers)
             {
                 if (reg16.hasValue16(word))
                     return &reg16;
@@ -1505,10 +1313,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        Register16 bc("bc");
-        Register16 de("de");
-        Register16 hl("bc'");
-        Registers registers = { bc, de, hl };
+        Registers registers = { Register16("bc"), Register16("de"), Register16("bc'")};
 
         bool success;
         CompressedLine line;
@@ -1767,7 +1572,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = 0; // verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), imageHeight);

@@ -5,8 +5,7 @@
 
 screen_addr:    equ 16384
 screen_size:    equ 1024 * 6 + 768
-screen_end:     equ screen_addr + screen_size
-//generated_code: equ 0x5b00 ; screen_end + 768
+screen_end:     equ 5b00h
 generated_code: equ screen_end + 1024
 
 /*************** Image data. ******************/
@@ -186,7 +185,6 @@ draw_image_and_color
         add hl, bc                                      ; 11
 
         ; draw image (top 3-th part)
-        ld a, (best_byte)
         ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
@@ -197,11 +195,14 @@ draw_image_and_color
         ; draw colors (top 3-th part)
         ; hl = bc/8 * sizeof(descriptor)
         ld hl, (stack_bottom + 2)                       ; 16
+
+        ex af,af'
         ld a, l
         srl h
         rra
         and ~3
         ld l, a
+        ex af,af'
 
         ld bc, color_descriptor + 4 * 16                ; 10
         add hl, bc                                      ; 11
@@ -215,7 +216,6 @@ draw_image_and_color
 
         ; restore image descriptor
         ld hl, (stack_bottom + 4)                       ; 16
-        ld a, (best_byte)
 
         ; draw image (middle and bottom 3-th)
         ld de, (64 - 8 - 128) * 4                        ; 10
@@ -411,9 +411,10 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
         wait_ticks ticks_to_wait
 
 max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
+scroll_step     equ 1
 
         ld bc, max_scroll_offset       ; 10  ticks
-        ld de, -8                      ; 10 ticks
+        ld de, -scroll_step            ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -421,6 +422,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         push de                         ; 11 ticks
         push bc                         ; 11 ticks
 
+        ld a, (best_byte)
         call draw_image_and_color       ; ~55000 ticks
 
         pop bc                          ; 10 ticks
@@ -438,7 +440,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         inc hl
         ld h, (hl)
         ld l, a
-        ld de, -4144 ;  // extra delay
+        ld de, -4139 ;  // extra delay
         add hl, de
 
         call delay
@@ -464,11 +466,11 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         jp c, .upper_limit_reached      ; 10 ticks
         jp .common_branch               ; 10 ticks
 .zero_reached:
-        ld de, 8                        ; 10 ticks
+        ld de, scroll_step              ; 10 ticks
         wait_ticks 42
         jp .common_branch               ; 10 ticks
 .upper_limit_reached:
-        ld de, -8                        ; 10 ticks
+        ld de, -scroll_step             ; 10 ticks
 .common_branch:
 
 /*
@@ -493,3 +495,4 @@ data_segment_end:
 /*************** Commands to SJ asm ******************/
 
     SAVESNA "build/draw_image.sna", main
+    savetap "build/draw_image.tap", main
