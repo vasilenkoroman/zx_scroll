@@ -110,7 +110,7 @@ struct CompressedLine
 };
 
 class Register16;
-using Registers = std::array<Register16, 4>;
+using Registers = std::array<Register16, 3>;
 
 class Register8
 {
@@ -1143,7 +1143,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
     return std::async(
         [flags, buffer, line, imageHeight]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl")};
             Registers registers2 = registers1;
 
             bool success;
@@ -1162,16 +1162,59 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
     );
 }
 
-CompressedData compressLinesAsync(int flags, uint8_t* buffer, int y, int count, int imageHeight)
+std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, const std::vector<int>& lines, int imageHeight)
+{
+    return std::async(
+        [flags, buffer, lines, imageHeight]()
+        {
+            Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
+            std::vector<CompressedLine> result;
+
+            for (const auto line : lines)
+            {
+                bool success;
+                CompressedLine line1, line2;
+                Registers registers1 = registers;
+                Registers registers2 = registers;
+                compressLine(line1, flags, imageHeight, buffer, registers1, line, 0, &success);
+                compressLine(line2, flags | oddVerticalCompression, imageHeight, buffer, registers2, line, 0, &success);
+
+                if (success && line2.data.size() < line1.data.size())
+                {
+                    result.push_back(line2);
+                    if (flags & interlineRegisters)
+                        registers = registers2;
+                }
+                else
+                {
+                    result.push_back(line1);
+                    if (flags & interlineRegisters)
+                        registers = registers1;
+                }
+            }
+            return result;
+        }
+    );
+}
+
+CompressedData compressImageAsync(int flags, uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
 
-    std::vector<std::future<CompressedLine>> compressors(count);
-    for (int i = 0; i < count; ++i)
-        compressors[i] = compressLineAsync(flags, buffer, y++, imageHeight);
-
-    for (auto& compressor: compressors)
-        compressedData.data.push_back(compressor.get());
+    std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
+    for (int i = 0; i < 8; ++i)
+    {
+        std::vector<int > lines;
+        for (int y = 0; y < imageHeight; y += 8)
+            lines.push_back(y + i);
+        compressors[i] = compressLinesAsync(flags, buffer, lines, imageHeight);
+    }
+    for (auto& compressor : compressors)
+    {
+        auto compressedLines = compressor.get();
+        compressedData.data.insert(compressedData.data.end(), 
+            compressedLines.begin(), compressedLines.end());
+    }
 
     return compressedData;
 }
@@ -1214,10 +1257,12 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
     std::cout << "best A = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
     af.reset();
 
-    CompressedData result = compressLinesAsync(flags, buffer, 0, imageHeight, imageHeight);
+    CompressedData result = compressImageAsync(flags, buffer, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
+
+#if 0
     for (int y = 0; y < imageHeight / 8; ++y)
     {
         for (int x = 0; x < 32; x += 2)
@@ -1269,6 +1314,7 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
             }
         }
     }
+#endif
 
     return result;
 }
@@ -1522,7 +1568,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        Registers registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+        Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
 
         bool success;
         CompressedLine line;
@@ -1781,7 +1827,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionH | verticalCompressionL;// | inverseColors; // | interlineRegisters
+    int flags = verticalCompressionL | interlineRegisters;// | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), imageHeight);
@@ -1841,7 +1887,7 @@ int main(int argc, char** argv)
 
     serializeTimingData(data, colorData, outputFileName);
 
-    interleaveData(data);
+    //interleaveData(data);
 
     int mainDataSize = serializeMainData(data, outputFileName, codeOffset);
     serializeColorData(colorData, outputFileName, codeOffset + mainDataSize);
