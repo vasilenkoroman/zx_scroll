@@ -110,7 +110,7 @@ struct CompressedLine
 };
 
 class Register16;
-using Registers = std::array<Register16, 3>;
+using Registers = std::array<Register16, 4>;
 
 class Register8
 {
@@ -189,9 +189,54 @@ public:
         line.data.push_back(byte);
     }
 
+    void scf(CompressedLine& line)
+    {
+        assert(name = 'f');
+        line.data.push_back(0x37);
+        line.drawTicks += 4;
+    }
+
+    void cpl(CompressedLine& line)
+    {
+        assert(name = 'a');
+        line.data.push_back(0x2f);
+        line.drawTicks += 4;
+        value = ~(*value);
+    }
+
+    void addReg(CompressedLine& line, const Register8& reg)
+    {
+        assert(name == 'a');
+        line.drawTicks += 4;
+        line.data.push_back(0x80 + reg.reg8Index);
+    }
+
+    void xorReg(CompressedLine& line, const Register8& reg)
+    {
+        assert(name == 'a');
+        line.drawTicks += 4;
+        line.data.push_back(0xa8 + reg.reg8Index);
+    }
+
+    void andReg(CompressedLine& line, const Register8& reg)
+    {
+        assert(name == 'a');
+        line.drawTicks += 4;
+        line.data.push_back(0xa0 + reg.reg8Index);
+    }
+
+    void subReg(CompressedLine& line, const Register8& reg)
+    {
+        assert(name == 'a');
+        line.drawTicks += 4;
+        line.data.push_back(0x90 + reg.reg8Index);
+    }
+
     void loadFromReg(CompressedLine& line, const Register8& reg)
     {
         value = reg.value;
+        if (&reg == this)
+            return;
 
         if (indexRegPrefix)
         {
@@ -242,9 +287,8 @@ public:
         line.drawTicks += 8;
     }
 
-
     template <typename T>
-    void updateToValue(CompressedLine& line, uint8_t byte, const T& registers16);
+    void updateToValue(CompressedLine& line, uint8_t byte, T& registers16);
 };
 
 class Register16
@@ -408,17 +452,107 @@ public:
         line.drawTicks += 11;
     }
 
-
     template <class T>
-    bool updateToValueForAF(CompressedLine& line, uint16_t value,
-        const T& registers)
+    bool updateToValueForAF(CompressedLine& line, uint16_t value, T& registers)
     {
+        auto& a = h;
+        auto& f = l;
+
+        switch (value)
+        {
+            case 0x0042:
+                a.subReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0045:
+                a.xorReg(line, a);
+                setValue(value);
+                return true;
+        }
+
+        const uint8_t hiByte = value >> 8;
+        const uint8_t lowByte = (uint8_t)value;
+
+        if (f.hasValue(lowByte))
+        {
+            a.loadX(line, hiByte);
+            return true;
+        }
+
+        switch (value)
+        {
+            case 0x0040:
+                a.xorReg(line, a);
+                a.addReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0041:
+                a.subReg(line, a);
+                f.scf(line);
+                setValue(value);
+                return true;
+            case 0x0044:
+                a.xorReg(line, a);
+                f.scf(line);
+                setValue(value);
+                return true;
+            case 0x0054:
+                a.xorReg(line, a);
+                a.andReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0100:
+                a.xorReg(line, a);
+                a.incValue(line);
+                setValue(value);
+                return true;
+            case 0xffba:
+                a.xorReg(line, a);
+                a.decValue(line);
+                setValue(value);
+                return true;
+            case 0xff7e:
+                a.xorReg(line, a);
+                a.cpl(line);
+                setValue(value);
+                return true;
+            case 0xff7a:
+                a.subReg(line, a);
+                a.cpl(line);
+                setValue(value);
+                return true;
+        }
+
+        if (lowByte == 0x44 || lowByte == 0x42)
+        {
+            const Register8* reg = nullptr;
+            for (const auto& reg16: registers)
+            {
+                if (reg16.l.name == 'f')
+                    continue;
+                if (reg16.h.hasValue(hiByte))
+                    reg = &reg16.h;
+                else if (reg16.l.hasValue(hiByte))
+                    reg = &reg16.l;
+            }
+            if (reg)
+            {
+                if (lowByte == 0x44)
+                    a.xorReg(line, h);
+                else
+                    a.subReg(line, h);
+                if (a.value != hiByte)
+                    h.loadFromReg(line, *reg);
+                setValue(value);
+                return true;
+            }
+        }
+
         return false;
     }
 
-    template <class T>
-    bool updateToValue(CompressedLine& line, uint16_t value,
-        const T& registers)
+    template <typename T>
+    bool updateToValue(CompressedLine& line, uint16_t value, T& registers)
     {
         if (hasValue16(value))
             return true;
@@ -543,7 +677,31 @@ public:
 };
 
 template <typename T>
-void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& registers16)
+Register16* findRegister(T& registers, const std::string& name)
+{
+    for (auto& reg : registers)
+    {
+        if (reg.name() == name)
+            return &reg;
+    }
+    return nullptr;
+}
+
+template <typename T>
+Register8* findRegister8(T& registers, const char& name)
+{
+    for (auto& reg : registers)
+    {
+        if (reg.h.name == name)
+            return &reg.h;
+        else if (reg.l.name == name)
+            return &reg.l;
+    }
+    return nullptr;
+}
+
+template <typename T>
+void Register8::updateToValue(CompressedLine& line, uint8_t byte, T& registers16)
 {
     for (const auto& reg16: registers16)
     {
@@ -557,7 +715,7 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& regis
             loadFromReg(line, reg16.h);
             return;
         }
-        else if (reg16.l.hasValue(byte))
+        else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
         {
             loadFromReg(line, reg16.l);
             return;
@@ -567,9 +725,17 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, const T& regis
     if (isEmpty())
         loadX(line, byte);
     else if (*value == byte - 1)
+    {
         incValue(line);
+        if (auto f = findRegister8(registers16, 'f'))
+            f->value.reset();
+    }
     else if (*value == byte + 1)
+    {
         decValue(line);
+        if (auto f = findRegister8(registers16, 'f'))
+            f->value.reset();
+    }
     else
         loadX(line, byte);
 }
@@ -775,17 +941,6 @@ int sameVerticalBytesOnRow(uint8_t* buffer, int y)
     return result;
 }
 
-Register16* findRegister(Registers& registers, const std::string& name)
-{
-    for (auto& reg: registers)
-    {
-        if (reg.name() == name)
-            return &reg;
-    }
-    return nullptr;
-}
-
-
 void compressLine(
     CompressedLine& result,
     int flags,
@@ -874,6 +1029,8 @@ void compressLine(
                     ;// result.exAf();
                 hl->updateToValue(result, -verticalRepCount, registers);
                 hl->addSP(result);
+                if (auto f = findRegister8(registers, 'f'))
+                    f->value.reset();
                 sp.loadFromReg16(result, *hl);
                 x += verticalRepCount;
                 continue;
@@ -986,7 +1143,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
     return std::async(
         [flags, buffer, line, imageHeight]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl") };
+            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
             Registers registers2 = registers1;
 
             bool success;
@@ -1005,7 +1162,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
     );
 }
 
-CompressedData compressLinesAsync(int flags, uint8_t* buffer, const Register16& af, int y, int count, int imageHeight)
+CompressedData compressLinesAsync(int flags, uint8_t* buffer, int y, int count, int imageHeight)
 {
     CompressedData compressedData;
 
@@ -1057,7 +1214,7 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
     std::cout << "best A = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
     af.reset();
 
-    CompressedData result = compressLinesAsync(flags, buffer, af, 0, imageHeight, imageHeight);
+    CompressedData result = compressLinesAsync(flags, buffer, 0, imageHeight, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
@@ -1078,13 +1235,13 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
                 ++count;
 
             inversBlock(buffer, x, y);
-            auto candidateLeft = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
+            auto candidateLeft = compressLinesAsync(flags, buffer, lineNum, count, imageHeight);
 
             inversBlock(buffer, x+1, y);
-            auto candidateBoth = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
+            auto candidateBoth = compressLinesAsync(flags, buffer, lineNum, count, imageHeight);
 
             inversBlock(buffer, x, y);
-            auto candidateRight = compressLinesAsync(flags, buffer, af, lineNum, count, imageHeight);
+            auto candidateRight = compressLinesAsync(flags, buffer, lineNum, count, imageHeight);
             inversBlock(buffer, x + 1, y);
 
             const int resultTicks = result.ticks(lineNum, count);
@@ -1365,7 +1522,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
+        Registers registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
 
         bool success;
         CompressedLine line;
