@@ -112,6 +112,35 @@ struct CompressedLine
 class Register16;
 using Registers = std::array<Register16, 3>;
 
+
+bool isHiddenData(uint8_t* colorBuffer, int x, int y)
+{
+    const uint8_t colorData = colorBuffer[x + y * 32];
+    return (colorData & 7) == ((colorData >> 3) & 7);
+}
+
+int removeInvisibleData(uint8_t* buffer, uint8_t* colorBuffer, int replaceTo, int imageHeight)
+{
+    int result = 0;
+    for (int y = 0; y < imageHeight / 8; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            if (isHiddenData(colorBuffer, x, y))
+            {
+                for (int i = 0; i < 8; ++i)
+                {
+                    int line = y * 8 + i;
+                    buffer[line * 32 + x] = replaceTo;
+                }
+                ++result;
+            }
+        }
+    }
+    return result;
+}
+
+
 class Register8
 {
     int calculateIndex() const
@@ -877,7 +906,7 @@ void inversBlock(uint8_t* buffer, int x, int y)
     }
 }
 
-int sameVerticalBytes(int flags, uint8_t* buffer, int x, int y, int maxY)
+int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, int y, int maxY)
 {
     int result = 0;
     if (!(flags & (verticalCompressionL | verticalCompressionH)))
@@ -887,7 +916,11 @@ int sameVerticalBytes(int flags, uint8_t* buffer, int x, int y, int maxY)
     for (; x < 32; ++x)
     {
         uint8_t currentByte = *ptr;
-        if (y > 0 && (flags & verticalCompressionH))
+        if (isHiddenData(colorBuffer, x, y / 8))
+        {
+            ;
+        }
+        else if (y > 0 && (flags & verticalCompressionH))
         {
             uint8_t upperByte = *(ptr-32);
             if (upperByte != currentByte)
@@ -946,6 +979,7 @@ void compressLine(
     int flags,
     int maxY,
     uint8_t* buffer,
+    uint8_t* colorBuffer,
     Registers& registers,
     int y,
     int x,
@@ -958,6 +992,7 @@ CompressedLine makeChoise(
     int flags,
     int maxY,
     uint8_t* buffer,
+    uint8_t* colorBuffer,
     Registers& registers,
     int y,
     int x,
@@ -976,7 +1011,7 @@ CompressedLine makeChoise(
     }
 
     reg.push(result);
-    compressLine(result, flags, maxY, buffer, registers, y, x + 2, success);
+    compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
     return result;
 }
 
@@ -991,6 +1026,7 @@ void compressLine(
     int flags,
     int maxY,
     uint8_t* buffer,
+    uint8_t* colorBuffer,
     Registers& registers,
     int y,
     int x,
@@ -1002,7 +1038,7 @@ void compressLine(
 
     while (x < 32)
     {
-        int verticalRepCount =  sameVerticalBytes(flags, buffer, x, y, maxY);
+        int verticalRepCount =  sameVerticalBytes(flags, buffer, colorBuffer, x, y, maxY);
         if (!(flags & oddVerticalCompression))
             verticalRepCount &= ~1;
 
@@ -1097,8 +1133,9 @@ void compressLine(
         {
             Registers regCopy = registers;
             bool successChoise = false;
-            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, regCopy, y, x, &successChoise);
-            if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
+            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, colorBuffer,
+                regCopy, y, x, &successChoise);
+            if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
             {
                 chosedRegisters = regCopy;
                 choisedLine = newLine;
@@ -1113,7 +1150,8 @@ void compressLine(
             {
                 Registers regCopy = registers;
                 bool successChoise = false;
-                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, regCopy, y, x, &successChoise);
+                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, colorBuffer,
+                    regCopy, y, x, &successChoise);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
                 {
                     chosedRegisters = regCopy;
@@ -1138,10 +1176,10 @@ void compressLine(
         result.exAf();
 }
 
-std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int line, int imageHeight)
+std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
 {
     return std::async(
-        [flags, buffer, line, imageHeight]()
+        [flags, buffer, colorBuffer, line, imageHeight]()
         {
             Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl")};
             Registers registers2 = registers1;
@@ -1149,10 +1187,10 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
             bool success;
             CompressedLine line1, line2;
             compressLine(line1, flags, imageHeight,
-                buffer, registers1, line, 0, &success);
+                buffer, colorBuffer, registers1, line, 0, &success);
 
             compressLine(line2, flags | oddVerticalCompression, imageHeight,
-                buffer, registers2, line, 0, &success);
+                buffer, colorBuffer, registers2, line, 0, &success);
 
             if (success && line2.data.size() < line1.data.size())
                 return line2;
@@ -1162,10 +1200,11 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, int li
     );
 }
 
-std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, const std::vector<int>& lines, int imageHeight)
+std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, 
+    const std::vector<int>& lines, int imageHeight)
 {
     return std::async(
-        [flags, buffer, lines, imageHeight]()
+        [flags, buffer, colorBuffer, lines, imageHeight]()
         {
             Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
@@ -1176,8 +1215,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* 
                 CompressedLine line1, line2;
                 Registers registers1 = registers;
                 Registers registers2 = registers;
-                compressLine(line1, flags, imageHeight, buffer, registers1, line, 0, &success);
-                compressLine(line2, flags | oddVerticalCompression, imageHeight, buffer, registers2, line, 0, &success);
+                compressLine(line1, flags, imageHeight, buffer, colorBuffer, registers1, line, 0, &success);
+                compressLine(line2, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, 0, &success);
 
                 if (success && line2.data.size() < line1.data.size())
                 {
@@ -1197,7 +1236,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* 
     );
 }
 
-CompressedData compressImageAsync(int flags, uint8_t* buffer, int imageHeight)
+CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     CompressedData compressedData;
 
@@ -1207,7 +1246,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, int imageHeight)
         std::vector<int > lines;
         for (int y = 0; y < imageHeight; y += 8)
             lines.push_back(y + i);
-        compressors[i] = compressLinesAsync(flags, buffer, lines, imageHeight);
+        compressors[i] = compressLinesAsync(flags, buffer, colorBuffer, lines, imageHeight);
     }
     for (auto& compressor : compressors)
     {
@@ -1219,20 +1258,21 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, int imageHeight)
     return compressedData;
 }
 
-CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
+CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     // Detect the most common byte in image
     std::vector<int> bytesCount(256);
     for (int i = 0; i < 32 * imageHeight; ++i)
         ++bytesCount[buffer[i]];
 
+    Register8 a('a');
     Register16 af("af");
     int bestCounter = 0;
     for (int i = 0; i < 256; ++i)
     {
         if (bytesCount[i] > bestCounter)
         {
-            af.h.value = (uint8_t)i;
+            a.value = (uint8_t)i;
             bestCounter = bytesCount[i];
         }
     }
@@ -1242,7 +1282,6 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
     for (int i = 0; i < 16 * imageHeight; ++i)
         ++wordsCount[buffer16[i]];
 
-#if 0
     int bestWordCounter = 0;
     for (int i = 0; i < 65536; ++i)
     {
@@ -1252,12 +1291,13 @@ CompressedData compress(int flags, uint8_t* buffer, int imageHeight)
             bestWordCounter = wordsCount[i];
         }
     }
-#endif
     
-    std::cout << "best A = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
-    af.reset();
+    std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
 
-    CompressedData result = compressImageAsync(flags, buffer, imageHeight);
+    int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
+    std::cout << "removed invisible color blocks = " << removedColors << std::endl;
+
+    CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
@@ -1573,7 +1613,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
         bool success;
         CompressedLine line;
         compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
-            buffer, registers, y, 0, &success);
+            buffer, buffer, registers, y, 0, &success);
         compressedData.data.push_back(line);
     }
 
@@ -1830,7 +1870,7 @@ int main(int argc, char** argv)
     int flags = verticalCompressionL | interlineRegisters;// | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
-    CompressedData data = compress(flags, buffer.data(), imageHeight);
+    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
     const auto t2 = std::chrono::system_clock::now();
 
     std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
