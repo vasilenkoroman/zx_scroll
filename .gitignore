@@ -1,4 +1,7 @@
 pc_compressor/build/
+pc_compressor/x64/
+pc_compressor/release/
+pc_compressor/debug/
 pc_compressor/*.user
 zx_scroller/build/
 pc_compressor/.vs 
