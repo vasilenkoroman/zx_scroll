@@ -1003,13 +1003,10 @@ const int gapRecordSize = 7;
 const int gapSize = gapRecordSize * 4;
 const int nextBankLineOffset = -64 + 8 + 1;
 
-uint16_t getLineOffset(const CompressedData& data, int line)
-{
-    int gapsBeforeLine = line / 4 + 1;
-    return data.size(0, line) + gapsBeforeLine * gapSize;
-}
-
-void resolveJumpToNextBankInGap(std::vector<uint8_t>& serializedData, const CompressedData& data)
+void resolveJumpToNextBankInGap(
+    std::vector<uint8_t>& serializedData, 
+    const CompressedData& data,
+    std::vector<LineDescriptor> descriptors)
 {
     // resolve JP to the next bank in Gaps
 
@@ -1019,7 +1016,7 @@ void resolveJumpToNextBankInGap(std::vector<uint8_t>& serializedData, const Comp
             if (lineTo < 0)
                 lineTo += data.data.size();
             uint16_t* jpXX = (uint16_t*)(recordPtr + 3);
-            *jpXX = getLineOffset(data, lineTo) + codeOffset;
+            *jpXX = descriptors[lineTo].addressBegin;
         };
 
     uint8_t* gapPtr = serializedData.data();
@@ -1046,19 +1043,22 @@ void resolveJumpToNextBankInGap(std::vector<uint8_t>& serializedData, const Comp
     update(line - 2, gapPtr + 7);
 }
 
-uint16_t getGapOffsetForLine(const CompressedData& data, int line)
+uint16_t getGapOffsetForLine(std::vector<int> lineOffsetWithPreambula, int line)
 {
     int gapNum = (line + 2) / 4;
     int linesBeforeGap = gapNum * 4;
-    return gapNum * gapSize + data.size(0, linesBeforeGap);
+    return lineOffsetWithPreambula[linesBeforeGap] - gapSize;
 }
 
-void resolveRelativeJumpToGap(std::vector<uint8_t>& serializedData, const CompressedData& data)
+void resolveRelativeJumpToGap(
+    std::vector<uint8_t>& serializedData, 
+    const CompressedData& data,
+    std::vector<int> lineOffsetWithPreambula)
 {
     const int imageHeight = data.data.size();
     for (int line = 0; line < imageHeight; ++line)
     {
-        int gapOffset = getGapOffsetForLine(data, line);
+        int gapOffset = getGapOffsetForLine(lineOffsetWithPreambula, line);
         int gapRecordNum = 0;
         switch (line % 4)
         {
@@ -1077,19 +1077,22 @@ void resolveRelativeJumpToGap(std::vector<uint8_t>& serializedData, const Compre
         }
         gapOffset += gapRecordNum * gapRecordSize;
 
-        int lineOffset = getLineOffset(data, line);
+        int lineOffset = lineOffsetWithPreambula[line];
+
         if (line % 4 == 3)
         {
             // JP command instead of JR here
             int jpCommandOffset = lineOffset + data.data[line].data.size() - 3;
             uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
             int nextLine = (line + 1) % imageHeight;
-            uint16_t nextLineAddr = getLineOffset(data, nextLine) + codeOffset;
-            *jpPtr = nextLineAddr;
+            uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine]  + codeOffset;
+            int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
+            *jpPtr = nextLineAddr + nextLinePreambulaSize;
         }
         else
         {
-            int jrCommandOffset = lineOffset + data.data[line].data.size() - 2;
+            int preambulaSize = data.data[line].getSerializedUsedRegisters().data.size();
+            int jrCommandOffset = lineOffset + preambulaSize + data.data[line].data.size() - 2;
             uint8_t* jrPtr = serializedData.data() + jrCommandOffset + 1;
             int8_t offset = jrCommandOffset - gapOffset;
             assert(offset == jrCommandOffset - gapOffset);
@@ -1132,7 +1135,6 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
 
     /**
      * File format:
-     * DescriptorsHeader,
      * vector<LineDescriptor>
     */
 
@@ -1145,48 +1147,81 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         return -1;
     }
 
-    // serialize descriptors
-
-    std::vector<LineDescriptor> descriptors;
-
-    int bankSizeInLines = imageHeight / 8;
-
-    for (int d = 0; d < imageHeight; ++d)
-    {
-        int lineBank = d % 8;
-        int lineInBank = d / 8;
-        int lineNum = bankSizeInLines * lineBank + lineInBank;
-
-
-        LineDescriptor descriptor;
-        descriptor.addressBegin = getLineOffset(data, lineNum) + codeOffset;
-        descriptors.push_back(descriptor);
-    }
-
-    //DescriptorsHeader descriptorHeader;
-    //descriptorHeader.a = *data.af;
-    //lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
-    for (const auto& descriptor : descriptors)
-        lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
-
-
     // serialize main data
 
     int size = 0;
     std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
-    for (int y = 0; y < data.data.size(); ++y)
+    std::vector<int> lineOffsetWithPreambula;
+    //std::vector<int> lineOffsetWithoutPreambula;
+    for (int y = 0; y < imageHeight; ++y)
     {
         const auto& line = data.data[y];
         if (y % 4 == 0)
             createInterlineGap(serializedData);
+        
+        lineOffsetWithPreambula.push_back(serializedData.size());
+
+        if (y % 4 == 0)
+        {
+            const auto loadRegPreambula = line.getSerializedUsedRegisters();
+            loadRegPreambula.appendItselfToVector(serializedData);
+        }
+        //lineOffsetWithoutPreambula.push_back(serializedData.size());
+
         const int prevSize = serializedData.size();
         serializedData.resize(serializedData.size() + line.data.size());
         memcpy(serializedData.data() + prevSize, line.data.data(), line.data.size());
     }
     createInterlineGap(serializedData);
 
-    resolveJumpToNextBankInGap(serializedData, data);
-    resolveRelativeJumpToGap(serializedData, data);
+    // serialize descriptors
+
+    std::vector<LineDescriptor> descriptors;
+    std::vector<uint8_t> preambulas;
+
+    int descriptorsSize = imageHeight * 2;
+    int preambulasOffset = codeOffset + serializedData.size() + descriptorsSize;
+
+    int bankSizeInLines = imageHeight / 8;
+
+    for (int d = 0; d < imageHeight; ++d)
+    {
+        LineDescriptor descriptor;
+        int lineBank = d % 8;
+        int lineInBank = d / 8;
+        int lineNum = bankSizeInLines * lineBank + lineInBank;
+        const auto& line = data.data[lineNum];
+
+        const auto loadRegPreambula = line.getSerializedUsedRegisters();
+        const uint16_t lineAddress = lineOffsetWithPreambula[lineNum] + codeOffset;
+        if (lineNum % 4 == 0 || loadRegPreambula.data.empty())
+        {
+            // use reference directly to execution
+            descriptor.addressBegin = lineAddress;
+        }
+        else
+        {
+            // generate code: loading preambula, then jump to main code
+            descriptor.addressBegin = preambulasOffset + preambulas.size();
+            
+            loadRegPreambula.appendItselfToVector(preambulas);
+            preambulas.push_back(0xc3); // JP XX
+            preambulas.push_back((uint8_t)lineAddress); // low byte
+            preambulas.push_back(lineAddress >> 8); // high byte
+        }
+        descriptors.push_back(descriptor);
+    }
+
+    //DescriptorsHeader descriptorHeader;
+    //descriptorHeader.a = *data.af;
+    //lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
+    for (const auto& descriptor: descriptors)
+        lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+    lineDescriptorFile.write((const char*)preambulas.data(), preambulas.size());
+
+
+    resolveJumpToNextBankInGap(serializedData, data, descriptors);
+    resolveRelativeJumpToGap(serializedData, data, lineOffsetWithPreambula);
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     return serializedData.size();
