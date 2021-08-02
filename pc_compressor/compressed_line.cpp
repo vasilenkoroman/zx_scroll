@@ -25,7 +25,7 @@ void CompressedLine::selfReg(const Register8& reg1, const Register8& reg2)
     selfReg(reg2);
 }
 
-std::vector<Register16> CompressedLine::getUsedRegisters()
+std::vector<Register16> CompressedLine::getUsedRegisters() const
 {
     std::vector<Register16> result;
     
@@ -46,4 +46,27 @@ std::vector<Register16> CompressedLine::getUsedRegisters()
             result.push_back(usedReg);
     }
     return result;
+}
+
+CompressedLine CompressedLine::getSerializedUsedRegisters() const
+{
+    CompressedLine line;
+    for (auto& reg16 : getUsedRegisters())
+    {
+        if (!reg16.h.isEmpty() && !reg16.l.isEmpty())
+            reg16.loadXX(line, reg16.value16());
+        else if (!reg16.h.isEmpty())
+            reg16.h.loadX(line, *reg16.h.value);
+        else if (!reg16.l.isEmpty())
+            reg16.l.loadX(line, *reg16.l.value);
+    }
+
+    return line;
+}
+
+void CompressedLine::appendItselfToVector(std::vector<uint8_t>& vector) const
+{
+    const int dataSize = vector.size();
+    vector.resize(dataSize + data.size());
+    memcpy(vector.data() + dataSize, data.data(), data.size());
 }
