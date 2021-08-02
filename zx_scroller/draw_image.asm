@@ -16,10 +16,8 @@ generated_code: equ screen_end + 1024
 color_code        
         INCBIN "resources/compressed_data.color"
         align	4
-descriptors_file
+descriptors
         INCBIN "resources/compressed_data.main_descriptor"
-best_byte equ descriptors_file
-descriptors equ descriptors_file + 4
 
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
@@ -134,7 +132,6 @@ end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
 draw_64_lines
-        MACRO draw_8_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
 
@@ -142,52 +139,36 @@ draw_64_lines
                 ld e, (hl)                                      ; 7
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld ix, de                                       ; 16
-
-                ; de - end exec address
-                ld e, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld d, (hl)                                      ; 7
-                inc hl                                          ; 6
-
                 ex de, hl                                       ; 4
-                ld (hl), JP_HL_CODE                             ; 10
 
-                exx                                             ; 4
-                ld hl, $ + 5    ; return address                ; 10
+                ld a, 1                                         ; 7
+                ld ixl, 8                                       ; 11
+
                 ; free registers to use: bc, de, bc'
-                jp ix                                           ; 8
-                exx                                             ; 4
-
-                ; restore data
-                ld (hl), LD_BC_XXXX_CODE                        ; 10
-                ex de, hl                                       ; 4
-                // total ticks: 116
-        ENDM                
-                .8 draw_8_lines
-                jp iy      ; ret                                        ; 8 ticks
+                jp hl                                           ; 4
+                // total: 44
 
 draw_image_and_color
         ld (stack_bottom), sp
 
         ; bc - line number
-        ; a - best byte constant
 
         ; hl = bc * sizeof(descriptor)
         ld hl, bc                                       ; 8
-        ; save color descriptor
+        ; save line number
         ld (stack_bottom + 2), hl                       ; 16
 
-        add hl, bc                                      ; 11
         add hl, hl                                      ; 11
-        ld bc, descriptors + 4 * 128                    ; 10
+        ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
+
 
         ; draw image (top 3-th part)
         ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
+
+        halt
         
         ; save image descriptor
         ld (stack_bottom + 4), hl                       ; 16
@@ -204,7 +185,7 @@ draw_image_and_color
         ld l, a
         ex af,af'
 
-        ld bc, color_descriptor + 4 * 16                ; 10
+        ld bc, color_descriptor + 2 * 16                ; 10
         add hl, bc                                      ; 11
 
         ld sp, 16384 + 1024 * 6 + 256
@@ -422,7 +403,6 @@ scroll_step     equ 1
         push de                         ; 11 ticks
         push bc                         ; 11 ticks
 
-        ld a, (best_byte)
         call draw_image_and_color       ; ~55000 ticks
 
         pop bc                          ; 10 ticks

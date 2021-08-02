@@ -585,7 +585,7 @@ public:
     {
         if (hasValue16(value))
             return true;
-        
+
         if (h.name == 'a')
             return updateToValueForAF(line, value, registers);
 
@@ -853,7 +853,7 @@ void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileNa
 void mirrorBuffer8(uint8_t* buffer, int imageHeight)
 {
     int dataSize = lineSize * imageHeight;
-    
+
     uint8_t* bufferEnd = buffer + dataSize - 1;
     while (buffer < bufferEnd)
     {
@@ -869,7 +869,7 @@ void mirrorBuffer8(uint8_t* buffer, int imageHeight)
 void mirrorBuffer16(uint16_t* buffer, int imageHeight)
 {
     int dataSize = lineSize * imageHeight;
-    
+
     uint16_t* bufferEnd = buffer + dataSize / 2 - 1;
     while (buffer < bufferEnd)
     {
@@ -889,7 +889,7 @@ void deinterlaceBuffer(std::vector<uint8_t>& buffer)
     for (int srcY = 0; srcY < imageHeight; ++ srcY)
     {
         int dstY = (srcY % 8) * 8 + (srcY % 64) / 8 + (srcY / 64) * 64;
-        memcpy(tempBuffer.data() + dstY * lineSize, 
+        memcpy(tempBuffer.data() + dstY * lineSize,
             buffer.data() + srcY * lineSize, lineSize); //< Copy screen line
     }
     memcpy(buffer.data(), tempBuffer.data(), imageHeight * 32);
@@ -1054,7 +1054,7 @@ void compressLine(
             *success = false;
             return;
         }
-        
+
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4 && !result.isAltReg)
@@ -1088,7 +1088,7 @@ void compressLine(
                 continue;
             }
         }
-        
+
         // push existing 16 bit value.
         bool isChoised = false;
 
@@ -1200,7 +1200,7 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_
     );
 }
 
-std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, 
+std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer,
     const std::vector<int>& lines, int imageHeight)
 {
     return std::async(
@@ -1251,7 +1251,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuff
     for (auto& compressor : compressors)
     {
         auto compressedLines = compressor.get();
-        compressedData.data.insert(compressedData.data.end(), 
+        compressedData.data.insert(compressedData.data.end(),
             compressedLines.begin(), compressedLines.end());
     }
 
@@ -1291,7 +1291,7 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             bestWordCounter = wordsCount[i];
         }
     }
-    
+
     std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
 
     int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
@@ -1751,7 +1751,8 @@ uint16_t getGapOffsetForLine(const CompressedData& data, int line)
 
 void resolveRelativeJumpToGap(std::vector<uint8_t>& serializedData, const CompressedData& data)
 {
-    for (int line = 0; line < data.data.size(); ++line)
+    const int imageHeight = data.data.size();
+    for (int line = 0; line < imageHeight; ++line)
     {
         int gapOffset = getGapOffsetForLine(data, line);
         int gapRecordNum = 0;
@@ -1773,11 +1774,23 @@ void resolveRelativeJumpToGap(std::vector<uint8_t>& serializedData, const Compre
         gapOffset += gapRecordNum * gapRecordSize;
 
         int lineOffset = getLineOffset(data, line);
-        int jrCommandOffset = lineOffset + data.data[line].data.size() - 2;
-        uint8_t* jrPtr = serializedData.data() + jrCommandOffset + 1;
-        int8_t offset = jrCommandOffset - gapOffset;
-        assert(offset == jrCommandOffset - gapOffset);
-        *jrPtr = offset;
+        if (line % 4 == 3)
+        {
+            // JP command instead of JR here
+            int jpCommandOffset = lineOffset + data.data[line].data.size() - 3;
+            uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
+            int nextLine = (line + 1) % imageHeight;
+            uint16_t nextLineAddr = getLineOffset(data, nextLine) + codeOffset;
+            *jpPtr = nextLineAddr;
+        }
+        else
+        {
+            int jrCommandOffset = lineOffset + data.data[line].data.size() - 2;
+            uint8_t* jrPtr = serializedData.data() + jrCommandOffset + 1;
+            int8_t offset = jrCommandOffset - gapOffset;
+            assert(offset == jrCommandOffset - gapOffset);
+            *jrPtr = offset;
+        }
     }
 }
 
@@ -1789,14 +1802,14 @@ void createInterlineGap(std::vector<uint8_t>& data)
         data.push_back(0xdd);
         data.push_back(0x2d);
 
-        // JP z, xxxx
-        data.push_back(0xca);
+        // JP nz, xxxx
+        data.push_back(0xc2);
         data.push_back(0x00);
         data.push_back(0x00);
 
         // JP IY (ret)
         data.push_back(0xfd);
-        data.push_back(0xea);
+        data.push_back(0xe9);
     }
 }
 
@@ -1898,9 +1911,9 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
         return -1;
     }
 
-    
+
     std::vector<LineDescriptor> descriptors;
-    
+
     for (int lineNum = 0; lineNum < data.data.size() - 7; ++lineNum)
     {
         LineDescriptor descriptor;
@@ -1938,7 +1951,7 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         std::cerr << "Can not write timing file" << std::endl;
         return -1;
     }
-    
+
     for (int line = 0; line <= imageHeight - 192; ++line)
     {
         int ticks = data.ticks(line, 192);
@@ -1947,7 +1960,7 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         uint16_t freeTicks = totalTicksPerFrame - (ticks + colorTicks);
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
     }
-    
+
     return 0;
 }
 
@@ -1971,7 +1984,7 @@ int main(int argc, char** argv)
 
     uint8_t* bufferPtr = buffer.data();
     uint8_t* colorBufferPtr = colorBuffer.data();
-    
+
     for (int i = 1; i <= fileCount; ++i)
     {
         std::string inputFileName = argv[i];
