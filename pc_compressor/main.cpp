@@ -286,8 +286,8 @@ void compressLine(
     int x,
     bool* success);
 
-CompressedLine makeChoise(
-    bool isAlt,
+void makeChoise(
+    CompressedLine& result,
     int regIndex,
     uint16_t word,
     int flags,
@@ -299,21 +299,16 @@ CompressedLine makeChoise(
     int x,
     bool* success)
 {
-    CompressedLine result;
-    result.isAltReg = isAlt;
-
     Register16& reg = registers[regIndex];
     if (reg.h.name != 'i' && reg.isAlt != result.isAltReg)
         result.exx();
     if (!reg.updateToValue(result, word, registers))
     {
         *success = false;
-        return result;
     }
 
     reg.push(result);
     compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
-    return result;
 }
 
 uint16_t swapBytes(uint16_t word)
@@ -437,7 +432,13 @@ void compressLine(
         {
             Registers regCopy = registers;
             bool successChoise = false;
-            auto newLine = makeChoise(result.isAltReg, regIndex, word, flags, maxY,  buffer, colorBuffer,
+            
+            CompressedLine newLine;
+            newLine.isAltReg = result.isAltReg;
+            newLine.regUseMask = result.regUseMask;
+            newLine.selfRegMask = result.selfRegMask;
+            
+            makeChoise(newLine, regIndex, word, flags, maxY,  buffer, colorBuffer,
                 regCopy, y, x, &successChoise);
             if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
             {
@@ -454,7 +455,12 @@ void compressLine(
             {
                 Registers regCopy = registers;
                 bool successChoise = false;
-                auto newLine = makeChoise(result.isAltReg, regIndex, word, flags1, maxY, buffer, colorBuffer,
+
+                CompressedLine newLine;
+                newLine.isAltReg = result.isAltReg;
+                newLine.regUseMask = result.regUseMask;
+                newLine.selfRegMask = result.selfRegMask;
+                makeChoise(newLine, regIndex, word, flags1, maxY, buffer, colorBuffer,
                     regCopy, y, x, &successChoise);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
                 {
