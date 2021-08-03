@@ -87,8 +87,8 @@ struct CompressedLine
     }
 
     ZxData data;
-    std::shared_ptr<Registers> inputRegisters; //{ Register16("bc"), Register16("de"), Register16("hl") };
-    std::shared_ptr<Registers> outputRegisters; // { Register16("bc"), Register16("de"), Register16("hl") };
+    std::shared_ptr<Registers> inputRegisters;
+    std::shared_ptr<Registers> outputRegisters;
 
     int drawTicks = 0;
     bool isAltReg = false;

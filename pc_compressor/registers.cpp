@@ -252,6 +252,7 @@ void Register16::push(CompressedLine& line) const
     }
     line.data.push_back(0xc5 + reg16Index() * 8);
     line.drawTicks += 11;
+    line.useReg(h, l);
 }
 
 template <class T>
