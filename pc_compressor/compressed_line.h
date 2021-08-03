@@ -79,15 +79,21 @@ struct CompressedLine
     {
         data.append(other.data);
         drawTicks += other.drawTicks;
+        regUseMask |= other.regUseMask;
+        selfRegMask |= other.selfRegMask;
     }
 
     ZxData data;
     std::shared_ptr<Registers> inputRegisters;
+    std::shared_ptr<Registers> outputRegisters;
 
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
     int prelineTicks = 0;
+
+    uint8_t regUseMask = 0;
+    uint8_t selfRegMask = 0;
 
 public:
     void useReg(const Register8& reg);
@@ -100,7 +106,4 @@ public:
 
     void appendItselfToVector(std::vector<uint8_t>& vector) const;
 
-private:
-    uint8_t regUseMask = 0;
-    uint8_t selfRegMask = 0;
 };

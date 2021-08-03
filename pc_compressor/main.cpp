@@ -484,6 +484,7 @@ void compressLine(
         result.exx();
     if (result.isAltAf)
         result.exAf();
+    result.outputRegisters.reset(new Registers(registers));
 }
 
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
