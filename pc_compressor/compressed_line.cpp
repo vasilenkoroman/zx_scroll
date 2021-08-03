@@ -28,7 +28,7 @@ void CompressedLine::selfReg(const Register8& reg1, const Register8& reg2)
 std::vector<Register16> CompressedLine::getUsedRegisters() const
 {
     std::vector<Register16> result;
-    
+
     for (const auto& reg16: *inputRegisters)
     {
         uint8_t hMask = 1 << reg16.h.reg8Index;
@@ -64,9 +64,9 @@ CompressedLine CompressedLine::getSerializedUsedRegisters() const
     return line;
 }
 
-void CompressedLine::appendItselfToVector(std::vector<uint8_t>& vector) const
+void CompressedLine::serialize(std::vector<uint8_t>& vector) const
 {
-    const int dataSize = vector.size();
+    const auto dataSize = vector.size();
     vector.resize(dataSize + data.size());
     memcpy(vector.data() + dataSize, data.data(), data.size());
 }

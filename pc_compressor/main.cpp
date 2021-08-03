@@ -26,6 +26,7 @@ static const int verticalCompressionL = 2; //< Skip drawing data if it exists on
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
+static const int updateInvisibleColors = 32;
 
 bool isHiddenData(uint8_t* colorBuffer, int x, int y)
 {
@@ -61,19 +62,6 @@ Register16* findRegister(T& registers, const std::string& name)
     {
         if (reg.name() == name)
             return &reg;
-    }
-    return nullptr;
-}
-
-template <typename T>
-Register8* findRegister8(T& registers, const char& name)
-{
-    for (auto& reg : registers)
-    {
-        if (reg.h.name == name)
-            return &reg.h;
-        else if (reg.l.name == name)
-            return &reg.l;
     }
     return nullptr;
 }
@@ -317,6 +305,22 @@ uint16_t swapBytes(uint16_t word)
     return ((uint16_t)ptr[0] << 8) + ptr[1];
 }
 
+void compressLineMain(
+    CompressedLine& result,
+    int flags,
+    int maxY,
+    uint8_t* buffer,
+    uint8_t* colorBuffer,
+    Registers& registers,
+    int y,
+    bool* success)
+{
+    result.inputRegisters.reset(new Registers(registers));
+    compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, 0, success);
+    result.outputRegisters.reset(new Registers(registers));
+}
+
+
 void compressLine(
     CompressedLine&  result,
     int flags,
@@ -331,9 +335,6 @@ void compressLine(
     static Register16 sp("sp");
 
     *success = true;
-
-    if (x == 0)
-        result.inputRegisters.reset(new Registers(registers));
 
     while (x < 32)
     {
@@ -432,12 +433,12 @@ void compressLine(
         {
             Registers regCopy = registers;
             bool successChoise = false;
-            
+
             CompressedLine newLine;
             newLine.isAltReg = result.isAltReg;
             newLine.regUseMask = result.regUseMask;
             newLine.selfRegMask = result.selfRegMask;
-            
+
             makeChoise(newLine, regIndex, word, flags, maxY,  buffer, colorBuffer,
                 regCopy, y, x, &successChoise);
             if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
@@ -484,7 +485,6 @@ void compressLine(
         result.exx();
     if (result.isAltAf)
         result.exAf();
-    result.outputRegisters.reset(new Registers(registers));
 }
 
 std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
@@ -492,16 +492,16 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_
     return std::async(
         [flags, buffer, colorBuffer, line, imageHeight]()
         {
-            Registers registers1 = {Register16("bc"), Register16("de"), Register16("hl")};
+            Registers registers1 = { Register16("bc"), Register16("de"), Register16("hl") };
             Registers registers2 = registers1;
 
             bool success;
             CompressedLine line1, line2;
-            compressLine(line1, flags, imageHeight,
-                buffer, colorBuffer, registers1, line, 0, &success);
+            compressLineMain(line1, flags, imageHeight,
+                buffer, colorBuffer, registers1, line, &success);
 
-            compressLine(line2, flags | oddVerticalCompression, imageHeight,
-                buffer, colorBuffer, registers2, line, 0, &success);
+            compressLineMain(line2, flags | oddVerticalCompression, imageHeight,
+                buffer, colorBuffer, registers2, line, &success);
 
             if (success && line2.data.size() < line1.data.size())
                 return line2;
@@ -526,8 +526,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* 
                 CompressedLine line1, line2;
                 Registers registers1 = registers;
                 Registers registers2 = registers;
-                compressLine(line1, flags, imageHeight, buffer, colorBuffer, registers1, line, 0, &success);
-                compressLine(line2, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, 0, &success);
+                compressLineMain(line1, flags, imageHeight, buffer, colorBuffer, registers1, line, &success);
+                compressLineMain(line2, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, &success);
 
                 if (success && line2.data.size() < line1.data.size())
                 {
@@ -605,8 +605,11 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 
     std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
 
-    int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
-    std::cout << "removed invisible color blocks = " << removedColors << std::endl;
+    if (flags & updateInvisibleColors)
+    {
+        int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
+        std::cout << "removed invisible color blocks = " << removedColors << std::endl;
+    }
 
     CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
     if (!(flags & inverseColors))
@@ -910,16 +913,14 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
 
-    Register16 af("af");
-
     for (int y = 0; y < imageHeight / 8; y ++)
     {
         Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
 
         bool success;
         CompressedLine line;
-        compressLine(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
-            buffer, buffer, registers, y, 0, &success);
+        compressLineMain(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
+            buffer, buffer, registers, y, &success);
         compressedData.data.push_back(line);
     }
 
@@ -986,145 +987,76 @@ void addRraJpToLines(CompressedData& data)
 
         line.data.push_back(0x07); // RLCA
         line.drawTicks += 4;
-        if (y % 4 == 3)
-        {
-            // generate jump if continue
-            // JP nc, XXXX
-            line.data.push_back(0xd2);
-            line.data.push_back(0x00);
-            line.data.push_back(0x00);
-            line.drawTicks += 10;
-        }
-        else
-        {
-            // generate jump if non continue (break)
-            // JR c, XX
-            line.data.push_back(0x38);
-            line.data.push_back(0x00);
-            line.drawTicks += 7;
-        }
+
+        // generate jump if continue
+        // JP nc, XXXX
+        line.data.push_back(0xd2);
+        line.data.push_back(0x00);
+        line.data.push_back(0x00);
+        line.drawTicks += 10;
     }
 }
-
-const int gapRecordSize = 7;
-const int gapSize = gapRecordSize * 4;
-const int nextBankLineOffset = -64 + 8 + 1;
 
 void resolveJumpToNextBankInGap(
-    std::vector<uint8_t>& serializedData, 
+    std::vector<uint8_t>& serializedData,
     const CompressedData& data,
-    std::vector<LineDescriptor> descriptors)
+    std::vector<int> lineOffsetWithPreambula)
 {
     // resolve JP to the next bank in Gaps
-
-    auto update = [&](int lineFrom, uint8_t* recordPtr)
-        {
-            int lineTo = lineFrom + nextBankLineOffset;
-            if (lineTo < 0)
-                lineTo += data.data.size();
-            uint16_t* jpXX = (uint16_t*)(recordPtr + 3);
-            *jpXX = descriptors[lineTo].addressBegin;
-        };
-
-    uint8_t* gapPtr = serializedData.data();
-
-    for (int line = 0; line < data.data.size(); line += 4)
+    int imageHeight = data.data.size();
+    for (int line = 0; line < imageHeight; ++line)
     {
-        if (line > 0)
-        {
-            // update 1-st record (line N-1)
-            update(line - 1, gapPtr);
-            // update 2-nd record (line N-2)
-            update(line - 2, gapPtr + 7);
-        }
+        const int bankSize = imageHeight / 8;
+        int nextLine = (line + 1 + bankSize - 8) % imageHeight;
 
-        // update 3-th record (line N)
-        update(line, gapPtr + 7 * 2);
-        // update 4-th record (line N + 1)
-        update(line + 1, gapPtr + 7 * 3);
-        gapPtr += gapSize + data.size(line, 4);
+        uint16_t currentLineOffset = lineOffsetWithPreambula[line];
+        uint16_t nextLineOffset = lineOffsetWithPreambula[nextLine];
+
+        auto preambula = data.data[line].getSerializedUsedRegisters();
+
+        uint16_t gapOffset = currentLineOffset + preambula.data.size() + data.data[line].data.size();
+        uint16_t* gapPtr = (uint16_t*) (serializedData.data() + gapOffset + 3);
+
+        // TODO: It is possible to skip preambula here in case of output registers for current line is match input registers in the next line.
+        *gapPtr = nextLineOffset + codeOffset;
     }
-
-    int line = data.data.size();
-    update(line - 1, gapPtr);
-    update(line - 2, gapPtr + 7);
 }
 
-uint16_t getGapOffsetForLine(std::vector<int> lineOffsetWithPreambula, int line)
-{
-    int gapNum = (line + 2) / 4;
-    int linesBeforeGap = gapNum * 4;
-    return lineOffsetWithPreambula[linesBeforeGap] - gapSize;
-}
-
-void resolveRelativeJumpToGap(
-    std::vector<uint8_t>& serializedData, 
+void resolveJumpToNextLine(
+    std::vector<uint8_t>& serializedData,
     const CompressedData& data,
     std::vector<int> lineOffsetWithPreambula)
 {
     const int imageHeight = data.data.size();
     for (int line = 0; line < imageHeight; ++line)
     {
-        int gapOffset = getGapOffsetForLine(lineOffsetWithPreambula, line);
-        int gapRecordNum = 0;
-        switch (line % 4)
-        {
-            case 0:
-                gapRecordNum = 2;
-                break;
-            case 1:
-                gapRecordNum = 3;
-                break;
-            case 2:
-                gapRecordNum = 1;
-                break;
-            case 3:
-                gapRecordNum = 0;
-                break;
-        }
-        gapOffset += gapRecordNum * gapRecordSize;
-
         int lineOffset = lineOffsetWithPreambula[line];
+        const auto preambula = data.data[line].getSerializedUsedRegisters();
 
-        if (line % 4 == 3)
-        {
-            // JP command instead of JR here
-            int jpCommandOffset = lineOffset + data.data[line].data.size() - 3;
-            uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
-            int nextLine = (line + 1) % imageHeight;
-            uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine]  + codeOffset;
-            int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
-            *jpPtr = nextLineAddr + nextLinePreambulaSize;
-        }
-        else
-        {
-            int preambulaSize = data.data[line].getSerializedUsedRegisters().data.size();
-            int jrCommandOffset = lineOffset + preambulaSize + data.data[line].data.size() - 2;
-            uint8_t* jrPtr = serializedData.data() + jrCommandOffset + 1;
-            int8_t offset = jrCommandOffset - gapOffset;
-            assert(offset == jrCommandOffset - gapOffset);
-            *jrPtr = offset;
-        }
+        // JP command instead of JR here
+        int jpCommandOffset = lineOffset + preambula.data.size() + data.data[line].data.size() - 3;
+        uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
+        int nextLine = (line + 1) % imageHeight;
+        uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine]  + codeOffset;
+        int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
+        *jpPtr = nextLineAddr + nextLinePreambulaSize;
     }
 }
 
 void createInterlineGap(std::vector<uint8_t>& data)
 {
-    for (int i = 0; i < 4; ++i)
-    {
-        // dec IXL
-        data.push_back(0xdd);
-        data.push_back(0x2d);
+    // dec IXL
+    data.push_back(0xdd);
+    data.push_back(0x2d);
 
-        // JP nz, xxxx
-        data.push_back(0xc2);
-        data.push_back(0x00);
-        data.push_back(0x00);
+    // JP nz, xxxx
+    data.push_back(0xc2);
+    data.push_back(0x00);
+    data.push_back(0x00);
 
-        // JP IY (ret)
-        data.push_back(0xfd);
-        data.push_back(0xe9);
-    }
+    // JP IY (ret)
+    data.push_back(0xfd);
+    data.push_back(0xe9);
 }
 
 int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
@@ -1159,32 +1091,20 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     int size = 0;
     std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
     std::vector<int> lineOffsetWithPreambula;
-    //std::vector<int> lineOffsetWithoutPreambula;
     for (int y = 0; y < imageHeight; ++y)
     {
         const auto& line = data.data[y];
-        if (y % 4 == 0)
-            createInterlineGap(serializedData);
-        
+
         lineOffsetWithPreambula.push_back(serializedData.size());
-
-        if (y % 4 == 0)
-        {
-            const auto loadRegPreambula = line.getSerializedUsedRegisters();
-            loadRegPreambula.appendItselfToVector(serializedData);
-        }
-        //lineOffsetWithoutPreambula.push_back(serializedData.size());
-
-        const int prevSize = serializedData.size();
-        serializedData.resize(serializedData.size() + line.data.size());
-        memcpy(serializedData.data() + prevSize, line.data.data(), line.data.size());
+        const auto loadRegPreambula = line.getSerializedUsedRegisters();
+        loadRegPreambula.serialize(serializedData);
+        line.serialize(serializedData);
+        createInterlineGap(serializedData);
     }
-    createInterlineGap(serializedData);
 
     // serialize descriptors
 
     std::vector<LineDescriptor> descriptors;
-    std::vector<uint8_t> preambulas;
 
     int descriptorsSize = imageHeight * 2;
     int preambulasOffset = codeOffset + serializedData.size() + descriptorsSize;
@@ -1198,37 +1118,16 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         int lineInBank = d / 8;
         int lineNum = bankSizeInLines * lineBank + lineInBank;
         const auto& line = data.data[lineNum];
-
-        const auto loadRegPreambula = line.getSerializedUsedRegisters();
         const uint16_t lineAddress = lineOffsetWithPreambula[lineNum] + codeOffset;
-        if (lineNum % 4 == 0 || loadRegPreambula.data.empty())
-        {
-            // use reference directly to execution
-            descriptor.addressBegin = lineAddress;
-        }
-        else
-        {
-            // generate code: loading preambula, then jump to main code
-            descriptor.addressBegin = preambulasOffset + preambulas.size();
-            
-            loadRegPreambula.appendItselfToVector(preambulas);
-            preambulas.push_back(0xc3); // JP XX
-            preambulas.push_back((uint8_t)lineAddress); // low byte
-            preambulas.push_back(lineAddress >> 8); // high byte
-        }
+        descriptor.addressBegin = lineAddress;
         descriptors.push_back(descriptor);
     }
 
-    //DescriptorsHeader descriptorHeader;
-    //descriptorHeader.a = *data.af;
-    //lineDescriptorFile.write((const char*)&descriptorHeader, sizeof(descriptorHeader));
     for (const auto& descriptor: descriptors)
         lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
-    lineDescriptorFile.write((const char*)preambulas.data(), preambulas.size());
 
-
-    resolveJumpToNextBankInGap(serializedData, data, descriptors);
-    resolveRelativeJumpToGap(serializedData, data, lineOffsetWithPreambula);
+    resolveJumpToNextBankInGap(serializedData, data, lineOffsetWithPreambula);
+    resolveJumpToNextLine(serializedData, data, lineOffsetWithPreambula);
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     return serializedData.size();
@@ -1356,7 +1255,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters; //updateInvisibleColors | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);

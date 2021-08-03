@@ -3,6 +3,9 @@
 #include <array>
 #include <cassert>
 #include <vector>
+#include <memory>
+
+#include "registers.h"
 
 class Register8;
 class Register16;
@@ -84,8 +87,8 @@ struct CompressedLine
     }
 
     ZxData data;
-    std::shared_ptr<Registers> inputRegisters;
-    std::shared_ptr<Registers> outputRegisters;
+    std::shared_ptr<Registers> inputRegisters; //{ Register16("bc"), Register16("de"), Register16("hl") };
+    std::shared_ptr<Registers> outputRegisters; // { Register16("bc"), Register16("de"), Register16("hl") };
 
     int drawTicks = 0;
     bool isAltReg = false;
@@ -100,10 +103,10 @@ public:
     void selfReg(const Register8& reg);
     void useReg(const Register8& reg1, const Register8& reg2);
     void selfReg(const Register8& reg1, const Register8& reg2);
-    
+
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters() const;
 
-    void appendItselfToVector(std::vector<uint8_t>& vector) const;
+    void serialize(std::vector<uint8_t>& vector) const;
 
 };

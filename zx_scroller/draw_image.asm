@@ -25,10 +25,10 @@ color_descriptor
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
-/*
+
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
-*/        
+        
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
@@ -46,14 +46,14 @@ LD_DE_XXXX_CODE equ 11h
 
 /*************** Draw 8 lines of image.  ******************/
 
-/*
+
 copy_image:
         ld hl, src_data
         ld de, 16384
         ld bc, 6144
         ldir
         ret
-*/
+
 copy_colors:
         ld hl, color_data
         ld de, 16384 + 6144
@@ -156,17 +156,33 @@ draw_image_and_color
         ; hl = bc * sizeof(descriptor)
         ld hl, bc                                       ; 8
         ; save line number
+        add hl, hl                                      ; 11
+
         ld (stack_bottom + 2), hl                       ; 16
 
-        add hl, hl                                      ; 11
+        ; draw image (top 3-th part)
         ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
+        ld sp, 16384 + 1024 * 6
+        ld iy, $ + 7
+        jp draw_64_lines
 
+        ; draw image (2)
+        ld hl, (stack_bottom + 2)                      ; 16
+        ld bc, descriptors + 64 * 2                    ; 10
+        add hl, bc                                      ; 11
+        ld sp, 16384 + 1024 * 4
+        ld iy, $ + 7
+        jp draw_64_lines
 
-        ; draw image (top 3-th part)
+        ; draw image (3)
+        ld hl, (stack_bottom + 2)                      ; 16
+        ld bc, descriptors  + 128 * 2                  ; 10
+        add hl, bc                                     ; 11
         ld sp, 16384 + 1024 * 2
         ld iy, $ + 7
         jp draw_64_lines
+
 
         halt
         
@@ -365,7 +381,7 @@ main:
         ld a, 1
         out 0xfe,a
 
-        //call copy_image
+        call copy_image
         call copy_colors
 	
        
