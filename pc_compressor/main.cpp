@@ -305,6 +305,37 @@ uint16_t swapBytes(uint16_t word)
     return ((uint16_t)ptr[0] << 8) + ptr[1];
 }
 
+/**
+ * Some line can declare it doesn't use some reg at all. But it can be used in the next line.
+ * So, check thus transitive references and mark Register as used.
+*/
+
+template <typename T>
+void updateTransitiveRegUsage(T& data)
+{
+    int size = data.size();
+    for (int lineNum = 0; lineNum < data.size(); ++lineNum)
+    {
+
+        CompressedLine& line = data[lineNum];
+        uint8_t selfRegMask = line.selfRegMask;
+        auto before = line.regUseMask;
+        for (int j = 1; j <= 8; ++j)
+        {
+            int nextLineNum = (lineNum + j) % size;
+            CompressedLine& nextLine = data[nextLineNum];
+            
+            selfRegMask |= nextLine.selfRegMask;
+            uint8_t additionalUsage = nextLine.regUseMask & ~selfRegMask;
+            line.regUseMask |= additionalUsage;
+        }
+#ifdef VERBOSE
+        if (line.regUseMask != before)
+            std::cout << "line #" << lineNum << " extend reg us mask from " << (int) before << " to " << (int ) line.regUseMask << std::endl;
+#endif
+    }
+}
+
 void compressLineMain(
     CompressedLine& result,
     int flags,
@@ -542,6 +573,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* 
                         registers = registers1;
                 }
             }
+            updateTransitiveRegUsage(result);
             return result;
         }
     );
@@ -923,7 +955,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
             buffer, buffer, registers, y, &success);
         compressedData.data.push_back(line);
     }
-
+    updateTransitiveRegUsage(compressedData.data);
     return compressedData;
 }
 
@@ -1085,9 +1117,9 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
     }
-
+    
     // serialize main data
-
+    
     int size = 0;
     std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
     std::vector<int> lineOffsetWithPreambula;
@@ -1111,12 +1143,14 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
 
     int bankSizeInLines = imageHeight / 8;
 
-    for (int d = 0; d < imageHeight; ++d)
+    for (int d = 0; d < imageHeight + 128; ++d)
     {
         LineDescriptor descriptor;
         int lineBank = d % 8;
         int lineInBank = d / 8;
         int lineNum = bankSizeInLines * lineBank + lineInBank;
+        lineNum = lineNum % imageHeight;
+
         const auto& line = data.data[lineNum];
         const uint16_t lineAddress = lineOffsetWithPreambula[lineNum] + codeOffset;
         descriptor.addressBegin = lineAddress;
