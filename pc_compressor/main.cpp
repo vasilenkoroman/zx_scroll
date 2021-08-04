@@ -26,7 +26,7 @@ static const int verticalCompressionL = 2; //< Skip drawing data if it exists on
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
-static const int updateInvisibleColors = 32;
+static const int skipInvisibleColors = 32;
 
 bool isHiddenData(uint8_t* colorBuffer, int x, int y)
 {
@@ -205,7 +205,7 @@ int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, i
     for (; x < 32; ++x)
     {
         uint8_t currentByte = *ptr;
-        if (isHiddenData(colorBuffer, x, y / 8))
+        if ((flags & skipInvisibleColors) && isHiddenData(colorBuffer, x, y / 8))
         {
             ;
         }
@@ -215,8 +215,9 @@ int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, i
             if (upperByte != currentByte)
                 return result;
         }
-        if (y < maxY && (flags & verticalCompressionL))
+        if (flags & verticalCompressionL)
         {
+            auto nextLine = y < maxY - 1 ? ptr + 32 : buffer + x;
             uint8_t lowerByte = *(ptr+32);
             if (lowerByte != currentByte)
                 return result;
@@ -290,11 +291,24 @@ void makeChoise(
     Register16& reg = registers[regIndex];
     if (reg.h.name != 'i' && reg.isAlt != result.isAltReg)
         result.exx();
-    if (!reg.updateToValue(result, word, registers))
-    {
-        *success = false;
-    }
 
+    // Word in network byte order here (swap bytes call before)
+    bool canAvoidFirst = false;
+    bool canAvoidSecond = false;
+    if (flags & skipInvisibleColors)
+    {
+        canAvoidFirst = isHiddenData(colorBuffer, x, y / 8);
+        canAvoidSecond = isHiddenData(colorBuffer, x + 1, y / 8);
+    }
+    if (canAvoidFirst && canAvoidSecond)
+        ;
+    else if (canAvoidFirst)
+        reg.l.updateToValue(result, (uint8_t) word, registers);
+    else if (canAvoidSecond)
+        reg.h.updateToValue(result, word >> 8, registers);
+    else
+        reg.updateToValue(result, word, registers);
+    
     reg.push(result);
     compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
 }
@@ -376,8 +390,6 @@ void compressLine(
         uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
         uint16_t word = *buffer16;
         word = swapBytes(word);
-        const uint8_t highByte = word >> 8;
-        const uint8_t lowByte = (uint8_t) word;
 
         assert(x < 32);
         if (x == 31 && !verticalRepCount)
@@ -404,28 +416,30 @@ void compressLine(
             }
         }
 
-        if (verticalRepCount > 5 && !result.isAltReg)
-        {
-            if (auto de = findRegister(registers, "de"))
-            {
-                de->exxHl(result);
-                Register16 hl("hl");
-                hl.loadXX(result, -verticalRepCount);
-                hl.addSP(result);
-                sp.loadFromReg16(result, hl);
-                de->exxHl(result);
-                de->reset();
-                x += verticalRepCount;
-                continue;
-            }
-        }
-
         // push existing 16 bit value.
         bool isChoised = false;
-
-        for (auto& reg : registers)
+        
+        bool canAvoidFirst = false;
+        bool canAvoidSecond = false;
+        if (flags & skipInvisibleColors)
         {
-            if (result.isAltReg == reg.isAlt && reg.hasValue16(word))
+            canAvoidFirst = isHiddenData(colorBuffer, x, y / 8);
+            canAvoidSecond = isHiddenData(colorBuffer, x + 1, y / 8);
+        }
+
+        for (auto& reg: registers)
+        {
+            bool valueOk;
+            if (canAvoidFirst && canAvoidSecond)
+                valueOk = true;
+            else if (canAvoidFirst)
+                valueOk = reg.l.hasValue((uint8_t)word);
+            else if (canAvoidSecond)
+                valueOk = reg.h.hasValue(word >> 8);
+            else
+                valueOk = reg.hasValue16(word);
+
+            if (result.isAltReg == reg.isAlt && valueOk)
             {
                 reg.push(result);
                 x += 2;
@@ -637,11 +651,13 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 
     std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
 
-    if (flags & updateInvisibleColors)
+#if 0
+    if (flags & skipInvisibleColors)
     {
         int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
         std::cout << "removed invisible color blocks = " << removedColors << std::endl;
     }
+#endif
 
     CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
     if (!(flags & inverseColors))
@@ -1332,7 +1348,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = 0; // verticalCompressionL; // | interlineRegisters; //updateInvisibleColors | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
