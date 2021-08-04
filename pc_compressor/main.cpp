@@ -14,7 +14,7 @@
 #include "registers.h"
 
 static const int totalTicksPerFrame = 71680;
-static const int codeOffset = 0x5b00 + 1024;
+static const int kCodeOffset = 0x5b00 + 1024;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
 static const uint8_t LD_BC_CODE = 1;
@@ -951,7 +951,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
         bool success;
         CompressedLine line;
-        compressLineMain(line, verticalCompressionH | verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
+        compressLineMain(line, verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
             buffer, buffer, registers, y, &success);
         compressedData.data.push_back(line);
     }
@@ -959,6 +959,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
     return compressedData;
 }
 
+#if 0
 void moveLoadBcFirst(CompressedData& data)
 {
     for (auto& line: data.data)
@@ -983,6 +984,7 @@ void moveLoadBcFirst(CompressedData& data)
         }
     }
 }
+#endif
 
 void interleaveData(CompressedData& data)
 {
@@ -1030,6 +1032,7 @@ void addRraJpToLines(CompressedData& data)
 }
 
 void resolveJumpToNextBankInGap(
+    uint16_t offset,
     std::vector<uint8_t>& serializedData,
     const CompressedData& data,
     std::vector<int> lineOffsetWithPreambula)
@@ -1064,17 +1067,18 @@ void resolveJumpToNextBankInGap(
         uint16_t* gapPtr = (uint16_t*) (serializedData.data() + gapOffset + 3);
 
         // TODO: It is possible to skip preambula here in case of output registers for current line is match input registers in the next line.
-        *gapPtr = nextLineOffset + codeOffset;
+        *gapPtr = nextLineOffset + offset;
     }
 }
 
 void resolveJumpToNextLine(
+    uint16_t codeOffset,
     std::vector<uint8_t>& serializedData,
     const CompressedData& data,
-    std::vector<int> lineOffsetWithPreambula)
+    std::vector<int> lineOffsetWithPreambula,
+    int bankSize)
 {
     const int imageHeight = data.data.size();
-    const int bankSize = imageHeight / 8;
 
     for (int line = 0; line < imageHeight; ++line)
     {
@@ -1101,23 +1105,26 @@ void resolveJumpToNextLine(
     }
 }
 
-void createInterlineGap(std::vector<uint8_t>& data)
+void createInterlineGap(std::vector<uint8_t>& data, bool longGap)
 {
-    // dec IXL
-    data.push_back(0xdd);
-    data.push_back(0x2d);
+    if (longGap)
+    {
+        // dec IXL
+        data.push_back(0xdd);
+        data.push_back(0x2d);
 
-    // JP nz, xxxx
-    data.push_back(0xc2);
-    data.push_back(0x00);
-    data.push_back(0x00);
+        // JP nz, xxxx
+        data.push_back(0xc2);
+        data.push_back(0x00);
+        data.push_back(0x00);
+    }
 
     // JP IY (ret)
     data.push_back(0xfd);
     data.push_back(0xe9);
 }
 
-int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
+int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
     const int imageHeight = data.data.size();
@@ -1157,7 +1164,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         const auto loadRegPreambula = line.getSerializedUsedRegisters();
         loadRegPreambula.serialize(serializedData);
         line.serialize(serializedData);
-        createInterlineGap(serializedData);
+        createInterlineGap(serializedData, true/*longGap*/);
     }
 
     // serialize descriptors
@@ -1183,14 +1190,14 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     for (const auto& descriptor: descriptors)
         lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
-    resolveJumpToNextBankInGap(serializedData, data, lineOffsetWithPreambula);
-    resolveJumpToNextLine(serializedData, data, lineOffsetWithPreambula);
+    resolveJumpToNextBankInGap(codeOffset, serializedData, data, lineOffsetWithPreambula);
+    resolveJumpToNextLine(codeOffset, serializedData, data, lineOffsetWithPreambula, bankSizeInLines);
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     return serializedData.size();
 }
 
-int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t offset)
+int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
 
@@ -1213,30 +1220,43 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
         return -1;
     }
 
+    // serialize main data
+    int imageHeight = data.data.size();
 
-    std::vector<LineDescriptor> descriptors;
-
-    for (int lineNum = 0; lineNum < data.data.size() - 7; ++lineNum)
+    int size = 0;
+    std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
+    std::vector<int> lineOffsetWithPreambula;
+    for (int y = 0; y < imageHeight; ++y)
     {
+        const auto& line = data.data[y];
+
+        lineOffsetWithPreambula.push_back(serializedData.size());
+        const auto loadRegPreambula = line.getSerializedUsedRegisters();
+        loadRegPreambula.serialize(serializedData);
+        line.serialize(serializedData);
+        createInterlineGap(serializedData, false /*longGap*/);
+    }
+
+    // serialize descriptors
+    std::vector<LineDescriptor> descriptors;
+    for (int d = 0; d < imageHeight + 16; ++d)
+    {
+        const int srcLine = d % imageHeight;
+
         LineDescriptor descriptor;
-        descriptor.addressBegin = data.size(0, lineNum) + offset;
+        const auto& line = data.data[srcLine];
+        const uint16_t lineAddress = lineOffsetWithPreambula[srcLine] + codeOffset;
+        descriptor.addressBegin = lineAddress;
         descriptors.push_back(descriptor);
     }
 
-    for (const auto& descriptor : descriptors)
+    for (const auto& descriptor: descriptors)
         colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
-    int size = 0;
-    for (int y = 0; y < data.data.size(); ++y)
-    {
-        const auto& line = data.data[y];
-        colorDataFile.write((const char*)line.data.data(), line.data.size());
-        size += line.data.size();
-    }
+    resolveJumpToNextLine(codeOffset, serializedData, data, lineOffsetWithPreambula, data.data.size());
+    colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
-    uint16_t filler = 0; // reserved space for the BD_BC_CODE for the last line
-    colorDataFile.write((const char*)&filler, sizeof(filler));
-    size += sizeof(filler);
+    return serializedData.size();
     return size;
 }
 
@@ -1373,9 +1393,10 @@ int main(int argc, char** argv)
     //interleaveData(data);
 
     addRraJpToLines(data);
+    addRraJpToLines(colorData);
 
-    int mainDataSize = serializeMainData(data, outputFileName, codeOffset);
-    //serializeColorData(colorData, outputFileName, codeOffset + mainDataSize);
+    int mainDataSize = serializeMainData(data, outputFileName, kCodeOffset);
+    serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
 
     serializeTimingData(data, colorData, outputFileName);
 

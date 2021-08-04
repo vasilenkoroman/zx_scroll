@@ -131,7 +131,7 @@ draw_4_lines_and_rt_colors:
 end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
-draw_64_lines
+                MACRO draw_64_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
 
@@ -140,13 +140,12 @@ draw_64_lines
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
                 ex de, hl                                       ; 4
-
-                ld a, 1                                         ; 7
                 ld ixl, 8                                       ; 11
-
                 ; free registers to use: bc, de, bc'
+                ld iy, $ + 5                                    ; 14
                 jp hl                                           ; 4
-                // total: 44
+                ENDM
+                // total: 51
 
 draw_image_and_color
         ld (stack_bottom), sp
@@ -159,29 +158,27 @@ draw_image_and_color
         add hl, hl                                      ; 11
 
         ld (stack_bottom + 2), hl                       ; 16
+        ld a, 1                                         ; 7
 
-        ; draw image (top 3-th part)
+        ; draw image (1)
         ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 6
-        ld iy, $ + 7
-        jp draw_64_lines
-
-        ; draw image (3)
-        ld hl, (stack_bottom + 2)                      ; 16
-        ld bc, descriptors  + 128 * 2                  ; 10
-        add hl, bc                                     ; 11
-        ld sp, 16384 + 1024 * 2
-        ld iy, $ + 7
-        jp draw_64_lines
+        draw_64_lines
 
         ; draw image (2)
         ld hl, (stack_bottom + 2)                      ; 16
         ld bc, descriptors + 64 * 2                    ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 4
-        ld iy, $ + 7
-        jp draw_64_lines
+        draw_64_lines
+
+        ; draw image (3)
+        ld hl, (stack_bottom + 2)                      ; 16
+        ld bc, descriptors  + 128 * 2                  ; 10
+        add hl, bc                                     ; 11
+        ld sp, 16384 + 1024 * 2
+        draw_64_lines
 
 
 
