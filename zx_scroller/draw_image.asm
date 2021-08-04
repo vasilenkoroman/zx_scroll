@@ -167,14 +167,6 @@ draw_image_and_color
         ld iy, $ + 7
         jp draw_64_lines
 
-        ; draw image (2)
-        ld hl, (stack_bottom + 2)                      ; 16
-        ld bc, descriptors + 64 * 2                    ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024 * 4
-        ld iy, $ + 7
-        jp draw_64_lines
-
         ; draw image (3)
         ld hl, (stack_bottom + 2)                      ; 16
         ld bc, descriptors  + 128 * 2                  ; 10
@@ -183,9 +175,17 @@ draw_image_and_color
         ld iy, $ + 7
         jp draw_64_lines
 
+        ; draw image (2)
+        ld hl, (stack_bottom + 2)                      ; 16
+        ld bc, descriptors + 64 * 2                    ; 10
+        add hl, bc                                      ; 11
+        ld sp, 16384 + 1024 * 4
+        ld iy, $ + 7
+        jp draw_64_lines
 
-        halt
-        
+
+
+/*        
         ; save image descriptor
         ld (stack_bottom + 4), hl                       ; 16
 
@@ -243,7 +243,7 @@ draw_image_and_color
         ld sp, 16384 + 1024 * 6 + 256 * 3
         ld iy, $ + 7
         jp draw_64_color_lines
-
+*/
 
         ld sp, (stack_bottom)
 
@@ -382,7 +382,7 @@ main:
         out 0xfe,a
 
         call copy_image
-        call copy_colors
+        //call copy_colors
 	
        
         call prepare_interruption_table
@@ -407,11 +407,10 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait
 
-max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
+max_scroll_offset equ 191 //(timings_data_end - timings_data) / 2 - 1
 scroll_step     equ 1
 
-        ld bc, max_scroll_offset       ; 10  ticks
-        ld de, -scroll_step            ; 10 ticks
+        ld bc, 6ch                      ; 10  ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -422,12 +421,31 @@ scroll_step     equ 1
         call draw_image_and_color       ; ~55000 ticks
 
         pop bc                          ; 10 ticks
+        pop de
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+        ld hl, 65000
+        call delay
+
         ; delay
         ; hl = delay
+/*        
         ld hl, bc
         add hl, bc
         ld de, timings_data
@@ -442,31 +460,18 @@ scroll_step     equ 1
         call delay
 
         pop de                          ; 10 ticks
+*/        
 
         ; do increment
-        ld hl, bc
-        add hl, de
-        ld bc, hl
-
-        ; compare to 0
-        ld a, h
-        or l
-        jp z, .zero_reached
+        dec bc
+        ld a, b
+        cp 0xff
 
         ; compare to N
-        push bc                         ; 11 ticks
-        ld bc, -max_scroll_offset       ; 10 ticks
-        add hl, bc                      ; 11 ticks
-        pop bc                          ; 10 ticks
-        
-        jp c, .upper_limit_reached      ; 10 ticks
+        jp z, .lower_limit_reached      ; 10 ticks
         jp .common_branch               ; 10 ticks
-.zero_reached:
-        ld de, scroll_step              ; 10 ticks
-        wait_ticks 42
-        jp .common_branch               ; 10 ticks
-.upper_limit_reached:
-        ld de, -scroll_step             ; 10 ticks
+.lower_limit_reached:
+        ld bc, max_scroll_offset        ; 10 ticks
 .common_branch:
 
 /*

@@ -1039,7 +1039,29 @@ void resolveJumpToNextBankInGap(
     for (int line = 0; line < imageHeight; ++line)
     {
         const int bankSize = imageHeight / 8;
-        int nextLine = (line + 1 + bankSize - 8) % imageHeight;
+        
+        int bankNum = line / bankSize;
+        int lineNumInBank = line - bankNum * bankSize;
+
+        int lineNumInNextBank = lineNumInBank - 7;
+        int nextBank = bankNum + 1;
+        if (nextBank > 7)
+        {
+            nextBank = 0;
+            ++lineNumInNextBank;
+        }
+
+        if (lineNumInNextBank < 0)
+            lineNumInNextBank += bankSize;
+
+        int nextLine = nextBank * bankSize + lineNumInNextBank;
+        
+        int nextLinePrev = (line + 1 + bankSize - 8) % imageHeight;
+
+        if (nextLinePrev != nextLine)
+            std::cout << "line=" << line <<" nextLinePrev = " << nextLinePrev << " nextLine=" << nextLine << std::endl;
+        else
+            std::cout << "line=" << line << " nextLine=" << nextLine << std::endl;
 
         uint16_t currentLineOffset = lineOffsetWithPreambula[line];
         uint16_t nextLineOffset = lineOffsetWithPreambula[nextLine];
@@ -1289,7 +1311,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters; //updateInvisibleColors | inverseColors;
+    int flags = 0; // verticalCompressionL; // | interlineRegisters; //updateInvisibleColors | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
