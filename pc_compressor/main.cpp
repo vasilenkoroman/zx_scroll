@@ -1028,14 +1028,33 @@ void resolveJumpToNextBankInGap(
     }
 }
 
+void resolveLine(
+    int line, int nextLine,
+    uint16_t codeOffset,
+    std::vector<uint8_t>& serializedData,
+    const CompressedData& data,
+    std::vector<int> lineOffsetWithPreambula)
+{
+    int lineOffset = lineOffsetWithPreambula[line];
+    const auto preambula = data.data[line].getSerializedUsedRegisters();
+
+    // JP command instead of JR here
+    int jpCommandOffset = lineOffset + preambula.data.size() + data.data[line].data.size() - 3;
+    uint16_t* jpPtr = (uint16_t*)(serializedData.data() + jpCommandOffset + 1);
+
+    uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine] + codeOffset;
+    int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
+    *jpPtr = nextLineAddr + nextLinePreambulaSize;
+}
+
 void resolveJumpToNextLine(
     uint16_t codeOffset,
     std::vector<uint8_t>& serializedData,
     const CompressedData& data,
-    std::vector<int> lineOffsetWithPreambula,
-    int bankSize)
+    std::vector<int> lineOffsetWithPreambula)
 {
     const int imageHeight = data.data.size();
+    const int bankSize = imageHeight / 8;
 
     for (int line = 0; line < imageHeight; ++line)
     {
@@ -1048,17 +1067,22 @@ void resolveJumpToNextLine(
         else
             nextLine = line + 1;
 
+        resolveLine(line, nextLine,
+            codeOffset, serializedData, data, lineOffsetWithPreambula);
+    }
+}
 
-        int lineOffset = lineOffsetWithPreambula[line];
-        const auto preambula = data.data[line].getSerializedUsedRegisters();
-
-        // JP command instead of JR here
-        int jpCommandOffset = lineOffset + preambula.data.size() + data.data[line].data.size() - 3;
-        uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
-
-        uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine]  + codeOffset;
-        int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
-        *jpPtr = nextLineAddr + nextLinePreambulaSize;
+void resolveJumpToNextLineForColors(
+    uint16_t codeOffset,
+    std::vector<uint8_t>& serializedData,
+    const CompressedData& data,
+    const std::vector<int>& lineOffsetWithPreambula)
+{
+    const int imageHeight = data.data.size();
+    for (int line = 0; line < imageHeight; ++line)
+    {
+        resolveLine(line, (line + 1) % imageHeight,
+            codeOffset, serializedData, data, lineOffsetWithPreambula);
     }
 }
 
@@ -1148,7 +1172,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     resolveJumpToNextBankInGap(codeOffset, serializedData, data, lineOffsetWithPreambula);
-    resolveJumpToNextLine(codeOffset, serializedData, data, lineOffsetWithPreambula, bankSizeInLines);
+    resolveJumpToNextLine(codeOffset, serializedData, data, lineOffsetWithPreambula);
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     return serializedData.size();
@@ -1210,7 +1234,7 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     for (const auto& descriptor: descriptors)
         colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
-    resolveJumpToNextLine(codeOffset, serializedData, data, lineOffsetWithPreambula, data.data.size());
+    resolveJumpToNextLineForColors(codeOffset, serializedData, data, lineOffsetWithPreambula);
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
     return serializedData.size();

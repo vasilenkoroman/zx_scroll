@@ -171,7 +171,7 @@ draw_image_and_color
         rra
         srl b
         rra
-        and ~3
+        and ~1
         ld c, a
         ld (stack_bottom + 4), bc                       ; 20
 
@@ -354,7 +354,7 @@ main:
         out 0xfe,a
 
         call copy_image
-        //call copy_colors
+        call copy_colors
 	
        
         call prepare_interruption_table
@@ -382,18 +382,14 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 max_scroll_offset equ 191 //(timings_data_end - timings_data) / 2 - 1
 scroll_step     equ 1
 
-        ld bc, 6ch                      ; 10  ticks
+        ld bc, 0h                       ; 10  ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        push de                         ; 11 ticks
         push bc                         ; 11 ticks
-
         call draw_image_and_color       ; ~55000 ticks
-
         pop bc                          ; 10 ticks
-        pop de
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
