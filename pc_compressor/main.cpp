@@ -196,8 +196,8 @@ int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, i
         }
         if (flags & verticalCompressionL)
         {
-            auto nextLine = y < maxY - 1 ? ptr + 32 : buffer + x;
-            uint8_t lowerByte = *(ptr+32);
+            auto nextLinePtr = y < maxY - 1 ? ptr + 32 : buffer + x;
+            uint8_t lowerByte = *nextLinePtr;
             if (lowerByte != currentByte)
                 return result;
         }
@@ -935,7 +935,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
         bool success;
         CompressedLine line;
-        compressLineMain(line, verticalCompressionL /*flags*/, imageHeight / 8 /*maxY*/,
+        compressLineMain(line, verticalCompressionL | interlineRegisters /*flags*/, imageHeight / 8 /*maxY*/,
             buffer, buffer, registers, y, &success);
         compressedData.data.push_back(line);
     }

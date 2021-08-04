@@ -131,119 +131,94 @@ draw_4_lines_and_rt_colors:
 end_draw:
                 jp 00      ; ret                                ; 10 ticks
 
-                MACRO draw_64_lines
+        MACRO draw_64_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
 
-                ; ix - address to execute
                 ld e, (hl)                                      ; 7
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
                 ex de, hl                                       ; 4
                 ld ixl, 8                                       ; 11
-                ; free registers to use: bc, de, bc'
+                ; free registers to use: bc, de, hl
                 ld iy, $ + 5                                    ; 14
                 jp hl                                           ; 4
-                ENDM
                 // total: 51
+        ENDM
+        
+        MACRO draw_8_color_lines
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld d, (hl)                                      ; 7
+                ex de, hl                                       ; 4
+                ld iy, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                // total: 40
+        ENDM
 
 draw_image_and_color
-        ld (stack_bottom), sp
-
         ; bc - line number
+        ld (stack_bottom), sp                           ; 20
 
-        ; hl = bc * sizeof(descriptor)
         ld hl, bc                                       ; 8
-        ; save line number
+        ; save line number * 2
         add hl, hl                                      ; 11
-
         ld (stack_bottom + 2), hl                       ; 16
+
+        ; save line number / 4
+        ld a, c
+        srl b
+        rra
+        srl b
+        rra
+        and ~3
+        ld c, a
+        ld (stack_bottom + 4), bc                       ; 20
+
         ld a, 1                                         ; 7
 
-        ; draw image (1)
-        ld bc, descriptors                              ; 10
+        // ----------- draw colors (top)
+        ld hl, color_descriptor + 16 * 2                ; 10
         add hl, bc                                      ; 11
-        ld sp, 16384 + 1024 * 6
-        draw_64_lines
+        ld sp, 16384 + 1024*6 + 256
+         draw_8_color_lines
 
-        ; draw image (2)
-        ld hl, (stack_bottom + 2)                      ; 16
-        ld bc, descriptors + 64 * 2                    ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024 * 4
-        draw_64_lines
-
-        ; draw image (3)
+        // ----------- draw image (top)
         ld hl, (stack_bottom + 2)                      ; 16
         ld bc, descriptors  + 128 * 2                  ; 10
         add hl, bc                                     ; 11
         ld sp, 16384 + 1024 * 2
         draw_64_lines
 
-
-
-/*        
-        ; save image descriptor
-        ld (stack_bottom + 4), hl                       ; 16
-
-        ; draw colors (top 3-th part)
-        ; hl = bc/8 * sizeof(descriptor)
-        ld hl, (stack_bottom + 2)                       ; 16
-
-        ex af,af'
-        ld a, l
-        srl h
-        rra
-        and ~3
-        ld l, a
-        ex af,af'
-
-        ld bc, color_descriptor + 2 * 16                ; 10
+        // ----------- draw colors (middle)
+        ld hl, (stack_bottom + 4)
+        ld bc, color_descriptor + 8 * 2                 ; 10
         add hl, bc                                      ; 11
+        ld sp, 16384 + 1024*6 + 512
+        draw_8_color_lines
 
-        ld sp, 16384 + 1024 * 6 + 256
-        ld iy, $ + 7
-        jp draw_64_color_lines
-
-        ; save color descriptor
-        ld (stack_bottom + 2), hl                       ; 16
-
-        ; restore image descriptor
-        ld hl, (stack_bottom + 4)                       ; 16
-
-        ; draw image (middle and bottom 3-th)
-        ld de, (64 - 8 - 128) * 4                        ; 10
-        add hl, de                                      ; 11
+        // --------- draw image (middle)
+        ld hl, (stack_bottom + 2)                      ; 16
+        ld bc, descriptors + 64 * 2                    ; 10
+        add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 4
-        ld iy, $ + 7
-        jp draw_64_lines
+        draw_64_lines
 
-        ld de, (64 - 8 - 128) * 4                        ; 10
-        add hl, de                                      ; 11
-        ld sp, 16384 + 1024 * 6
-        ld iy, $ + 7
-        jp draw_64_lines
+        // ----------- draw colors (bottom)
+        ld hl, (stack_bottom + 4)
+        ld bc, color_descriptor                         ; 10
+        add hl, bc                                      ; 11
+        ld sp, 16384 + 1024*6 + 768
+        draw_8_color_lines
 
-        ; draw colors (middle and bottom 3-th)
-
-        ; restore color descriptor
+        // -------- draw image (bottom)
         ld hl, (stack_bottom + 2)                       ; 16
-        ld de, -9 * 4                                   ; 10
-        add hl, de                                      ; 11
-
-        ld sp, 16384 + 1024 * 6 + 256 * 2
-        ld iy, $ + 7
-        jp draw_64_color_lines
-
-        ld de, -9 * 4                                   ; 10
-        add hl, de                                      ; 11
-        ld sp, 16384 + 1024 * 6 + 256 * 3
-        ld iy, $ + 7
-        jp draw_64_color_lines
-*/
+        ld bc, descriptors                              ; 10
+        add hl, bc                                      ; 11
+        ld sp, 16384 + 1024 * 6
+        draw_64_lines
 
         ld sp, (stack_bottom)
-
         ret                
 
 draw_64_color_lines
