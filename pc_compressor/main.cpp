@@ -324,7 +324,7 @@ void updateTransitiveRegUsage(T& data)
         {
             int nextLineNum = (lineNum + j) % size;
             CompressedLine& nextLine = data[nextLineNum];
-            
+
             selfRegMask |= nextLine.selfRegMask;
             uint8_t additionalUsage = nextLine.regUseMask & ~selfRegMask;
             line.regUseMask |= additionalUsage;
@@ -1039,7 +1039,7 @@ void resolveJumpToNextBankInGap(
     for (int line = 0; line < imageHeight; ++line)
     {
         const int bankSize = imageHeight / 8;
-        
+
         int bankNum = line / bankSize;
         int lineNumInBank = line - bankNum * bankSize;
 
@@ -1050,18 +1050,10 @@ void resolveJumpToNextBankInGap(
             nextBank = 0;
             ++lineNumInNextBank;
         }
-
         if (lineNumInNextBank < 0)
             lineNumInNextBank += bankSize;
 
         int nextLine = nextBank * bankSize + lineNumInNextBank;
-        
-        int nextLinePrev = (line + 1 + bankSize - 8) % imageHeight;
-
-        if (nextLinePrev != nextLine)
-            std::cout << "line=" << line <<" nextLinePrev = " << nextLinePrev << " nextLine=" << nextLine << std::endl;
-        else
-            std::cout << "line=" << line << " nextLine=" << nextLine << std::endl;
 
         uint16_t currentLineOffset = lineOffsetWithPreambula[line];
         uint16_t nextLineOffset = lineOffsetWithPreambula[nextLine];
@@ -1082,15 +1074,27 @@ void resolveJumpToNextLine(
     std::vector<int> lineOffsetWithPreambula)
 {
     const int imageHeight = data.data.size();
+    const int bankSize = imageHeight / 8;
+
     for (int line = 0; line < imageHeight; ++line)
     {
+        int bankNum = line / bankSize;
+        int lineNumInBank = line - bankNum * bankSize;
+
+        int nextLine;
+        if (lineNumInBank == bankSize - 1)
+            nextLine = bankNum * bankSize;
+        else
+            nextLine = line + 1;
+
+
         int lineOffset = lineOffsetWithPreambula[line];
         const auto preambula = data.data[line].getSerializedUsedRegisters();
 
         // JP command instead of JR here
         int jpCommandOffset = lineOffset + preambula.data.size() + data.data[line].data.size() - 3;
         uint16_t* jpPtr = (uint16_t*) (serializedData.data() + jpCommandOffset + 1);
-        int nextLine = (line + 1) % imageHeight;
+
         uint16_t nextLineAddr = lineOffsetWithPreambula[nextLine]  + codeOffset;
         int nextLinePreambulaSize = data.data[nextLine].getSerializedUsedRegisters().data.size();
         *jpPtr = nextLineAddr + nextLinePreambulaSize;
@@ -1139,9 +1143,9 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
     }
-    
+
     // serialize main data
-    
+
     int size = 0;
     std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
     std::vector<int> lineOffsetWithPreambula;
@@ -1160,18 +1164,15 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
 
     std::vector<LineDescriptor> descriptors;
 
-    int descriptorsSize = imageHeight * 2;
-    int preambulasOffset = codeOffset + serializedData.size() + descriptorsSize;
-
-    int bankSizeInLines = imageHeight / 8;
-
+    const int bankSizeInLines = imageHeight / 8;
     for (int d = 0; d < imageHeight + 128; ++d)
     {
+        const int srcLine = d % imageHeight;
+
         LineDescriptor descriptor;
-        int lineBank = d % 8;
-        int lineInBank = d / 8;
+        int lineBank = srcLine % 8;
+        int lineInBank = srcLine / 8;
         int lineNum = bankSizeInLines * lineBank + lineInBank;
-        lineNum = lineNum % imageHeight;
 
         const auto& line = data.data[lineNum];
         const uint16_t lineAddress = lineOffsetWithPreambula[lineNum] + codeOffset;
