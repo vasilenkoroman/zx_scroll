@@ -34,27 +34,6 @@ bool isHiddenData(uint8_t* colorBuffer, int x, int y)
     return (colorData & 7) == ((colorData >> 3) & 7);
 }
 
-int removeInvisibleData(uint8_t* buffer, uint8_t* colorBuffer, int replaceTo, int imageHeight)
-{
-    int result = 0;
-    for (int y = 0; y < imageHeight / 8; ++y)
-    {
-        for (int x = 0; x < 32; ++x)
-        {
-            if (isHiddenData(colorBuffer, x, y))
-            {
-                for (int i = 0; i < 8; ++i)
-                {
-                    int line = y * 8 + i;
-                    buffer[line * 32 + x] = replaceTo;
-                }
-                ++result;
-            }
-        }
-    }
-    return result;
-}
-
 template <typename T>
 Register16* findRegister(T& registers, const std::string& name)
 {
@@ -651,20 +630,10 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 
     std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
 
-#if 0
-    if (flags & skipInvisibleColors)
-    {
-        int removedColors = removeInvisibleData(buffer, colorBuffer, *a.value, imageHeight);
-        std::cout << "removed invisible color blocks = " << removedColors << std::endl;
-    }
-#endif
-
     CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
-
-#if 1
     for (int y = 0; y < imageHeight / 8; ++y)
     {
         for (int x = 0; x < 32; x += 2)
@@ -711,7 +680,6 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             }
         }
     }
-#endif
 
     return result;
 }
@@ -974,33 +942,6 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
     updateTransitiveRegUsage(compressedData.data);
     return compressedData;
 }
-
-#if 0
-void moveLoadBcFirst(CompressedData& data)
-{
-    for (auto& line: data.data)
-    {
-        uint8_t* buffer = line.data.buffer();
-        for (int i = 0; i < line.data.size(); ++i)
-        {
-            if (buffer[i] == DEC_SP_CODE)
-                continue;
-            else if (buffer[i] == LD_BC_CODE)
-            {
-                uint8_t tmpBuffer[3];
-                memcpy(tmpBuffer, buffer + i, 3);
-                memmove(buffer + 3, buffer, i);
-                memcpy(buffer, tmpBuffer, 3);
-                break;
-            }
-            else
-            {
-                assert(0);
-            }
-        }
-    }
-}
-#endif
 
 void interleaveData(CompressedData& data)
 {
