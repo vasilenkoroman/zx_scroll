@@ -406,28 +406,31 @@ void compressLine(
             canAvoidSecond = isHiddenData(colorBuffer, x + 1, y / 8);
         }
 
-        for (auto& reg: registers)
+        if (x < 31)
         {
-            bool valueOk;
-            if (canAvoidFirst && canAvoidSecond)
-                valueOk = true;
-            else if (canAvoidFirst)
-                valueOk = reg.l.hasValue((uint8_t)word);
-            else if (canAvoidSecond)
-                valueOk = reg.h.hasValue(word >> 8);
-            else
-                valueOk = reg.hasValue16(word);
-
-            if (result.isAltReg == reg.isAlt && valueOk)
+            for (auto& reg : registers)
             {
-                reg.push(result);
-                x += 2;
-                isChoised = true;
-                break;
+                bool valueOk;
+                if (canAvoidFirst && canAvoidSecond)
+                    valueOk = true;
+                else if (canAvoidFirst)
+                    valueOk = reg.l.hasValue((uint8_t)word);
+                else if (canAvoidSecond)
+                    valueOk = reg.h.hasValue(word >> 8);
+                else
+                    valueOk = reg.hasValue16(word);
+
+                if (result.isAltReg == reg.isAlt && valueOk)
+                {
+                    reg.push(result);
+                    x += 2;
+                    isChoised = true;
+                    break;
+                }
             }
+            if (isChoised)
+                continue;
         }
-        if (isChoised)
-            continue;
 
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
