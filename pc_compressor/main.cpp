@@ -287,7 +287,7 @@ void makeChoise(
         reg.h.updateToValue(result, word >> 8, registers);
     else
         reg.updateToValue(result, word, registers);
-    
+
     reg.push(result);
     compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
 }
@@ -397,7 +397,7 @@ void compressLine(
 
         // push existing 16 bit value.
         bool isChoised = false;
-        
+
         bool canAvoidFirst = false;
         bool canAvoidSecond = false;
         if (flags & skipInvisibleColors)
@@ -1242,43 +1242,51 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     return size;
 }
 
-int getTicksChainFor64Line(const CompressedData& data, int lineNum)
+int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
 {
+    static const int kBankDelay = 18;
+    static const int kEnterDelay = 4;
+    static const int kReturnDelay = 8;
+
     int result = 0;
     const int imageHeight = data.data.size();
-    lineNum = lineNum % imageHeight;
+    screenLineNum = screenLineNum % imageHeight;
 
     const int bankSize = imageHeight / 8;
-    int bankNum = lineNum / bankSize;
+    int bankNum = screenLineNum % 8;
+    int lineInBank = screenLineNum  / 8;
 
     for (int b = 0; b < 8; ++b)
     {
         bool firstLineInBank = true;
-        int lineInBank = lineNum;
+        int lineInBankCur = lineInBank;
         for (int i = 0; i < 8; ++i)
         {
-            const auto& line = data.data[lineInBank];
+            const auto& line = data.data[lineInBankCur + bankNum * bankSize];
             if (firstLineInBank)
-                result += line.getSerializedUsedRegisters().data.size();
+                result += line.getSerializedUsedRegisters().drawTicks;
             result += line.drawTicks;
             firstLineInBank = false;
-            lineInBank = nextLineInBank(lineInBank, imageHeight);
+            lineInBankCur = nextLineInBank(lineInBankCur, imageHeight);
         }
+        result += kBankDelay;
 
-        lineNum += bankSize;
         ++bankNum;
         if (bankNum > 7)
         {
             bankNum = 0;
-            ++lineNum;
-            lineNum -= imageHeight;
+            lineInBank = nextLineInBank(lineInBank, imageHeight);
         }
     }
+    result += kEnterDelay + kReturnDelay;
     return result;
 }
 
 int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
 {
+    static const int kEnterDelay = 4;
+    static const int kReturnDelay = 8;
+
     int result = 0;
     const int imageHeight = data.data.size();
     lineNum = lineNum % imageHeight;
@@ -1286,10 +1294,12 @@ int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
     for (int i = 0; i < 8; ++i)
     {
         const auto& line = data.data[lineNum];
-        result += line.getSerializedUsedRegisters().data.size();
+        if (i == 0)
+            result += line.getSerializedUsedRegisters().drawTicks;
         result += line.drawTicks;
         lineNum = (lineNum + 1) % imageHeight;
     }
+    result += kEnterDelay + kReturnDelay;
     return result;
 }
 

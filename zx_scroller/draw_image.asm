@@ -221,74 +221,6 @@ draw_image_and_color
         ld sp, (stack_bottom)
         ret                
 
-draw_64_color_lines
-        // hl - descriptor
-        // sp - destinatin screen address to draw
-
-        ; ix - address to execute
-        ld e, (hl)                                      ; 7
-        inc l                                           ; 4
-        ld d, (hl)                                      ; 7
-        inc l                                           ; 4
-        ld ix, de                                       ; 16
-
-        ; de - end exec address
-        ld e, (hl)                                      ; 7
-        inc l                                           ; 4
-        ld d, (hl)                                      ; 7
-        inc hl                                          ; 6
-
-        ex de, hl                                       ; 4
-        ld (hl), JP_HL_CODE                             ; 10
-
-        exx                                             ; 4
-        ld hl, $ + 5    ; return address                ; 10
-        ; free registers to use: bc, de, bc', de'
-        jp ix                                           ; 8
-        exx                                             ; 4
-
-        ; restore data
-        ld (hl), LD_BC_XXXX_CODE                        ; 10
-        ex de, hl                                       ; 4
-
-        jp iy
-
-draw_colors
-        ld (stack_bottom), sp
-
-        ; bc - line number
-
-        ld a, c
-        srl b
-        rra
-        and ~3
-
-        ; hl = bc/8 * sizeof(descriptor)
-        ld h, b
-        ld l, a
-        ld bc, color_descriptor + 4 * 16                ; 10
-        add hl, bc                                      ; 11
-
-        ld sp, 16384 + 1024 * 6 + 256
-        ld iy, $ + 7
-        jp draw_64_color_lines
-
-        ld de, -9 * 4                                   ; 10
-        add hl, de                                      ; 11
-        ld sp, 16384 + 1024 * 6 + 256 * 2
-        ld iy, $ + 7
-        jp draw_64_color_lines
-
-        ld de, -9 * 4                                   ; 10
-        add hl, de                                      ; 11
-        ld sp, 16384 + 1024 * 6 + 256 * 3
-        ld iy, $ + 7
-        jp draw_64_color_lines
-
-        ld sp, (stack_bottom)
-
-        ret                
-
 /************** delay routine *************/
 
 d1      equ     17+15+21+11+15+14
@@ -368,7 +300,7 @@ first_timing_in_interrupt equ 21
         ; remove interrupt data from stack
         pop af                          ; 10 ticks
 
-ticks_after_interrupt equ first_timing_in_interrupt + 74
+ticks_after_interrupt equ first_timing_in_interrupt + 34
 
 screen_ticks  equ 71680
 first_rastr_line_tick equ  17920
@@ -379,8 +311,7 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 
         wait_ticks ticks_to_wait
 
-max_scroll_offset equ 191 //(timings_data_end - timings_data) / 2 - 1
-scroll_step     equ 1
+max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
         ld bc, 0h                       ; 10  ticks
         jp .loop
@@ -405,7 +336,7 @@ scroll_step     equ 1
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  0;  // extra delay
+        ld hl,  71680-72528;  // extra delay
         add hl, de
 
         call delay
