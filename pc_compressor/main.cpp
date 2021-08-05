@@ -1047,6 +1047,18 @@ void resolveLine(
     *jpPtr = nextLineAddr + nextLinePreambulaSize;
 }
 
+int nextLineInBank(int line, int imageHeight)
+{
+    const int bankSize = imageHeight / 8;
+    int bankNum = line / bankSize;
+    int lineNumInBank = line - bankNum * bankSize;
+
+    if (lineNumInBank == bankSize - 1)
+        return bankNum * bankSize;
+    else
+        return line + 1;
+}
+
 void resolveJumpToNextLine(
     uint16_t codeOffset,
     std::vector<uint8_t>& serializedData,
@@ -1054,20 +1066,9 @@ void resolveJumpToNextLine(
     std::vector<int> lineOffsetWithPreambula)
 {
     const int imageHeight = data.data.size();
-    const int bankSize = imageHeight / 8;
-
     for (int line = 0; line < imageHeight; ++line)
     {
-        int bankNum = line / bankSize;
-        int lineNumInBank = line - bankNum * bankSize;
-
-        int nextLine;
-        if (lineNumInBank == bankSize - 1)
-            nextLine = bankNum * bankSize;
-        else
-            nextLine = line + 1;
-
-        resolveLine(line, nextLine,
+        resolveLine(line, nextLineInBank(line, imageHeight),
             codeOffset, serializedData, data, lineOffsetWithPreambula);
     }
 }
@@ -1241,6 +1242,60 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     return size;
 }
 
+int getTicksChainFor64Line(const CompressedData& data, int lineNum)
+{
+    int result = 0;
+    const int imageHeight = data.data.size();
+    lineNum = lineNum % imageHeight;
+
+    const int bankSize = imageHeight / 8;
+    int bankNum = lineNum / bankSize;
+
+    for (int b = 0; b < 8; ++b)
+    {
+        bool firstLineInBank = true;
+        int lineInBank = lineNum;
+        for (int i = 0; i < 8; ++i)
+        {
+            const auto& line = data.data[lineInBank];
+            if (firstLineInBank)
+                result += line.getSerializedUsedRegisters().data.size();
+            result += line.drawTicks;
+            firstLineInBank = false;
+            lineInBank = nextLineInBank(lineInBank, imageHeight);
+        }
+
+        lineNum += bankSize;
+        ++bankNum;
+        if (bankNum > 7)
+        {
+            bankNum = 0;
+            ++lineNum;
+            lineNum -= imageHeight;
+        }
+    }
+    return result;
+}
+
+int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
+{
+    int result = 0;
+    const int imageHeight = data.data.size();
+    lineNum = lineNum % imageHeight;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        const auto& line = data.data[lineNum];
+        result += line.getSerializedUsedRegisters().data.size();
+        for (int i = 0; i < 8; ++i)
+        {
+            result += line.drawTicks;
+            lineNum = (lineNum + 1) % imageHeight;
+        }
+    }
+    return result;
+}
+
 int serializeTimingData(const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
 {
     using namespace std;
@@ -1255,12 +1310,16 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         return -1;
     }
 
-    for (int line = 0; line <= imageHeight - 192; ++line)
+    for (int line = 0; line < imageHeight; ++line)
     {
-        int ticks = data.ticks(line, 192);
-        int colorLine = line / 8;
-        int colorTicks = color.ticks(colorLine, 24);
-        uint16_t freeTicks = totalTicksPerFrame - (ticks + colorTicks);
+        int ticks = 0;
+        for (int i = 0; i < 3; ++i)
+        {
+            ticks += getTicksChainFor64Line(data, line + i * 64);
+            ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
+        }
+
+        uint16_t freeTicks = totalTicksPerFrame - ticks;
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
     }
 
