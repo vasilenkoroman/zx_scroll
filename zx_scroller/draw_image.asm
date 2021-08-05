@@ -6,7 +6,7 @@
 screen_addr:    equ 16384
 screen_size:    equ 1024 * 6 + 768
 screen_end:     equ 5b00h
-generated_code: equ screen_end + 1024
+generated_code: equ screen_end + 768
 
 /*************** Image data. ******************/
 
@@ -27,8 +27,7 @@ timings_data
 timings_data_end
 
 src_data
-        INCBIN "resources/samanasuke.bin", 0, 6144
-        
+        //INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
@@ -285,9 +284,8 @@ main:
         ld a, 1
         out 0xfe,a
 
-        call copy_image
+        //call copy_image
         call copy_colors
-	
        
         call prepare_interruption_table
         ei

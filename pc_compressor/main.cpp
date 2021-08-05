@@ -14,7 +14,7 @@
 #include "registers.h"
 
 static const int totalTicksPerFrame = 71680;
-static const int kCodeOffset = 0x5b00 + 1024;
+static const int kCodeOffset = 0x5b00 + 768;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
 static const uint8_t LD_BC_CODE = 1;
