@@ -21,7 +21,7 @@ descriptors
 
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
-
+        align	2
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
@@ -383,6 +383,9 @@ max_scroll_offset equ 191 //(timings_data_end - timings_data) / 2 - 1
 scroll_step     equ 1
 
         ld bc, 0h                       ; 10  ticks
+        jp .loop
+.lower_limit_reached:
+        ld bc, max_scroll_offset        ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -394,41 +397,18 @@ scroll_step     equ 1
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-        ld hl, 65000
-        call delay
-
         ; delay
-        ; hl = delay
-/*        
-        ld hl, bc
+        ld hl, timings_data
         add hl, bc
-        ld de, timings_data
-        add hl, de
-        ld a, (hl)
-        inc hl
-        ld h, (hl)
-        ld l, a
-        ld de, -4139 ;  // extra delay
+        add hl, bc
+
+        ld e, (hl)
+        inc l
+        ld d, (hl)
+        ld hl,  0;  // extra delay
         add hl, de
 
         call delay
-
-        pop de                          ; 10 ticks
-*/        
 
         ; do increment
         dec bc
@@ -437,21 +417,8 @@ scroll_step     equ 1
 
         ; compare to N
         jp z, .lower_limit_reached      ; 10 ticks
-        jp .common_branch               ; 10 ticks
-.lower_limit_reached:
-        ld bc, max_scroll_offset        ; 10 ticks
-.common_branch:
-
-/*
-.total_ticks_per_loop: equ 65725 - 3
-        wait_ticks (screen_ticks - .total_ticks_per_loop)
-        //.50 wait_ticks screen_ticks
-*/
-
         jp .loop                        ; 12 ticks
  
-        ret
-
 /*************** Data segment ******************/
 STACK_SIZE: equ 16  ; in words
 stack_bottom:

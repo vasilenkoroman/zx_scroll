@@ -1287,11 +1287,8 @@ int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
     {
         const auto& line = data.data[lineNum];
         result += line.getSerializedUsedRegisters().data.size();
-        for (int i = 0; i < 8; ++i)
-        {
-            result += line.drawTicks;
-            lineNum = (lineNum + 1) % imageHeight;
-        }
+        result += line.drawTicks;
+        lineNum = (lineNum + 1) % imageHeight;
     }
     return result;
 }
