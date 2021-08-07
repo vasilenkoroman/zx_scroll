@@ -79,56 +79,59 @@ prepare_interruption_table:
         im 2
         ret
 
+
+        MACRO draw_8_lines
+                // hl - descriptor
+                // sp - destinatin screen address to draw
+
+                ld a, (hl)                                      ; 7
+                exx af, af'                                     ; 4
+                inc l                                           ; 4
+                ld a, (hl)                                      ; 7
+                inc hl                                          ; 6
+
+                exx                                             ; 4
+                ld h, a                                         ; 4
+                exx af, af'                                     ; 4
+                ld l, a                                         ; 4
+                jp hl                                           ; 4
+                exx                                             ; 4
+                // total 52
+        ENDM                
+                .8 draw_8_lines
+
+
+
 draw_4_lines_and_rt_colors:
-                // sp - descriptor
-                // (stack_bottom + 2) - destinatin screen address to draw
-                // iy - destinatin color address to draw
+                // (stack_bottom) - descriptor
+                // (stack_bottom + 2) - destinatin rastr address to draw
+                // (stack_bottom + 4) - destinatin multicolor address to draw
 
-                ; ix - address to execute
-                pop ix                                          ; 14
-
-                ; hl - end execute address
+                ; hl - colors to execute
+                ld sp, (stack_bottom)                           ; 20
                 pop hl                                          ; 10
-
-                ; bc - colors to execute
-                pop bc                                          ; 10
-
+                exx                                             ; 4
+                ; hl - rastr address to execute
+                pop hl                                          ; 10
+                pop de ; delay                                  ; 10
                 ; save descriptor
                 ld (stack_bottom), sp                           ; 20
 
-                ; drawing address
-                ld sp, (stack_bottom + 2)                       ; 20
-
-                ld (hl), JP_HL_CODE                             ; 10
-
-                exx                                             ; 4
-                ld hl, $ + 6    ; return address                ; 10
-                ; free registers to use: bc, de, de'
-                jp ix                                           ; 8
-                exx                                             ; 4
-
-                ; restore data
-                ld (hl), LD_BC_XXXX_CODE                        ; 10
-
-                // draw RT colors (1 line)
-
-                ; save main draw address
-                ld (stack_bottom + 2), sp                       ; 20
-                ; set stack to color draw address
-                ld sp, iy                                       ; 10
-
-                ld hl, bc                                       ; 8
+                ; rastr drawing address
+                ld sp, 16384+1024*3                             ; 10
+                //call delay
+                // draw rastr  (4 line)
+                ld ix, $ + 5 ; ret addr                         ; 14
                 jp hl                                           ; 4
 
-                ; Move destination color address to the next line
-                ld iy, -32                                      ; 14 
-                add iy, sp                                      ; 15
-                ; restore descriptor
-                ld sp, (stack_bottom)                           ; 20
+                ; draw RT colors (1 line)
+                exx                                             ; 4
+                ld sp, 16384+1024*6+768                         ; 10
+                ld ix, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                // total ticks: 134 (+2 ret = 150)
 
-                // total ticks: 211
-end_draw:
-                jp 00      ; ret                                ; 10 ticks
+
 
         MACRO draw_64_lines
                 // hl - descriptor
@@ -144,7 +147,7 @@ end_draw:
                 jp hl                                           ; 4
                 // total: 51
         ENDM
-        
+
         MACRO draw_8_color_lines
                 ld e, (hl)                                      ; 7
                 inc l                                           ; 4
@@ -180,7 +183,7 @@ draw_image_and_color
         ld hl, color_descriptor + 16 * 2                ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024*6 + 256
-         draw_8_color_lines
+         //draw_8_color_lines
 
         // ----------- draw image (top)
         ld hl, (stack_bottom + 2)                      ; 16
@@ -208,7 +211,7 @@ draw_image_and_color
         ld bc, color_descriptor                         ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024*6 + 768
-        draw_8_color_lines
+        //draw_8_color_lines
 
         // -------- draw image (bottom)
         ld hl, (stack_bottom + 2)                       ; 16
