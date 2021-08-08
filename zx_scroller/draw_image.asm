@@ -403,11 +403,10 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-72528;  // extra delay
+        ld hl,  71680-74679;  // extra delay
         add hl, de
 
-        //call delay
-        call long_delay
+        call delay
 
         ; do increment
         dec bc

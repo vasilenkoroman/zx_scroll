@@ -1054,11 +1054,6 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     // 2. Create delta for JP_IX when shift to 1 line
     for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
     {
-        if (screenLine == 191)
-        {
-            int gg = 4;
-        }
-
         int line = screenLine % imageHeight;
 
         int bankNum = line % 8;
@@ -1268,9 +1263,9 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
 
 int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
 {
-    static const int kBankDelay = 18;
     static const int kEnterDelay = 4;
     static const int kReturnDelay = 8;
+    static const int kJpFirstLineDelay = 10;
 
     int result = 0;
     const int imageHeight = data.data.size();
@@ -1293,7 +1288,11 @@ int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
             firstLineInBank = false;
             lineInBankCur = nextLineInBank(lineInBankCur, imageHeight);
         }
-        result += kBankDelay;
+        // The last line in every bank contains "JP firstLine" command. It is 10 ticks.
+        // In case of it is the latest drawing line, this command is overwritten by JP IX,
+        // this command is not need to take into account.
+        if (lineInBankCur == 0)
+            result -= kJpFirstLineDelay;
 
         ++bankNum;
         if (bankNum > 7)
@@ -1347,7 +1346,7 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         for (int i = 0; i < 3; ++i)
         {
             ticks += getTicksChainFor64Line(data, line + i * 64);
-            ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
+            //ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
         }
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
