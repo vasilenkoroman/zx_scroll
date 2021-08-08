@@ -1037,7 +1037,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             JpIxDescriptor d;
             int l = lineEndInBank + bank * bankSize;
             // There is additional JP BEGIN command at the end of data. It can be overriten safely.
-            uint16_t relativeOffset = l < imageHeight ? lineOffset[lineEndInBank]
+            uint16_t relativeOffset = l < imageHeight ? lineOffset[l]
                 : serializedData.size() - 3;
 
             d.address = relativeOffset + baseOffset;
@@ -1153,19 +1153,31 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         const auto& line = data.data[lineNum];
         const uint16_t lineAddress = lineOffset[lineNum] + codeOffset;
 
-        auto preambula = line.getSerializedUsedRegisters();
-        if (preambula.data.empty())
+        if (d % bankSizeInLines == 0)
         {
             // Simple descriptor. Direct link to the line.
             descriptor.addressBegin = lineAddress;
         }
         else
         {
+            if (d == 128)
+            {
+                int gg = 4;
+            }
+
             // create reach descriptor witch preambula
             descriptor.addressBegin = codeOffset + serializedData.size() + reachDescriptors.size();
+            auto preambula = line.getSerializedUsedRegisters();
             preambula.serialize(reachDescriptors);
+
+            // The first two bytes of the each line can be overwritted by JP_IX command
+            // Copy these bytes to the descriptor and skip them in JP command
+            static const int kJpIxCommandLen = 2;
+            std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
+            reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
+            
             reachDescriptors.push_back(0xc3); // JP XXXX
-            serialize(reachDescriptors, lineAddress);
+            serialize(reachDescriptors, lineAddress + firstCommands.size());
         }
 
         descriptors.push_back(descriptor);
@@ -1385,7 +1397,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters;// | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);

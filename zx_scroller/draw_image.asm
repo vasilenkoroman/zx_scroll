@@ -31,7 +31,7 @@ timings_data
 timings_data_end
 
 src_data
-        //INCBIN "resources/samanasuke.bin", 0, 6144
+        INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
@@ -39,7 +39,7 @@ data_end:
 /*************** Ennd image data. ******************/
 
 JP_HL_CODE      equ 0e9h
-JP_IX_CODE      equ 0e9ddh
+JP_IX_CODE      equ #e9dd
 LD_BC_XXXX_CODE equ 01h
 LD_DE_XXXX_CODE equ 11h
 
@@ -134,6 +134,8 @@ draw_64_lines
                 jp hl                                           ; 4
 .ret:           exx                                             ; 4
                 djnz .rep                                        ; 8/13
+                jp iy
+                //ENDM
                 // total 66 ticks (15 bytes)
 
         MACRO draw_8_color_lines
@@ -178,6 +180,7 @@ draw_image_and_color
         ld bc, descriptors  + 128 * 2                  ; 10
         add hl, bc                                     ; 11
         ld sp, 16384 + 1024 * 2
+        ld iy, $+7
         jp draw_64_lines
 
 /*
@@ -194,6 +197,7 @@ draw_image_and_color
         ld bc, descriptors + 64 * 2                    ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 4
+        ld iy, $+7
         jp draw_64_lines
 
 /*
@@ -210,6 +214,7 @@ draw_image_and_color
         ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 6
+        ld iy, $+7
         jp draw_64_lines
 
         ld sp, (stack_bottom)
@@ -217,7 +222,7 @@ draw_image_and_color
 
 write_initial_jp_ix_table
         ld sp, jpix_table
-        ld bc, JP_IX_CODE
+        ld de, JP_IX_CODE
         ld b, 24
 .rep:   pop hl ; address
         ld (hl), e
@@ -228,6 +233,44 @@ write_initial_jp_ix_table
 
         ld sp, stack_top - 2
         ret
+
+update_jp_ix_table        
+        // bc - screen address to draw
+        ld hl, bc
+        add hl, bc
+        add hl, bc
+        ld sp, jpix_table
+        add hl, sp
+        ld sp, hl
+
+        // 1. restore data
+        exx
+        ld b, 3
+.rep1:  pop hl ; address
+        pop de ; restore data
+        ld (hl), e
+        inc hl
+        ld (hl), d
+        djnz .rep1
+        exx
+
+        // 1. write new JP_IX
+        ld sp, 24 * 4
+        add hl, sp
+        ld sp, hl
+
+        ld b, 3
+        ld de, JP_IX_CODE
+.rep2:  pop hl ; address
+        ld (hl), e
+        inc hl
+        ld (hl), d
+        pop hl ; skip restore address
+        djnz .rep2
+
+        ld sp, stack_top - 2
+        ret
+        
 
 /************** delay routine *************/
 
@@ -293,7 +336,7 @@ main:
         ld a, 1
         out 0xfe,a
 
-        //call copy_image
+        call copy_image
         //call copy_colors
 
         call prepare_interruption_table
@@ -334,7 +377,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         call draw_image_and_color       ; ~55000 ticks
         pop bc                          ; 10 ticks
 
-        halt
+        call update_jp_ix_table
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks

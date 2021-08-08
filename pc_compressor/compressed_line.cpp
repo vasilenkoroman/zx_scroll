@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "compressed_line.h"
 #include "registers.h"
 
@@ -69,4 +71,85 @@ void CompressedLine::serialize(std::vector<uint8_t>& vector) const
     const auto dataSize = vector.size();
     vector.resize(dataSize + data.size());
     memcpy(vector.data() + dataSize, data.data(), data.size());
+}
+
+std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const 
+{
+    std::vector<uint8_t> result;
+    const uint8_t* ptr = data.buffer();
+    while (result.size() < size)
+    {
+        int commandSize = 0;
+
+        switch (*ptr)
+        {
+            case 0x06:
+            case 0x0e:
+            case 0x10:
+            case 0x16:
+            case 0x18:
+            case 0x1e:
+            case 0x20:
+            case 0x26:
+            case 0x28:
+            case 0x2e:
+            case 0x30:
+            case 0x36:
+            case 0x38:
+            case 0x3e:
+            case 0xc6:
+            case 0xce:
+            case 0xd3:
+            case 0xd6:
+            case 0xdb:
+            case 0xde:
+            case 0xe6:
+            case 0xee:
+            case 0xf6:
+            case 0xfe:
+                commandSize = 2;
+                break;
+            case 0x01:
+            case 0x11:
+            case 0x21:
+            case 0x22:
+            case 0x2a:
+            case 0x31:
+            case 0x32:
+            case 0x3a:
+            case 0xc2:
+            case 0xc3:
+            case 0xc4:
+            case 0xca:
+            case 0xcc:
+            case 0xcd:
+            case 0xd2:
+            case 0xd4:
+            case 0xda:
+            case 0xdc:
+            case 0xe2:
+            case 0xe4:
+            case 0xea:
+            case 0xec:
+            case 0xf2:
+            case 0xf4:
+            case 0xfa:
+            case 0xfc:
+                commandSize = 3;
+                break;
+            case 0xcb:
+            case 0xdd:
+            case 0xed:
+            case 0xfd:
+                std::cout << "Unsupported command " << (int)*ptr << ". It never can be. Some bug!";
+                assert(0);
+            default:
+            commandSize = 1;
+        }
+        for (int i = 0; i < commandSize; ++i)
+        {
+            result.push_back(*ptr++);
+        }
+    }
+    return result;
 }

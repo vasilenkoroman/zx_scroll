@@ -19,6 +19,7 @@ class ZxData
 public:
 
     uint8_t* buffer() { return m_buffer; }
+    const uint8_t* buffer() const { return m_buffer; }
 
     inline bool empty() const { return m_size == 0; }
 
@@ -57,6 +58,14 @@ struct CompressedLine
         data.push_back(0xd9);
         isAltReg = !isAltReg;
         drawTicks += 4;
+    }
+
+    void jp(uint16_t address)
+    {
+        data.push_back(0xc3);
+        data.push_back((uint8_t)address);
+        data.push_back(address >> 8);
+        drawTicks += 10;
     }
 
     void exAf()
@@ -106,6 +115,10 @@ public:
 
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters() const;
+
+    // Return first 'size' bytes of the line. 
+    // It round size up to not break Z80 instruction.
+    std::vector<uint8_t> getFirstCommands(int size) const;
 
     void serialize(std::vector<uint8_t>& vector) const;
 
