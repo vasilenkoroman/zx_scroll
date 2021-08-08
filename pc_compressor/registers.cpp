@@ -134,12 +134,14 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, T& registers16
         if (reg16.h.hasValue(byte))
         {
             line.useReg(reg16.h);
+            line.selfReg(*this);
             loadFromReg(line, reg16.h);
             return;
         }
         else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
         {
             line.useReg(reg16.l);
+            line.selfReg(*this);
             loadFromReg(line, reg16.l);
             return;
         }

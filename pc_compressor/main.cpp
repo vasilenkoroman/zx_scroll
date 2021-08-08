@@ -463,7 +463,7 @@ void compressLine(
 
         CompressedLine choisedLine;
         Registers chosedRegisters = registers;
-        for (int regIndex = 1; regIndex < registers.size(); ++regIndex)
+        for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
         {
             Registers regCopy = registers;
             bool successChoise = false;
