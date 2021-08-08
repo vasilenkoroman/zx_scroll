@@ -20,9 +20,13 @@ descriptors
         INCBIN "resources/compressed_data.main_descriptor"
 
 color_descriptor
-        INCBIN "resources/compressed_data.color_descriptor"
         align	2
+        INCBIN "resources/compressed_data.color_descriptor"
+jpix_table
+        align	2
+        INCBIN "resources/compressed_data.jpix"
 timings_data
+        align	2
         INCBIN "resources/compressed_data.timings"
 timings_data_end
 
@@ -35,6 +39,7 @@ data_end:
 /*************** Ennd image data. ******************/
 
 JP_HL_CODE      equ 0e9h
+JP_IX_CODE      equ 0e9ddh
 LD_BC_XXXX_CODE equ 01h
 LD_DE_XXXX_CODE equ 11h
 
@@ -80,28 +85,6 @@ prepare_interruption_table:
         ret
 
 
-        MACRO draw_8_lines
-                // hl - descriptor
-                // sp - destinatin screen address to draw
-
-                ld a, (hl)                                      ; 7
-                exx af, af'                                     ; 4
-                inc l                                           ; 4
-                ld a, (hl)                                      ; 7
-                inc hl                                          ; 6
-
-                exx                                             ; 4
-                ld h, a                                         ; 4
-                exx af, af'                                     ; 4
-                ld l, a                                         ; 4
-                jp hl                                           ; 4
-                exx                                             ; 4
-                // total 52
-        ENDM                
-                .8 draw_8_lines
-
-
-
 draw_4_lines_and_rt_colors:
                 // (stack_bottom) - descriptor
                 // (stack_bottom + 2) - destinatin rastr address to draw
@@ -132,28 +115,33 @@ draw_4_lines_and_rt_colors:
                 // total ticks: 134 (+2 ret = 150)
 
 
-
-        MACRO draw_64_lines
+draw_64_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
+                ld ix, .ret                                    ; 14
+                ld b, 8
 
-                ld e, (hl)                                      ; 7
+.rep:           ld a, (hl)                                      ; 7
+                ex af, af'                                      ; 4
                 inc l                                           ; 4
-                ld d, (hl)                                      ; 7
-                ex de, hl                                       ; 4
-                ld ixl, 8                                       ; 11
-                ; free registers to use: bc, de, hl
-                ld iy, $ + 5                                    ; 14
+                ld a, (hl)                                      ; 7
+                inc hl                                          ; 6
+
+                exx                                             ; 4
+                ld h, a                                         ; 4
+                ex af, af'                                      ; 4
+                ld l, a                                         ; 4
                 jp hl                                           ; 4
-                // total: 51
-        ENDM
+.ret:           exx                                             ; 4
+                djnz .rep                                        ; 8/13
+                // total 66 ticks (15 bytes)
 
         MACRO draw_8_color_lines
                 ld e, (hl)                                      ; 7
                 inc l                                           ; 4
                 ld d, (hl)                                      ; 7
                 ex de, hl                                       ; 4
-                ld iy, $ + 5                                    ; 14
+                ld ix, $ + 5                                    ; 14
                 jp hl                                           ; 4
                 // total: 40
         ENDM
@@ -177,51 +165,69 @@ draw_image_and_color
         ld c, a
         ld (stack_bottom + 4), bc                       ; 20
 
-        ld a, 1                                         ; 7
-
+/*
         // ----------- draw colors (top)
         ld hl, color_descriptor + 16 * 2                ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024*6 + 256
          //draw_8_color_lines
+*/         
 
         // ----------- draw image (top)
         ld hl, (stack_bottom + 2)                      ; 16
         ld bc, descriptors  + 128 * 2                  ; 10
         add hl, bc                                     ; 11
         ld sp, 16384 + 1024 * 2
-        draw_64_lines
+        jp draw_64_lines
 
+/*
         // ----------- draw colors (middle)
         ld hl, (stack_bottom + 4)
         ld bc, color_descriptor + 8 * 2                 ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024*6 + 512
         draw_8_color_lines
+*/        
 
         // --------- draw image (middle)
         ld hl, (stack_bottom + 2)                      ; 16
         ld bc, descriptors + 64 * 2                    ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 4
-        draw_64_lines
+        jp draw_64_lines
 
+/*
         // ----------- draw colors (bottom)
         ld hl, (stack_bottom + 4)
         ld bc, color_descriptor                         ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024*6 + 768
         //draw_8_color_lines
+*/
 
         // -------- draw image (bottom)
         ld hl, (stack_bottom + 2)                       ; 16
         ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 6
-        draw_64_lines
+        jp draw_64_lines
 
         ld sp, (stack_bottom)
         ret                
+
+write_initial_jp_ix_table
+        ld sp, jpix_table
+        ld bc, JP_IX_CODE
+        ld b, 24
+.rep:   pop hl ; address
+        ld (hl), e
+        inc hl
+        ld (hl), d
+        pop hl ; skip restore data
+        djnz .rep
+
+        ld sp, stack_top - 2
+        ret
 
 /************** delay routine *************/
 
@@ -288,8 +294,8 @@ main:
         out 0xfe,a
 
         //call copy_image
-        call copy_colors
-       
+        //call copy_colors
+
         call prepare_interruption_table
         ei
         halt
@@ -300,6 +306,8 @@ first_timing_in_interrupt equ 21
         di                              ; 4 ticks
         ; remove interrupt data from stack
         pop af                          ; 10 ticks
+
+        call write_initial_jp_ix_table
 
 ticks_after_interrupt equ first_timing_in_interrupt + 34
 
@@ -317,7 +325,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld bc, 0h                       ; 10  ticks
         jp .loop
 .lower_limit_reached:
-        ld bc, max_scroll_offset        ; 10 ticks
+        ld bc, 0        ; 10 ticks
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -325,6 +333,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         push bc                         ; 11 ticks
         call draw_image_and_color       ; ~55000 ticks
         pop bc                          ; 10 ticks
+
+        halt
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks

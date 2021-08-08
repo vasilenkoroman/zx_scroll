@@ -28,7 +28,7 @@ static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
 static const int skipInvisibleColors = 32;
 
-void serialize(std::vector<uint8_t> data, uint16_t value)
+void serialize(std::vector<uint8_t>& data, uint16_t value)
 {
     data.push_back((uint8_t)value);
     data.push_back(value >> 8);
@@ -462,7 +462,7 @@ void compressLine(
 
         CompressedLine choisedLine;
         Registers chosedRegisters = registers;
-        for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
+        for (int regIndex = 1; regIndex < registers.size(); ++regIndex)
         {
             Registers regCopy = registers;
             bool successChoise = false;
@@ -1048,8 +1048,10 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     }
 
     // 2. Create delta for JP_IX when shift to 1 line
-    for (int line = 1; line < imageHeight; ++line)
+    for (int l = 1; l < imageHeight; ++l)
     {
+        int line = l % imageHeight;
+
         int bankNum = line / bankSize;
         int lineNumInBank = line - bankNum * bankSize;
 
@@ -1113,7 +1115,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
 
     ofstream jpIxDescriptorFile;
     std::string jpIxDescriptorFileName = inputFileName + ".jpix";
-    jpIxDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
+    jpIxDescriptorFile.open(jpIxDescriptorFileName, std::ios::binary);
     if (!jpIxDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
@@ -1179,7 +1181,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
 
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
         codeOffset, serializedData, lineOffset);
-    jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size());
+    jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
 
     return serializedData.size() + reachDescriptors.size() + jpIxDescr.size();
