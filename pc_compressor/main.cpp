@@ -1027,6 +1027,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     int imageHeight = lineOffset.size();
     const int bankSize = imageHeight / 8;
 
+#if 0
     // 1. Create whole frame JP_IX
     for (int bank = 0; bank < 8; ++bank)
     {
@@ -1046,14 +1047,15 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             descriptors.push_back(d);
         }
     }
+#endif
 
     // 2. Create delta for JP_IX when shift to 1 line
-    for (int l = 1; l < imageHeight; ++l)
+    for (int screenLine = 0; screenLine < imageHeight + 128; ++screenLine)
     {
-        int line = l % imageHeight;
+        int line = screenLine % imageHeight;
 
-        int bankNum = line / bankSize;
-        int lineNumInBank = line - bankNum * bankSize;
+        int bankNum = line % 8;
+        int lineNumInBank = line / 8;
 
         for (int i = 1; i <= 3; ++i)
         {
@@ -1061,9 +1063,11 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             if (lineEndInBank > bankSize)
                 lineEndInBank -= bankSize;
             
+            int l = lineEndInBank + bankNum * bankSize;
+
             JpIxDescriptor d;
             // There is additional JP BEGIN command at the end of data. It can be overriten safely.
-            uint16_t relativeOffset = lineEndInBank < imageHeight ? lineOffset[lineEndInBank] 
+            uint16_t relativeOffset = l < imageHeight ? lineOffset[l] 
                 : serializedData.size() - 3;
             d.address = relativeOffset + baseOffset;
             uint16_t* ptr = (uint16_t*) (serializedData.data() + relativeOffset);

@@ -238,7 +238,7 @@ update_jp_ix_table
         // bc - screen address to draw
         ld hl, bc
         add hl, bc
-        add hl, bc
+        add hl, hl
         ld sp, jpix_table
         add hl, sp
         ld sp, hl
