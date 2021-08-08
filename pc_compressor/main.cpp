@@ -1102,7 +1102,7 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
-int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
+int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset, int flags)
 {
     using namespace std;
     const int imageHeight = data.data.size();
@@ -1169,32 +1169,22 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         const auto& line = data.data[lineNum];
         const uint16_t lineAddress = lineOffset[lineNum] + codeOffset;
 
-        if (d % bankSizeInLines == 0)
+        // create reach descriptor witch preambula(optional)
+        descriptor.addressBegin = codeOffset + serializedData.size() + reachDescriptors.size();
+        if (flags & interlineRegisters)
         {
-            // Simple descriptor. Direct link to the line.
-            descriptor.addressBegin = lineAddress;
-        }
-        else
-        {
-            if (d == 128)
-            {
-                int gg = 4;
-            }
-
-            // create reach descriptor witch preambula
-            descriptor.addressBegin = codeOffset + serializedData.size() + reachDescriptors.size();
             auto preambula = line.getSerializedUsedRegisters();
             preambula.serialize(reachDescriptors);
-
-            // The first two bytes of the each line can be overwritted by JP_IX command
-            // Copy these bytes to the descriptor and skip them in JP command
-            static const int kJpIxCommandLen = 2;
-            std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
-            reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
-            
-            reachDescriptors.push_back(0xc3); // JP XXXX
-            serialize(reachDescriptors, lineAddress + firstCommands.size());
         }
+
+        // The first two bytes of the each line can be overwritted by JP_IX command
+        // Copy these bytes to the descriptor and skip them in JP command
+        static const int kJpIxCommandLen = 2;
+        std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
+        reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
+            
+        reachDescriptors.push_back(0xc3); // JP XXXX
+        serialize(reachDescriptors, lineAddress + firstCommands.size());
 
         descriptors.push_back(descriptor);
     }
@@ -1483,7 +1473,7 @@ int main(int argc, char** argv)
     }
 
 
-    int mainDataSize = serializeMainData(data, outputFileName, kCodeOffset);
+    int mainDataSize = serializeMainData(data, outputFileName, kCodeOffset, flags);
 
 
     serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);

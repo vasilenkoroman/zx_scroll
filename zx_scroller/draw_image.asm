@@ -333,10 +333,12 @@ table   db      t14&255,t15&255,t16&255,t17&255
 
 
 long_delay:
-        ld b, 70
+        push bc
+        ld b, 2
 rep:    ld hl, 65535
         call delay
         djnz rep
+        pop bc
         ret
 
 /*************** Main. ******************/
