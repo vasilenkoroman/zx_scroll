@@ -116,13 +116,10 @@ draw_4_lines_and_rt_colors:
                 // total ticks: 134 (+2 ret = 150)
 
 
-draw_64_lines
+        MACRO draw_8_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
-                ld ix, .ret                                    ; 14
-                ld b, 8
-
-.rep:           ld a, (hl)                                      ; 7
+                ld a, (hl)                                      ; 7
                 ex af, af'                                      ; 4
                 inc l                                           ; 4
                 ld a, (hl)                                      ; 7
@@ -132,11 +129,10 @@ draw_64_lines
                 ld h, a                                         ; 4
                 ex af, af'                                      ; 4
                 ld l, a                                         ; 4
+                ld ix, $ + 5                                    ; 14
                 jp hl                                           ; 4
-.ret:           exx                                             ; 4
-                djnz .rep                                        ; 8/13
-                jp iy
-                //ENDM
+                exx                                             ; 4
+        ENDM
                 // total 66 ticks (15 bytes)
 
         MACRO draw_8_color_lines
@@ -161,12 +157,9 @@ draw_64_lines
                 ld (hl), e
                 inc hl
                 ld (hl), d
-                pop hl ; skip restore address
         ENDM
         MACRO update_jp_ix_table
-                // bc - screen address to draw
-                ld hl, bc
-                add hl, hl ; * 2
+                // hl - screen address to draw*2
                 add hl, hl ; * 4
                 ld de, hl
                 add hl, hl ; * 8
@@ -183,23 +176,28 @@ draw_64_lines
 
                 // 1. write new JP_IX
                 ld sp, -(8 * 3*4)
-                add hl, sp      // min index=-1
+                add hl, sp
                 ld sp, hl
 
                 ld de, JP_IX_CODE
-                .3 write_jp_ix_data
+                write_jp_ix_data
+                pop hl ; skip restore address
+                write_jp_ix_data
+                pop hl ; skip restore address
+                write_jp_ix_data
+                // total 353
         ENDM
 
 draw_image_and_color
         ; bc - line number
         ld (stack_bottom), sp                           ; 20
 
-        update_jp_ix_table
-
         ld hl, bc                                       ; 8
         ; save line number * 2
         add hl, hl                                      ; 11
         ld (stack_bottom + 2), hl                       ; 16
+
+        update_jp_ix_table
 
         ; save line number / 4
 /*
@@ -224,8 +222,7 @@ draw_image_and_color
         ld bc, descriptors  + 128 * 2                  ; 10
         add hl, bc                                     ; 11
         ld sp, 16384 + 1024 * 2
-        ld iy, $+7
-        jp draw_64_lines
+        .8 draw_8_lines
 
 /*
         // ----------- draw colors (middle)
@@ -241,8 +238,7 @@ draw_image_and_color
         ld bc, descriptors + 64 * 2                    ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 4
-        ld iy, $+7
-        jp draw_64_lines
+        .8 draw_8_lines
 
 /*
         // ----------- draw colors (bottom)
@@ -258,8 +254,7 @@ draw_image_and_color
         ld bc, descriptors                              ; 10
         add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 6
-        ld iy, $+7
-        jp draw_64_lines
+        .8 draw_8_lines
 
         ld sp, (stack_bottom)
         ret                
@@ -405,7 +400,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-74560;  // extra delay
+        ld hl,  71680-74411;  // extra delay
         add hl, de
 
         call delay
