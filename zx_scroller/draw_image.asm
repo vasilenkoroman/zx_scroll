@@ -149,9 +149,52 @@ draw_64_lines
                 // total: 40
         ENDM
 
+        MACRO restore_jp_ix
+                pop hl ; address
+                pop de ; restore data
+                ld (hl), e
+                inc hl
+                ld (hl), d
+        ENDM
+        MACRO write_jp_ix_data
+                pop hl ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+                pop hl ; skip restore address
+        ENDM
+        MACRO update_jp_ix_table
+                // bc - screen address to draw
+                ld hl, bc
+                add hl, hl ; * 2
+                add hl, hl ; * 4
+                ld de, hl
+                add hl, hl ; * 8
+                add hl, de ; * 12
+
+                ld sp, jpix_table + 8 * 3*4
+                add hl, sp
+                ld sp, hl
+
+                // 1. restore data
+                exx
+                .3 restore_jp_ix
+                exx
+
+                // 1. write new JP_IX
+                ld sp, -(8 * 3*4)
+                add hl, sp      // min index=-1
+                ld sp, hl
+
+                ld de, JP_IX_CODE
+                .3 write_jp_ix_data
+        ENDM
+
 draw_image_and_color
         ; bc - line number
         ld (stack_bottom), sp                           ; 20
+
+        update_jp_ix_table
 
         ld hl, bc                                       ; 8
         ; save line number * 2
@@ -235,47 +278,7 @@ write_initial_jp_ix_table
         ld sp, stack_top - 2
         ret
 
-update_jp_ix_table        
-        // bc - screen address to draw
-        ld hl, bc
-        add hl, hl ; * 2
-        add hl, hl ; * 4
-        ld de, hl
-        add hl, hl ; * 8
-        add hl, de ; * 12
-
-        ld sp, jpix_table + 8 * 3*4
-        add hl, sp
-        ld sp, hl
-
-        // 1. restore data
-        exx
-        ld b, 3
-.rep1:  pop hl ; address
-        pop de ; restore data
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        djnz .rep1
-        exx
-
-        // 1. write new JP_IX
-        ld sp, -(8 * 3*4)
-        add hl, sp      // min index=-1
-        ld sp, hl
-
-        ld b, 3
-        ld de, JP_IX_CODE
-.rep2:  pop hl ; address
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore address
-        djnz .rep2
-
-        ld sp, stack_top - 2
-        ret
-        
+       
 
 /************** delay routine *************/
 
@@ -383,7 +386,6 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         jp .loop
 .lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
-        call update_jp_ix_table
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -403,7 +405,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-74679;  // extra delay
+        ld hl,  71680-74560;  // extra delay
         add hl, de
 
         call delay
@@ -415,7 +417,6 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
         ; compare to N
         jp z, .lower_limit_reached      ; 10 ticks
-        call update_jp_ix_table
         jp .loop                        ; 12 ticks
  
 /*************** Data segment ******************/
