@@ -22,8 +22,9 @@ descriptors
 color_descriptor
         align	2
         INCBIN "resources/compressed_data.color_descriptor"
-jpix_table
+
         align	2
+jpix_table
         INCBIN "resources/compressed_data.jpix"
 timings_data
         align	2
@@ -158,6 +159,7 @@ draw_image_and_color
         ld (stack_bottom + 2), hl                       ; 16
 
         ; save line number / 4
+/*
         ld a, c
         srl b
         rra
@@ -167,7 +169,6 @@ draw_image_and_color
         ld c, a
         ld (stack_bottom + 4), bc                       ; 20
 
-/*
         // ----------- draw colors (top)
         ld hl, color_descriptor + 16 * 2                ; 10
         add hl, bc                                      ; 11
@@ -237,9 +238,13 @@ write_initial_jp_ix_table
 update_jp_ix_table        
         // bc - screen address to draw
         ld hl, bc
-        add hl, bc
-        add hl, hl
-        ld sp, jpix_table
+        add hl, hl ; * 2
+        add hl, hl ; * 4
+        ld de, hl
+        add hl, hl ; * 8
+        add hl, de ; * 12
+
+        ld sp, jpix_table + 8 * 3*4
         add hl, sp
         ld sp, hl
 
@@ -255,8 +260,8 @@ update_jp_ix_table
         exx
 
         // 1. write new JP_IX
-        ld sp, 24 * 4
-        add hl, sp
+        ld sp, -(8 * 3*4)
+        add hl, sp      // min index=-1
         ld sp, hl
 
         ld b, 3
@@ -327,6 +332,13 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t26&255,t27&255,t28&255,t29&255
 
 
+long_delay:
+        ld b, 70
+rep:    ld hl, 65535
+        call delay
+        djnz rep
+        ret
+
 /*************** Main. ******************/
 main:
         di
@@ -368,7 +380,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld bc, 0h                       ; 10  ticks
         jp .loop
 .lower_limit_reached:
-        ld bc, 0        ; 10 ticks
+        ld bc,  max_scroll_offset       ; 10 ticks
+        call update_jp_ix_table
 .loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -376,8 +389,6 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         push bc                         ; 11 ticks
         call draw_image_and_color       ; ~55000 ticks
         pop bc                          ; 10 ticks
-
-        call update_jp_ix_table
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -393,7 +404,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld hl,  71680-72528;  // extra delay
         add hl, de
 
-        call delay
+        //call delay
+        call long_delay
 
         ; do increment
         dec bc
@@ -402,6 +414,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
         ; compare to N
         jp z, .lower_limit_reached      ; 10 ticks
+        call update_jp_ix_table
         jp .loop                        ; 12 ticks
  
 /*************** Data segment ******************/
