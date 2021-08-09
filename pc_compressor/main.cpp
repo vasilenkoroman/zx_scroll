@@ -20,6 +20,8 @@ static const uint8_t DEC_SP_CODE = 0x3b;
 static const uint8_t LD_BC_CODE = 1;
 
 static const int lineSize = 32;
+static const int kScrollDelta = 1;
+static const int kColorScrollDelta = 1;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
 static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
@@ -180,7 +182,7 @@ void inversBlock(uint8_t* buffer, int x, int y)
     }
 }
 
-int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, int y, int maxY)
+int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, int y, int imageHeight, int scrollDelta)
 {
     int result = 0;
     if (!(flags & (verticalCompressionL | verticalCompressionH)))
@@ -196,15 +198,16 @@ int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, i
         }
         else if (y > 0 && (flags & verticalCompressionH))
         {
-            uint8_t upperByte = *(ptr-32);
-            if (upperByte != currentByte)
+            int nextLine = (y - scrollDelta) % imageHeight;
+            auto ptr = buffer + nextLine * 32 + x;
+            if (*ptr != currentByte)
                 return result;
         }
         if (flags & verticalCompressionL)
         {
-            auto nextLinePtr = y < maxY - 1 ? ptr + 32 : buffer + x;
-            uint8_t lowerByte = *nextLinePtr;
-            if (lowerByte != currentByte)
+            int nextLine = (y + scrollDelta) % imageHeight;
+            auto ptr = buffer + nextLine * 32 + x;
+            if (*ptr != currentByte)
                 return result;
         }
         ++result;
@@ -251,6 +254,7 @@ int sameVerticalBytesOnRow(uint8_t* buffer, int y)
 
 void compressLine(
     CompressedLine& result,
+    int scrollDelta,
     int flags,
     int maxY,
     uint8_t* buffer,
@@ -262,6 +266,7 @@ void compressLine(
 
 void makeChoise(
     CompressedLine& result,
+    int scrollDelta,
     int regIndex,
     uint16_t word,
     int flags,
@@ -295,7 +300,7 @@ void makeChoise(
         reg.updateToValue(result, word, registers);
 
     reg.push(result);
-    compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
+    compressLine(result, scrollDelta, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
 }
 
 uint16_t swapBytes(uint16_t word)
@@ -337,6 +342,7 @@ void updateTransitiveRegUsage(T& data)
 
 void compressLineMain(
     CompressedLine& result,
+    int scrollDelta,
     int flags,
     int maxY,
     uint8_t* buffer,
@@ -346,13 +352,14 @@ void compressLineMain(
     bool* success)
 {
     result.inputRegisters.reset(new Registers(registers));
-    compressLine(result, flags, maxY, buffer, colorBuffer, registers, y, 0, success);
+    compressLine(result, scrollDelta, flags, maxY, buffer, colorBuffer, registers, y, 0, success);
     result.outputRegisters.reset(new Registers(registers));
 }
 
 
 void compressLine(
     CompressedLine&  result,
+    int scrollDelta,
     int flags,
     int maxY,
     uint8_t* buffer,
@@ -368,7 +375,7 @@ void compressLine(
 
     while (x < 32)
     {
-        int verticalRepCount =  sameVerticalBytes(flags, buffer, colorBuffer, x, y, maxY);
+        int verticalRepCount =  sameVerticalBytes(flags, buffer, colorBuffer, x, y, maxY, scrollDelta);
         if (!(flags & oddVerticalCompression))
             verticalRepCount &= ~1;
 
@@ -472,7 +479,7 @@ void compressLine(
             newLine.regUseMask = result.regUseMask;
             newLine.selfRegMask = result.selfRegMask;
 
-            makeChoise(newLine, regIndex, word, flags, maxY,  buffer, colorBuffer,
+            makeChoise(newLine, scrollDelta, regIndex, word, flags, maxY,  buffer, colorBuffer,
                 regCopy, y, x, &successChoise);
             if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
             {
@@ -494,7 +501,7 @@ void compressLine(
                 newLine.isAltReg = result.isAltReg;
                 newLine.regUseMask = result.regUseMask;
                 newLine.selfRegMask = result.selfRegMask;
-                makeChoise(newLine, regIndex, word, flags1, maxY, buffer, colorBuffer,
+                makeChoise(newLine, scrollDelta, regIndex, word, flags1, maxY, buffer, colorBuffer,
                     regCopy, y, x, &successChoise);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
                 {
@@ -520,20 +527,20 @@ void compressLine(
         result.exAf();
 }
 
-std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
+std::future<CompressedLine> compressLineAsync(int scrollDelta, int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
 {
     return std::async(
-        [flags, buffer, colorBuffer, line, imageHeight]()
+        [scrollDelta, flags, buffer, colorBuffer, line, imageHeight]()
         {
             Registers registers1 = { Register16("bc"), Register16("de"), Register16("hl") };
             Registers registers2 = registers1;
 
             bool success;
             CompressedLine line1, line2;
-            compressLineMain(line1, flags, imageHeight,
+            compressLineMain(line1, scrollDelta, flags, imageHeight,
                 buffer, colorBuffer, registers1, line, &success);
 
-            compressLineMain(line2, flags | oddVerticalCompression, imageHeight,
+            compressLineMain(line2, scrollDelta, flags | oddVerticalCompression, imageHeight,
                 buffer, colorBuffer, registers2, line, &success);
 
             if (success && line2.data.size() < line1.data.size())
@@ -544,11 +551,11 @@ std::future<CompressedLine> compressLineAsync(int flags, uint8_t* buffer, uint8_
     );
 }
 
-std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer,
+std::future<std::vector<CompressedLine>> compressLinesAsync(int scrollDelta, int flags, uint8_t* buffer, uint8_t* colorBuffer,
     const std::vector<int>& lines, int imageHeight)
 {
     return std::async(
-        [flags, buffer, colorBuffer, lines, imageHeight]()
+        [scrollDelta, flags, buffer, colorBuffer, lines, imageHeight]()
         {
             Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
@@ -559,8 +566,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(int flags, uint8_t* 
                 CompressedLine line1, line2;
                 Registers registers1 = registers;
                 Registers registers2 = registers;
-                compressLineMain(line1, flags, imageHeight, buffer, colorBuffer, registers1, line, &success);
-                compressLineMain(line2, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, &success);
+                compressLineMain(line1, scrollDelta, flags, imageHeight, buffer, colorBuffer, registers1, line, &success);
+                compressLineMain(line2, scrollDelta, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, &success);
 
                 if (success && line2.data.size() < line1.data.size())
                 {
@@ -591,7 +598,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuff
         std::vector<int > lines;
         for (int y = 0; y < imageHeight; y += 8)
             lines.push_back(y + i);
-        compressors[i] = compressLinesAsync(flags, buffer, colorBuffer, lines, imageHeight);
+        compressors[i] = compressLinesAsync(kScrollDelta, flags, buffer, colorBuffer, lines, imageHeight);
     }
     for (auto& compressor : compressors)
     {
@@ -944,7 +951,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
         bool success;
         CompressedLine line;
-        compressLineMain(line, verticalCompressionL | interlineRegisters /*flags*/, imageHeight / 8 /*maxY*/,
+        compressLineMain(line, kColorScrollDelta, verticalCompressionL | interlineRegisters /*flags*/, imageHeight / 8 /*maxY*/,
             buffer, buffer, registers, y, &success);
         compressedData.data.push_back(line);
     }
