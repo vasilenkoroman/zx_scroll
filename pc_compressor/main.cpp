@@ -20,7 +20,6 @@ static const uint8_t DEC_SP_CODE = 0x3b;
 static const uint8_t LD_BC_CODE = 1;
 
 static const int lineSize = 32;
-static const int kAdditionalDescriptorSize = 192;
 
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
 static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
@@ -1029,29 +1028,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     int imageHeight = lineOffset.size();
     const int bankSize = imageHeight / 8;
 
-#if 0
-    // 1. Create whole frame JP_IX
-    for (int bank = 0; bank < 8; ++bank)
-    {
-        for (int i = 1; i <= 3; ++i)
-        {
-            int lineEndInBank = i * 8;
-
-            JpIxDescriptor d;
-            int l = lineEndInBank + bank * bankSize;
-            // There is additional JP BEGIN command at the end of data. It can be overriten safely.
-            uint16_t relativeOffset = l < imageHeight ? lineOffset[l]
-                : serializedData.size() - 3;
-
-            d.address = relativeOffset + baseOffset;
-            uint16_t* ptr = (uint16_t*)(serializedData.data() + relativeOffset);
-            d.originData = *ptr;
-            descriptors.push_back(d);
-        }
-    }
-#endif
-    
-    // 2. Create delta for JP_IX when shift to 1 line
+    // . Create delta for JP_IX when shift to 1 line
     for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
     {
         int line = screenLine % imageHeight;
@@ -1152,7 +1129,9 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     std::vector<LineDescriptor> descriptors;
 
     const int bankSizeInLines = imageHeight / 8;
-    for (int d = 0; d < imageHeight + kAdditionalDescriptorSize; ++d)
+    const int reachDescriptorsBase = codeOffset + serializedData.size();
+    std::vector<uint16_t> reachDescriptorOffset;
+    for (int d = 0; d < imageHeight + 191; ++d)
     {
         const int srcLine = d % imageHeight;
 
@@ -1162,24 +1141,32 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
         int lineNum = bankSizeInLines * lineBank + lineInBank;
 
         const auto& line = data.data[lineNum];
-        const uint16_t lineAddress = lineOffset[lineNum] + codeOffset;
-
-        // create reach descriptor witch preambula(optional)
-        descriptor.addressBegin = codeOffset + serializedData.size() + reachDescriptors.size();
-        if (flags & interlineRegisters)
+        if (d < imageHeight)
         {
-            auto preambula = line.getSerializedUsedRegisters();
-            preambula.serialize(reachDescriptors);
-        }
+            const uint16_t lineAddress = lineOffset[lineNum] + codeOffset;
 
-        // The first two bytes of the each line can be overwritted by JP_IX command
-        // Copy these bytes to the descriptor and skip them in JP command
-        static const int kJpIxCommandLen = 2;
-        std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
-        reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
-            
-        reachDescriptors.push_back(0xc3); // JP XXXX
-        serialize(reachDescriptors, lineAddress + firstCommands.size());
+            // create reach descriptor witch preambula(optional)
+            descriptor.addressBegin = reachDescriptorsBase + reachDescriptors.size();
+            reachDescriptorOffset.push_back(descriptor.addressBegin);
+            if (flags & interlineRegisters)
+            {
+                auto preambula = line.getSerializedUsedRegisters();
+                preambula.serialize(reachDescriptors);
+            }
+
+            // The first two bytes of the each line can be overwritted by JP_IX command
+            // Copy these bytes to the descriptor and skip them in JP command
+            static const int kJpIxCommandLen = 2;
+            std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
+            reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
+
+            reachDescriptors.push_back(0xc3); // JP XXXX
+            serialize(reachDescriptors, lineAddress + firstCommands.size());
+        }
+        else
+        {
+            descriptor.addressBegin = reachDescriptorOffset[srcLine];
+        }
 
         descriptors.push_back(descriptor);
     }

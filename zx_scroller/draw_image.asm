@@ -185,7 +185,7 @@ draw_4_lines_and_rt_colors:
                 write_jp_ix_data
                 pop hl ; skip restore address
                 write_jp_ix_data
-                // total 353
+                // total 343
         ENDM
 
 draw_image_and_color
