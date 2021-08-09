@@ -29,6 +29,7 @@ static const int verticalCompressionH = 4; //< Skip drawing data if it exists on
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
 static const int skipInvisibleColors = 32;
+static const int kJpFirstLineDelay = 10;
 
 void serialize(std::vector<uint8_t>& data, uint16_t value)
 {
@@ -915,16 +916,18 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     return line;
 }
 
-CompressedData compressRealTimeColors(uint8_t* buffer, int maxY)
+CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
 {
     // TODO: fill it
     static const int generatedCodeAddress = 0;
 
     CompressedData compressedData;
-    for (int y = 0; y < maxY; y ++)
+    for (int y = 0; y < imageHeight; y ++)
     {
         uint16_t* linePtr = (uint16_t*)(buffer + y * 32);
-        uint16_t* nextLinePtr = y < maxY -1 ? linePtr + 16 : nullptr;
+        int nextLine = (y + kColorScrollDelta) % imageHeight;
+        uint16_t* nextLinePtr = (uint16_t*) buffer + nextLine * 16;
+
         bool success;
         auto line = compressRealtimeColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, false /* slow mode*/ );
         if (!success)
@@ -939,6 +942,37 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int maxY)
     }
 
     return compressedData;
+}
+
+void calculateMulticolorTimings(const CompressedData& data, const CompressedData & colorData, int flags)
+{
+    // Start drawing: color since line 0, rastr since line 128
+    const int imageHeight = data.data.size();
+    const int kTotalMulticolorTicks = 224 * 8;
+
+    static const int kRastrDrawBlockDelay = 66;
+    static const int kcolorDrawBlockDelay = 40;
+    static const int kBlockRetDelay = 8; // JP IX
+    
+    for (int colorLine = 0; colorLine < 24; ++colorLine)
+    {
+        const int rastrLine = (128 + colorLine * 4) % imageHeight;
+
+        int colorTicks = colorData.ticks(colorLine, 1);
+        int rastrTicks = data.ticks(rastrLine, 4);
+        int totalTicks = colorTicks + rastrTicks;
+
+        if (flags & interlineRegisters)
+        {
+            const auto preambula = data.data[rastrLine].getSerializedUsedRegisters();
+            totalTicks += preambula.drawTicks;
+        }
+        totalTicks += kJpFirstLineDelay + kRastrDrawBlockDelay + kBlockRetDelay;
+        totalTicks += kcolorDrawBlockDelay + kBlockRetDelay;
+
+        std::cout << "line #" << colorLine << ", ticks: " << totalTicks << ", rest: " 
+            << kTotalMulticolorTicks - totalTicks << std::endl;
+    }
 }
 
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
@@ -1259,7 +1293,6 @@ int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
 {
     static const int kEnterDelay = 4;
     static const int kReturnDelay = 8;
-    static const int kJpFirstLineDelay = 10;
 
     int result = 0;
     const int imageHeight = data.data.size();
@@ -1470,8 +1503,9 @@ int main(int argc, char** argv)
 
 
     serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
-
     serializeTimingData(data, colorData, outputFileName);
+
+    calculateMulticolorTimings(data, colorData, flags);
 
     return 0;
 }
