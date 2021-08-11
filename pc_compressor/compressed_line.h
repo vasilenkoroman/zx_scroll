@@ -68,6 +68,13 @@ struct CompressedLine
         drawTicks += 10;
     }
 
+    void jpIx()
+    {
+        data.push_back(0xdd);
+        data.push_back(0xe9);
+        drawTicks += 8;
+    }
+
     void exAf()
     {
         data.push_back(0x08);

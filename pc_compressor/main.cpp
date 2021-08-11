@@ -40,6 +40,8 @@ struct Context
     uint8_t* buffer = nullptr;
     uint8_t* colorBuffer = nullptr;
     int y = 0;
+    int maxX = 31;
+    int minX = 0;
 };
 
 void serialize(std::vector<uint8_t>& data, uint16_t value)
@@ -201,7 +203,7 @@ int sameVerticalBytes(const Context& context, int x)
         return 0;
 
     uint8_t* ptr = context.buffer + context.y * 32 + x;
-    for (; x < 32; ++x)
+    for (; x <= context.maxX; ++x)
     {
         uint8_t currentByte = *ptr;
         if ((context.flags & skipInvisibleColors) && isHiddenData(context.colorBuffer, x, context.y / 8))
@@ -243,23 +245,6 @@ int sameVerticalWorlds(uint8_t* buffer, int x, int y)
         if (upperWord != currentWord || lowerWord != currentWord)
             return result;
         ++result;
-    };
-    return result;
-}
-
-int sameVerticalBytesOnRow(uint8_t* buffer, int y)
-{
-    if (y == 191 || y == 0)
-        return 0;
-
-    int result = 0;
-    for (int x = 0; x < 32; ++x)
-    {
-        uint8_t currentByte = buffer[y * 32 + x];
-        uint8_t upperByte = buffer[(y - 1) * 32 + x];
-        uint8_t lowerByte = buffer[(y + 1) * 32 + x];
-        if (upperByte == currentByte && lowerByte == currentByte)
-            ++result;
     };
     return result;
 }
@@ -345,10 +330,27 @@ bool compressLineMain(
     CompressedLine& line,
     Registers& registers)
 {
+    CompressedLine line1, line2;
+    Registers registers1 = registers;
+    Registers registers2 = registers;
+
+    bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX);
+    Context context2 = context;
+    context2.flags |= oddVerticalCompression;
+    bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
+
+    if (success2 && line2.drawTicks < line1.drawTicks)
+    {
+        line = line2;
+        line.outputRegisters.reset(new Registers(registers2));
+    }
+    else
+    {
+        line = line1;
+        line.outputRegisters.reset(new Registers(registers1));
+    }
     line.inputRegisters.reset(new Registers(registers));
-    bool result = compressLine(context, line, registers,  /*x*/ 0);
-    line.outputRegisters.reset(new Registers(registers));
-    return result;
+    return true;
 }
 
 bool compressLine(
@@ -359,7 +361,7 @@ bool compressLine(
 {
     static Register16 sp("sp");
 
-    while (x < 32)
+    while (x <= context.maxX)
     {
         int verticalRepCount =  sameVerticalBytes(context, x);
         if (!(context.flags & oddVerticalCompression))
@@ -369,8 +371,8 @@ bool compressLine(
         uint16_t word = *buffer16;
         word = swapBytes(word);
 
-        assert(x < 32);
-        if (x == 31 && !verticalRepCount)
+        assert(x < context.maxX+1);
+        if (x == 31 && !verticalRepCount) //< 31, not maxX here
             return false;
 
         // Decrement stack if line has same value from previous step (vertical compression)
@@ -402,7 +404,7 @@ bool compressLine(
             canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
         }
 
-        if (x < 31)
+        if (x < context.maxX)
         {
             for (auto& reg : registers)
             {
@@ -503,28 +505,6 @@ bool compressLine(
     return true;
 }
 
-std::future<CompressedLine> compressLineAsync(const Context& context)
-{
-    return std::async(
-        [=]()
-        {
-            Context ctx = context;
-
-            Registers registers1 = { Register16("bc"), Register16("de"), Register16("hl") };
-            Registers registers2 = registers1;
-
-            CompressedLine line1, line2;
-            compressLineMain(ctx, line1, registers1);
-            ctx.flags |= oddVerticalCompression;
-            bool success = compressLineMain(ctx, line2, registers2);
-            if (success && line2.data.size() < line1.data.size())
-                return line2;
-            else
-                return line1;
-        }
-    );
-}
-
 std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& context, const std::vector<int>& lines)
 {
     return std::async(
@@ -538,25 +518,12 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 Context ctx = context;
                 ctx.y = line;
 
-                CompressedLine line1, line2;
+                CompressedLine line;
                 Registers registers1 = registers;
-                Registers registers2 = registers;
-
-                compressLineMain(ctx, line1, registers1);
-                ctx.flags |= oddVerticalCompression;
-                bool success = compressLineMain(ctx, line2, registers2);
-                if (success && line2.data.size() < line1.data.size())
-                {
-                    result.push_back(line2);
-                    if (context.flags & interlineRegisters)
-                        registers = registers2;
-                }
-                else
-                {
-                    result.push_back(line1);
-                    if (context.flags & interlineRegisters)
-                        registers = registers1;
-                }
+                compressLineMain(ctx, line, registers1);
+                result.push_back(line);
+                if (context.flags & interlineRegisters)
+                    registers = *line.outputRegisters;
             }
             updateTransitiveRegUsage(result);
             return result;
@@ -898,27 +865,29 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     return line;
 }
 
-CompressedLine  compressMultiColorsLine2(uint8_t* line, uint8_t* nextLine, bool* success)
+CompressedLine  compressMultiColorsLine2(Context context)
 {
     CompressedLine result;
     static const int kLineLength = 224;
     static const int kBorderTime = kLineLength - 128;
     static const int kStackMovingTime = 27;
 
+    uint8_t* line = context.buffer + context.y * 32;
+    int nextLineNum = (context.y + context.scrollDelta) % context.imageHeight;
+    uint8_t* nextLine = context.buffer + nextLineNum * 32;
+
     // remove left and rigt edge
-    int leftEdge = 0;
-    int rightEdge = 32;
     for (int x = 0; x < 32; ++x)
     {
         if (line[x] == nextLine[x])
-            ++leftEdge;
+            ++context.minX;
         else
             break;
     }
     for (int x = 31; x >= 0; --x)
     {
         if (line[x] == nextLine[x])
-            --rightEdge;
+            --context.maxX;
         else
             break;
     }
@@ -926,7 +895,7 @@ CompressedLine  compressMultiColorsLine2(uint8_t* line, uint8_t* nextLine, bool*
     std::set<uint8_t> uniqueBytes;
     std::set<uint16_t> uniqueWords;
     std::vector<uint16_t> allWords;
-    for (int x = leftEdge; x < rightEdge;)
+    for (int x = context.minX; x <= context.maxX;)
     {
         if (line[x] == nextLine[x])
         {
@@ -942,9 +911,12 @@ CompressedLine  compressMultiColorsLine2(uint8_t* line, uint8_t* nextLine, bool*
     }
     std::cout << "unique bytes=" << uniqueBytes.size() << ". uniq words=" << uniqueWords.size() << ", all words=" << allWords.size() << std::endl;
 
-    int t1 = kBorderTime + (leftEdge + rightEdge) * 4; // write whole line at once limit (no intermidiate stack moving)
+    int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
     int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
 
+    Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    compressLineMain(context, result, registers);
+    result.jpIx();
     return result;
 }
 
@@ -953,15 +925,18 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
     // TODO: fill it
     static const int generatedCodeAddress = 0;
 
+    struct Context context;
+    context.scrollDelta = 1;
+    context.flags = verticalCompressionL;
+    context.imageHeight = imageHeight;
+    context.buffer = buffer;
+    context.colorBuffer = buffer;
+
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
     {
-        uint8_t* linePtr = buffer + y * 32;
-        int nextLine = (y + kColorScrollDelta) % imageHeight;
-        uint8_t* nextLinePtr = buffer + nextLine * 32;
-
-        bool success;
-        auto line = compressMultiColorsLine2(linePtr, nextLinePtr, &success);
+        context.y = y;
+        auto line = compressMultiColorsLine2(context);
         /*
         if (!success)
         {
@@ -1017,7 +992,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
         
         Context context;
         context.scrollDelta = kScrollDelta;
-        context.flags = verticalCompressionL;
+        context.flags = verticalCompressionL | interlineRegisters;
         context.imageHeight = imageHeight / 8;
         context.buffer = buffer;
         context.colorBuffer = buffer;
@@ -1326,6 +1301,62 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     return size;
 }
 
+int serializeMultiColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
+{
+    using namespace std;
+
+    ofstream colorDataFile;
+    std::string colorDataFileName = inputFileName + ".multicolor";
+    colorDataFile.open(colorDataFileName, std::ios::binary);
+    if (!colorDataFile.is_open())
+    {
+        std::cerr << "Can not write color file" << std::endl;
+        return -1;
+    }
+
+    ofstream colorDescriptorFile;
+
+    std::string colorDescriptorFileName = inputFileName + ".multicolor_descriptor";
+    colorDescriptorFile.open(colorDescriptorFileName, std::ios::binary);
+    if (!colorDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write color destination file" << std::endl;
+        return -1;
+    }
+
+    // serialize main data
+    int imageHeight = data.data.size();
+
+    int size = 0;
+    std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
+    std::vector<int> lineOffsetWithPreambula;
+    for (int y = 0; y < imageHeight; ++y)
+    {
+        const auto& line = data.data[y];
+        lineOffsetWithPreambula.push_back(serializedData.size());
+        line.serialize(serializedData);
+    }
+
+    // serialize descriptors
+    std::vector<LineDescriptor> descriptors;
+    for (int srcLine = 0; srcLine < imageHeight; ++srcLine)
+    {
+        LineDescriptor descriptor;
+        const auto& line = data.data[srcLine];
+        const uint16_t lineAddress = lineOffsetWithPreambula[srcLine] + codeOffset;
+        descriptor.addressBegin = lineAddress;
+        descriptors.push_back(descriptor);
+    }
+
+    for (const auto& descriptor : descriptors)
+        colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+
+    colorDataFile.write((const char*)serializedData.data(), serializedData.size());
+
+    return serializedData.size();
+    return size;
+}
+
 int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
 {
     static const int kEnterDelay = 4;
@@ -1466,11 +1497,13 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters;// | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
     CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
+    serializeMultiColorData(realTimeColor, outputFileName, 0);
+
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
@@ -1486,7 +1519,7 @@ int main(int argc, char** argv)
 
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
         << colorData.ticks() << ", ratio: " << colorData.ticks() / (float) uncompressedColorTicks << std::endl;
-    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " realtime color ticks: "
+    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks(in progress): "
         << realTimeColor.ticks() << ", ratio: " << realTimeColor.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() +  realTimeColor.ticks() << std::endl;
 

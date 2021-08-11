@@ -19,9 +19,13 @@ color_code
 descriptors
         INCBIN "resources/compressed_data.main_descriptor"
 
-color_descriptor
         align	2
+color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
+
+        align	2
+multicolor_descriptor
+        INCBIN "resources/compressed_data.multicolor"
 
         align	2
 jpix_table
@@ -344,6 +348,8 @@ rep:    ld hl, 65535
 main:
         di
         ld sp, stack_top
+
+        jp multicolor_descriptor
 
         ; Change border color
         ld a, 1
