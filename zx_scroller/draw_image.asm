@@ -91,8 +91,8 @@ draw_4_lines_and_rt_colors:
                 // (stack_bottom + 2) - destinatin rastr address to draw
                 // (stack_bottom + 4) - destinatin multicolor address to draw
 
-                ; hl - colors to execute
                 ld sp, (stack_bottom)                           ; 20
+                ; hl - colors to execute
                 pop hl                                          ; 10
                 exx                                             ; 4
                 ; hl - rastr address to execute
@@ -102,7 +102,7 @@ draw_4_lines_and_rt_colors:
                 ld (stack_bottom), sp                           ; 20
 
                 ; rastr drawing address
-                ld sp, 16384+1024*3                             ; 10
+                ld sp, 16384+1024*4                             ; 10
                 //call delay
                 // draw rastr  (4 line)
                 ld ix, $ + 5 ; ret addr                         ; 14
@@ -113,7 +113,7 @@ draw_4_lines_and_rt_colors:
                 ld sp, 16384+1024*6+768                         ; 10
                 ld ix, $ + 5                                    ; 14
                 jp hl                                           ; 4
-                // total ticks: 134 (+2 ret = 150)
+                // total ticks: 134
 
 
         MACRO draw_8_lines
@@ -132,6 +132,7 @@ draw_4_lines_and_rt_colors:
                 ld ix, $ + 5                                    ; 14
                 jp hl                                           ; 4
                 exx                                             ; 4
+                // total: 66
         ENDM
                 // total 66 ticks (15 bytes)
 

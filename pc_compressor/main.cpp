@@ -9,6 +9,7 @@
 #include <deque>
 #include <chrono>
 #include <future>
+#include <set>
 
 #include "compressed_line.h"
 #include "registers.h"
@@ -30,6 +31,16 @@ static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
+
+struct Context
+{
+    int scrollDelta = 0;
+    int flags = 0;
+    int imageHeight = 0;
+    uint8_t* buffer = nullptr;
+    uint8_t* colorBuffer = nullptr;
+    int y = 0;
+};
 
 void serialize(std::vector<uint8_t>& data, uint16_t value)
 {
@@ -183,31 +194,31 @@ void inversBlock(uint8_t* buffer, int x, int y)
     }
 }
 
-int sameVerticalBytes(int flags, uint8_t* buffer, uint8_t* colorBuffer, int x, int y, int imageHeight, int scrollDelta)
+int sameVerticalBytes(const Context& context, int x)
 {
     int result = 0;
-    if (!(flags & (verticalCompressionL | verticalCompressionH)))
+    if (!(context.flags & (verticalCompressionL | verticalCompressionH)))
         return 0;
 
-    uint8_t* ptr = buffer + y * 32 + x;
+    uint8_t* ptr = context.buffer + context.y * 32 + x;
     for (; x < 32; ++x)
     {
         uint8_t currentByte = *ptr;
-        if ((flags & skipInvisibleColors) && isHiddenData(colorBuffer, x, y / 8))
+        if ((context.flags & skipInvisibleColors) && isHiddenData(context.colorBuffer, x, context.y / 8))
         {
             ;
         }
-        else if (y > 0 && (flags & verticalCompressionH))
+        else if (context.y > 0 && (context.flags & verticalCompressionH))
         {
-            int nextLine = (y - scrollDelta) % imageHeight;
-            auto ptr = buffer + nextLine * 32 + x;
+            int nextLine = (context.y - context.scrollDelta) % context.imageHeight;
+            auto ptr = context.buffer + nextLine * 32 + x;
             if (*ptr != currentByte)
                 return result;
         }
-        if (flags & verticalCompressionL)
+        if (context.flags & verticalCompressionL)
         {
-            int nextLine = (y + scrollDelta) % imageHeight;
-            auto ptr = buffer + nextLine * 32 + x;
+            int nextLine = (context.y + context.scrollDelta) % context.imageHeight;
+            auto ptr = context.buffer + nextLine * 32 + x;
             if (*ptr != currentByte)
                 return result;
         }
@@ -253,31 +264,19 @@ int sameVerticalBytesOnRow(uint8_t* buffer, int y)
     return result;
 }
 
-void compressLine(
+bool compressLine(
+    const Context& context,
     CompressedLine& result,
-    int scrollDelta,
-    int flags,
-    int maxY,
-    uint8_t* buffer,
-    uint8_t* colorBuffer,
     Registers& registers,
-    int y,
-    int x,
-    bool* success);
+    int x);
 
-void makeChoise(
+bool makeChoise(
+    const Context& context,
     CompressedLine& result,
-    int scrollDelta,
+    Registers& registers,
     int regIndex,
     uint16_t word,
-    int flags,
-    int maxY,
-    uint8_t* buffer,
-    uint8_t* colorBuffer,
-    Registers& registers,
-    int y,
-    int x,
-    bool* success)
+    int x)
 {
     Register16& reg = registers[regIndex];
     if (reg.h.name != 'i' && reg.isAlt != result.isAltReg)
@@ -286,10 +285,10 @@ void makeChoise(
     // Word in network byte order here (swap bytes call before)
     bool canAvoidFirst = false;
     bool canAvoidSecond = false;
-    if (flags & skipInvisibleColors)
+    if (context.flags & skipInvisibleColors)
     {
-        canAvoidFirst = isHiddenData(colorBuffer, x, y / 8);
-        canAvoidSecond = isHiddenData(colorBuffer, x + 1, y / 8);
+        canAvoidFirst = isHiddenData(context.colorBuffer, x, context.y / 8);
+        canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
     }
     if (canAvoidFirst && canAvoidSecond)
         ;
@@ -301,7 +300,7 @@ void makeChoise(
         reg.updateToValue(result, word, registers);
 
     reg.push(result);
-    compressLine(result, scrollDelta, flags, maxY, buffer, colorBuffer, registers, y, x + 2, success);
+    return compressLine(context, result, registers, x + 2);
 }
 
 uint16_t swapBytes(uint16_t word)
@@ -341,55 +340,38 @@ void updateTransitiveRegUsage(T& data)
     }
 }
 
-void compressLineMain(
-    CompressedLine& result,
-    int scrollDelta,
-    int flags,
-    int maxY,
-    uint8_t* buffer,
-    uint8_t* colorBuffer,
-    Registers& registers,
-    int y,
-    bool* success)
+bool compressLineMain(
+    const Context& context,
+    CompressedLine& line,
+    Registers& registers)
 {
-    result.inputRegisters.reset(new Registers(registers));
-    compressLine(result, scrollDelta, flags, maxY, buffer, colorBuffer, registers, y, 0, success);
-    result.outputRegisters.reset(new Registers(registers));
+    line.inputRegisters.reset(new Registers(registers));
+    bool result = compressLine(context, line, registers,  /*x*/ 0);
+    line.outputRegisters.reset(new Registers(registers));
+    return result;
 }
 
-
-void compressLine(
+bool compressLine(
+    const Context& context,
     CompressedLine&  result,
-    int scrollDelta,
-    int flags,
-    int maxY,
-    uint8_t* buffer,
-    uint8_t* colorBuffer,
     Registers& registers,
-    int y,
-    int x,
-    bool* success)
+    int x)
 {
     static Register16 sp("sp");
 
-    *success = true;
-
     while (x < 32)
     {
-        int verticalRepCount =  sameVerticalBytes(flags, buffer, colorBuffer, x, y, maxY, scrollDelta);
-        if (!(flags & oddVerticalCompression))
+        int verticalRepCount =  sameVerticalBytes(context, x);
+        if (!(context.flags & oddVerticalCompression))
             verticalRepCount &= ~1;
 
-        uint16_t* buffer16 = (uint16_t*) (buffer + y * 32 + x);
+        uint16_t* buffer16 = (uint16_t*) (context.buffer + context.y * 32 + x);
         uint16_t word = *buffer16;
         word = swapBytes(word);
 
         assert(x < 32);
         if (x == 31 && !verticalRepCount)
-        {
-            *success = false;
-            return;
-        }
+            return false;
 
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
@@ -414,10 +396,10 @@ void compressLine(
 
         bool canAvoidFirst = false;
         bool canAvoidSecond = false;
-        if (flags & skipInvisibleColors)
+        if (context.flags & skipInvisibleColors)
         {
-            canAvoidFirst = isHiddenData(colorBuffer, x, y / 8);
-            canAvoidSecond = isHiddenData(colorBuffer, x + 1, y / 8);
+            canAvoidFirst = isHiddenData(context.colorBuffer, x, context.y / 8);
+            canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
         }
 
         if (x < 31)
@@ -473,15 +455,13 @@ void compressLine(
         for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
         {
             Registers regCopy = registers;
-            bool successChoise = false;
 
             CompressedLine newLine;
             newLine.isAltReg = result.isAltReg;
             newLine.regUseMask = result.regUseMask;
             newLine.selfRegMask = result.selfRegMask;
 
-            makeChoise(newLine, scrollDelta, regIndex, word, flags, maxY,  buffer, colorBuffer,
-                regCopy, y, x, &successChoise);
+            bool successChoise = makeChoise(context, newLine, regCopy, regIndex, word, x);
             if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
             {
                 chosedRegisters = regCopy;
@@ -489,21 +469,17 @@ void compressLine(
             }
         }
 
-        if ((flags & oddVerticalCompression) && choisedLine.data.empty() && x % 2 == 0)
+        if ((context.flags & oddVerticalCompression) && choisedLine.data.empty() && x % 2 == 0)
         {
             // try to reset flags for the rest of the line
-            const auto flags1 = flags & ~oddVerticalCompression;
+            Context contextCopy(context);
+            contextCopy.flags &= ~oddVerticalCompression;
             for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
             {
                 Registers regCopy = registers;
-                bool successChoise = false;
-
                 CompressedLine newLine;
-                newLine.isAltReg = result.isAltReg;
-                newLine.regUseMask = result.regUseMask;
-                newLine.selfRegMask = result.selfRegMask;
-                makeChoise(newLine, scrollDelta, regIndex, word, flags1, maxY, buffer, colorBuffer,
-                    regCopy, y, x, &successChoise);
+
+                bool successChoise = makeChoise(contextCopy, newLine, regCopy, regIndex, word, x);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
                 {
                     chosedRegisters = regCopy;
@@ -513,37 +489,34 @@ void compressLine(
         }
 
         if (choisedLine.data.empty())
-        {
-            *success = false;
-            return;
-        }
+            return false;
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
         registers = chosedRegisters;
-        return;
+        return true;
     }
     if (result.isAltReg)
         result.exx();
     if (result.isAltAf)
         result.exAf();
+    
+    return true;
 }
 
-std::future<CompressedLine> compressLineAsync(int scrollDelta, int flags, uint8_t* buffer, uint8_t* colorBuffer, int line, int imageHeight)
+std::future<CompressedLine> compressLineAsync(const Context& context)
 {
     return std::async(
-        [scrollDelta, flags, buffer, colorBuffer, line, imageHeight]()
+        [=]()
         {
+            Context ctx = context;
+
             Registers registers1 = { Register16("bc"), Register16("de"), Register16("hl") };
             Registers registers2 = registers1;
 
-            bool success;
             CompressedLine line1, line2;
-            compressLineMain(line1, scrollDelta, flags, imageHeight,
-                buffer, colorBuffer, registers1, line, &success);
-
-            compressLineMain(line2, scrollDelta, flags | oddVerticalCompression, imageHeight,
-                buffer, colorBuffer, registers2, line, &success);
-
+            compressLineMain(ctx, line1, registers1);
+            ctx.flags |= oddVerticalCompression;
+            bool success = compressLineMain(ctx, line2, registers2);
             if (success && line2.data.size() < line1.data.size())
                 return line2;
             else
@@ -552,34 +525,36 @@ std::future<CompressedLine> compressLineAsync(int scrollDelta, int flags, uint8_
     );
 }
 
-std::future<std::vector<CompressedLine>> compressLinesAsync(int scrollDelta, int flags, uint8_t* buffer, uint8_t* colorBuffer,
-    const std::vector<int>& lines, int imageHeight)
+std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& context, const std::vector<int>& lines)
 {
     return std::async(
-        [scrollDelta, flags, buffer, colorBuffer, lines, imageHeight]()
+        [context, lines]()
         {
             Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)
             {
-                bool success;
+                Context ctx = context;
+                ctx.y = line;
+
                 CompressedLine line1, line2;
                 Registers registers1 = registers;
                 Registers registers2 = registers;
-                compressLineMain(line1, scrollDelta, flags, imageHeight, buffer, colorBuffer, registers1, line, &success);
-                compressLineMain(line2, scrollDelta, flags | oddVerticalCompression, imageHeight, buffer, colorBuffer, registers2, line, &success);
 
+                compressLineMain(ctx, line1, registers1);
+                ctx.flags |= oddVerticalCompression;
+                bool success = compressLineMain(ctx, line2, registers2);
                 if (success && line2.data.size() < line1.data.size())
                 {
                     result.push_back(line2);
-                    if (flags & interlineRegisters)
+                    if (context.flags & interlineRegisters)
                         registers = registers2;
                 }
                 else
                 {
                     result.push_back(line1);
-                    if (flags & interlineRegisters)
+                    if (context.flags & interlineRegisters)
                         registers = registers1;
                 }
             }
@@ -596,10 +571,17 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuff
     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
     for (int i = 0; i < 8; ++i)
     {
+        Context context;
+        context.scrollDelta = kScrollDelta;
+        context.flags = flags;
+        context.imageHeight = imageHeight;
+        context.buffer = buffer;
+        context.colorBuffer = colorBuffer;
+
         std::vector<int > lines;
         for (int y = 0; y < imageHeight; y += 8)
             lines.push_back(y + i);
-        compressors[i] = compressLinesAsync(kScrollDelta, flags, buffer, colorBuffer, lines, imageHeight);
+        compressors[i] = compressLinesAsync(context, lines);
     }
     for (auto& compressor : compressors)
     {
@@ -916,6 +898,56 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
     return line;
 }
 
+CompressedLine  compressMultiColorsLine2(uint8_t* line, uint8_t* nextLine, bool* success)
+{
+    CompressedLine result;
+    static const int kLineLength = 224;
+    static const int kBorderTime = kLineLength - 128;
+    static const int kStackMovingTime = 27;
+
+    // remove left and rigt edge
+    int leftEdge = 0;
+    int rightEdge = 32;
+    for (int x = 0; x < 32; ++x)
+    {
+        if (line[x] == nextLine[x])
+            ++leftEdge;
+        else
+            break;
+    }
+    for (int x = 31; x >= 0; --x)
+    {
+        if (line[x] == nextLine[x])
+            --rightEdge;
+        else
+            break;
+    }
+
+    std::set<uint8_t> uniqueBytes;
+    std::set<uint16_t> uniqueWords;
+    std::vector<uint16_t> allWords;
+    for (int x = leftEdge; x < rightEdge;)
+    {
+        if (line[x] == nextLine[x])
+        {
+            ++x;
+            continue;
+        }
+        uniqueBytes.insert(line[x]);
+        uniqueBytes.insert(line[x+1]);
+        uint16_t* word = (uint16_t*)(line + x);
+        uniqueWords.insert(*word);
+        allWords.push_back(*word);
+        x += 2;
+    }
+    std::cout << "unique bytes=" << uniqueBytes.size() << ". uniq words=" << uniqueWords.size() << ", all words=" << allWords.size() << std::endl;
+
+    int t1 = kBorderTime + (leftEdge + rightEdge) * 4; // write whole line at once limit (no intermidiate stack moving)
+    int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
+
+    return result;
+}
+
 CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
 {
     // TODO: fill it
@@ -924,20 +956,22 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
     {
-        uint16_t* linePtr = (uint16_t*)(buffer + y * 32);
+        uint8_t* linePtr = buffer + y * 32;
         int nextLine = (y + kColorScrollDelta) % imageHeight;
-        uint16_t* nextLinePtr = (uint16_t*) buffer + nextLine * 16;
+        uint8_t* nextLinePtr = buffer + nextLine * 32;
 
         bool success;
-        auto line = compressRealtimeColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, false /* slow mode*/ );
+        auto line = compressMultiColorsLine2(linePtr, nextLinePtr, &success);
+        /*
         if (!success)
         {
             // Slow mode uses more ticks in general, but draw line under the ray on 34 ticks faster.
-            line = compressRealtimeColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, true /* slow mode*/ );
+            line = compressRealtimeColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, true );
             // Slow mode currently uses 6 registers and it is not enough 12 more ticks without compression.
             // If it fail again it need to use more registers. It need to add AF/AF' at this case.
             assert(success);
         }
+        */
         compressedData.data.push_back(line);
     }
 
@@ -950,8 +984,7 @@ void calculateMulticolorTimings(const CompressedData& data, const CompressedData
     const int imageHeight = data.data.size();
     const int kTotalMulticolorTicks = 224 * 8;
 
-    static const int kRastrDrawBlockDelay = 66;
-    static const int kcolorDrawBlockDelay = 40;
+    static const int kMainLoopDelay = 134;
     static const int kBlockRetDelay = 8; // JP IX
     
     for (int colorLine = 0; colorLine < 24; ++colorLine)
@@ -967,8 +1000,7 @@ void calculateMulticolorTimings(const CompressedData& data, const CompressedData
             const auto preambula = data.data[rastrLine].getSerializedUsedRegisters();
             totalTicks += preambula.drawTicks;
         }
-        totalTicks += kJpFirstLineDelay + kRastrDrawBlockDelay + kBlockRetDelay;
-        totalTicks += kcolorDrawBlockDelay + kBlockRetDelay;
+        totalTicks += kJpFirstLineDelay + kMainLoopDelay + kBlockRetDelay*2;
 
         std::cout << "line #" << colorLine << ", ticks: " << totalTicks << ", rest: " 
             << kTotalMulticolorTicks - totalTicks << std::endl;
@@ -982,11 +1014,16 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
     for (int y = 0; y < imageHeight / 8; y ++)
     {
         Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
-
-        bool success;
+        
+        Context context;
+        context.scrollDelta = kScrollDelta;
+        context.flags = verticalCompressionL;
+        context.imageHeight = imageHeight / 8;
+        context.buffer = buffer;
+        context.colorBuffer = buffer;
+        context.y = y;
         CompressedLine line;
-        compressLineMain(line, kColorScrollDelta, verticalCompressionL | interlineRegisters /*flags*/, imageHeight / 8 /*maxY*/,
-            buffer, buffer, registers, y, &success);
+        bool success = compressLineMain(context, line, registers);
         compressedData.data.push_back(line);
     }
     updateTransitiveRegUsage(compressedData.data);
@@ -1432,13 +1469,14 @@ int main(int argc, char** argv)
     int flags = verticalCompressionL | interlineRegisters;// | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
+
+    CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
+
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
     const auto t2 = std::chrono::system_clock::now();
 
     std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
-
-    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
-    CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight/ 8);
 
     static const int uncompressedTicks = 21 * 16 * imageHeight;
     static const int uncompressedColorTicks = uncompressedTicks / 8;
