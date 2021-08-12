@@ -56,8 +56,8 @@ bool isHiddenData(uint8_t* colorBuffer, int x, int y)
     return (colorData & 7) == ((colorData >> 3) & 7);
 }
 
-template <typename T>
-Register16* findRegister(T& registers, const std::string& name)
+template <int N>
+Register16* findRegister(std::array<Register16, N>& registers, const std::string& name)
 {
     for (auto& reg : registers)
     {
@@ -249,16 +249,18 @@ int sameVerticalWorlds(uint8_t* buffer, int x, int y)
     return result;
 }
 
+template <int N>
 bool compressLine(
     const Context& context,
     CompressedLine& result,
-    Registers& registers,
+    std::array<Register16, N>& registers,
     int x);
 
+template <int N>
 bool makeChoise(
     const Context& context,
     CompressedLine& result,
-    Registers& registers,
+    std::array<Register16, N>& registers,
     int regIndex,
     uint16_t word,
     int x)
@@ -275,14 +277,17 @@ bool makeChoise(
         canAvoidFirst = isHiddenData(context.colorBuffer, x, context.y / 8);
         canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
     }
+    bool success;
     if (canAvoidFirst && canAvoidSecond)
-        ;
+        success = true;
     else if (canAvoidFirst)
-        reg.l.updateToValue(result, (uint8_t) word, registers);
+        success = reg.l.updateToValue(result, (uint8_t) word, registers);
     else if (canAvoidSecond)
-        reg.h.updateToValue(result, word >> 8, registers);
+        success = reg.h.updateToValue(result, word >> 8, registers);
     else
-        reg.updateToValue(result, word, registers);
+        success = reg.updateToValue(result, word, registers);
+    if (!success)
+        return false;
 
     reg.push(result);
     return compressLine(context, result, registers, x + 2);
@@ -325,14 +330,15 @@ void updateTransitiveRegUsage(T& data)
     }
 }
 
+template <int N>
 bool compressLineMain(
     const Context& context,
     CompressedLine& line,
-    Registers& registers)
+    std::array<Register16, N>& registers)
 {
     CompressedLine line1, line2;
-    Registers registers1 = registers;
-    Registers registers2 = registers;
+    auto registers1 = registers;
+    auto registers2 = registers;
 
     bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX);
     Context context2 = context;
@@ -340,23 +346,29 @@ bool compressLineMain(
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
 
     if (success2 && line2.drawTicks < line1.drawTicks)
-    {
         line = line2;
-        line.outputRegisters.reset(new Registers(registers2));
-    }
     else
-    {
         line = line1;
-        line.outputRegisters.reset(new Registers(registers1));
-    }
-    line.inputRegisters.reset(new Registers(registers));
+
+    for (const auto& reg16: registers)
+        line.inputRegisters.push_back(reg16);
+
+    if (success2 && line2.drawTicks < line1.drawTicks)
+        registers = registers2;
+    else
+        registers = registers1;
+
+    for (const auto& reg16 : registers)
+        line.outputRegisters.push_back(reg16);
+
     return true;
 }
 
+template <int N>
 bool compressLine(
     const Context& context,
     CompressedLine&  result,
-    Registers& registers,
+    std::array<Register16, N>& registers,
     int x)
 {
     static Register16 sp("sp");
@@ -453,10 +465,10 @@ bool compressLine(
             continue;
 
         CompressedLine choisedLine;
-        Registers chosedRegisters = registers;
+        auto chosedRegisters = registers;
         for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
         {
-            Registers regCopy = registers;
+            auto regCopy = registers;
 
             CompressedLine newLine;
             newLine.isAltReg = result.isAltReg;
@@ -478,7 +490,7 @@ bool compressLine(
             contextCopy.flags &= ~oddVerticalCompression;
             for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
             {
-                Registers regCopy = registers;
+                auto regCopy = registers;
                 CompressedLine newLine;
 
                 bool successChoise = makeChoise(contextCopy, newLine, regCopy, regIndex, word, x);
@@ -510,7 +522,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     return std::async(
         [context, lines]()
         {
-            Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
+            std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)
@@ -519,11 +531,11 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 ctx.y = line;
 
                 CompressedLine line;
-                Registers registers1 = registers;
+                auto registers1 = registers;
                 compressLineMain(ctx, line, registers1);
                 result.push_back(line);
                 if (context.flags & interlineRegisters)
-                    registers = *line.outputRegisters;
+                    registers = registers1;
             }
             updateTransitiveRegUsage(result);
             return result;
@@ -650,6 +662,7 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     return result;
 }
 
+#if 0
 CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine, uint16_t generatedCodeMemAddress, bool* success, bool useSlowMode)
 {
     /*
@@ -864,6 +877,7 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
 
     return line;
 }
+#endif
 
 CompressedLine  compressMultiColorsLine2(Context context)
 {
@@ -914,7 +928,7 @@ CompressedLine  compressMultiColorsLine2(Context context)
     int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
     int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
 
-    Registers registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     compressLineMain(context, result, registers);
     result.jpIx();
     return result;
@@ -977,8 +991,8 @@ void calculateMulticolorTimings(const CompressedData& data, const CompressedData
         }
         totalTicks += kJpFirstLineDelay + kMainLoopDelay + kBlockRetDelay*2;
 
-        std::cout << "line #" << colorLine << ", ticks: " << totalTicks << ", rest: " 
-            << kTotalMulticolorTicks - totalTicks << std::endl;
+        //std::cout << "line #" << colorLine << ", ticks: " << totalTicks << ", rest: " 
+        //    << kTotalMulticolorTicks - totalTicks << std::endl;
     }
 }
 
@@ -988,7 +1002,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        Registers registers = { Register16("bc"), Register16("de"), Register16("hl")};
+        std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
         
         Context context;
         context.scrollDelta = kScrollDelta;

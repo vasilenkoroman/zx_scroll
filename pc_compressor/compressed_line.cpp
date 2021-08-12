@@ -31,7 +31,7 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
 {
     std::vector<Register16> result;
 
-    for (const auto& reg16: *inputRegisters)
+    for (const auto& reg16: inputRegisters)
     {
         uint8_t hMask = 1 << reg16.h.reg8Index;
         uint8_t lMask = 1 << reg16.l.reg8Index;

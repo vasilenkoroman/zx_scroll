@@ -121,9 +121,12 @@ void Register8::setBit(CompressedLine& line, uint8_t bit)
     line.drawTicks += 8;
 }
 
-template <typename T>
-void Register8::updateToValue(CompressedLine& line, uint8_t byte, T& registers16)
+template <int N>
+bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16)
 {
+    if (name == 'f')
+        return false;
+
     for (const auto& reg16 : registers16)
     {
         if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
@@ -136,14 +139,14 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, T& registers16
             line.useReg(reg16.h);
             line.selfReg(*this);
             loadFromReg(line, reg16.h);
-            return;
+            return true;
         }
         else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
         {
             line.useReg(reg16.l);
             line.selfReg(*this);
             loadFromReg(line, reg16.l);
-            return;
+            return true;
         }
     }
 
@@ -171,6 +174,7 @@ void Register8::updateToValue(CompressedLine& line, uint8_t byte, T& registers16
         line.selfReg(*this);
         loadX(line, byte);
     }
+    return true;
 }
 
 // --------------------- Register16 --------------------------------
@@ -260,8 +264,8 @@ void Register16::push(CompressedLine& line) const
         line.useReg(l);
 }
 
-template <class T>
-bool Register16::updateToValueForAF(CompressedLine& line, uint16_t value, T& registers)
+template <int N>
+bool Register16::updateToValueForAF(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
 {
     auto& a = h;
     auto& f = l;
@@ -359,8 +363,8 @@ bool Register16::updateToValueForAF(CompressedLine& line, uint16_t value, T& reg
     return false;
 }
 
-template <typename T>
-bool Register16::updateToValue(CompressedLine& line, uint16_t value, T& registers)
+template <int N>
+bool Register16::updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
 {
     if (hasValue16(value))
     {
@@ -437,8 +441,7 @@ bool Register16::updateToValue(CompressedLine& line, uint16_t value, T& register
     return true;
 }
 
-template bool Register16::updateToValue(CompressedLine& line, uint16_t value, Registers& registers);
-template bool Register16::updateToValue(CompressedLine& line, uint16_t value, std::vector<Register16>& registers);
+template bool Register16::updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, 3>& registers);
 
 
 void Register16::dec(CompressedLine& line, int repeat)

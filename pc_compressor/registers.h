@@ -8,6 +8,7 @@ static const uint8_t  IX_REG_PREFIX = 0xdd;
 static const uint8_t  IY_REG_PREFIX = 0xfd;
 
 struct CompressedLine;
+class Register16;
 
 class Register8
 {
@@ -76,8 +77,8 @@ public:
     void incValue(CompressedLine& line);
     void decValue(CompressedLine& line);
     void setBit(CompressedLine& line, uint8_t bit);
-    template <typename T>
-    void updateToValue(CompressedLine& line, uint8_t byte, T& registers16);
+    template <int N>
+    bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16);
 };
 
 class Register16
@@ -159,11 +160,11 @@ public:
 
     void push(CompressedLine& line) const;
 
-    template <class T>
-    bool updateToValueForAF(CompressedLine& line, uint16_t value, T& registers);
+    template <int N>
+    bool updateToValueForAF(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers);
 
-    template <typename T>
-    bool updateToValue(CompressedLine& line, uint16_t value, T& registers);
+    template <int N>
+    bool updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers);
 
     void dec(CompressedLine& line, int repeat = 1);
     void inc(CompressedLine& line, int repeat = 1);

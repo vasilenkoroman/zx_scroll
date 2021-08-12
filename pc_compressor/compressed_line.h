@@ -9,7 +9,6 @@
 
 class Register8;
 class Register16;
-using Registers = std::array<Register16, 3>;
 
 class ZxData
 {
@@ -103,8 +102,8 @@ struct CompressedLine
     }
 
     ZxData data;
-    std::shared_ptr<Registers> inputRegisters;
-    std::shared_ptr<Registers> outputRegisters;
+    std::vector<Register16> inputRegisters;
+    std::vector<Register16> outputRegisters;
 
     int drawTicks = 0;
     bool isAltReg = false;

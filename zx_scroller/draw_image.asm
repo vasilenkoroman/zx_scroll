@@ -15,6 +15,7 @@ generated_code: equ screen_end + 768
         INCBIN "resources/compressed_data.main"
 color_code        
         INCBIN "resources/compressed_data.color"
+
         align	4
 descriptors
         INCBIN "resources/compressed_data.main_descriptor"
@@ -30,8 +31,9 @@ multicolor_descriptor
         align	2
 jpix_table
         INCBIN "resources/compressed_data.jpix"
-timings_data
+
         align	2
+timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
 
@@ -349,7 +351,7 @@ main:
         di
         ld sp, stack_top
 
-        jp multicolor_descriptor
+        //jp multicolor_descriptor
 
         ; Change border color
         ld a, 1
