@@ -345,7 +345,8 @@ bool compressLineMain(
     context2.flags |= oddVerticalCompression;
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
 
-    if (success2 && line2.drawTicks < line1.drawTicks)
+    bool useSecondLine = success2 && line2.data.size() < line1.data.size();
+    if (useSecondLine)
         line = line2;
     else
         line = line1;
@@ -353,7 +354,7 @@ bool compressLineMain(
     for (const auto& reg16: registers)
         line.inputRegisters.push_back(reg16);
 
-    if (success2 && line2.drawTicks < line1.drawTicks)
+    if (useSecondLine)
         registers = registers2;
     else
         registers = registers1;
