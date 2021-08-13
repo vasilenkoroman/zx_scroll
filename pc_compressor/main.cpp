@@ -345,13 +345,13 @@ bool compressLineMain(
     context2.flags |= oddVerticalCompression;
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
 
-    bool useSecondLine = success2 && line2.data.size() < line1.data.size();
+    bool useSecondLine = success2 && line2.drawTicks < line1.drawTicks;
     if (useSecondLine)
         line = line2;
     else
         line = line1;
 
-    for (const auto& reg16: registers)
+    for (const auto& reg16 : registers)
         line.inputRegisters.push_back(reg16);
 
     if (useSecondLine)
@@ -492,7 +492,11 @@ bool compressLine(
             for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
             {
                 auto regCopy = registers;
+				
                 CompressedLine newLine;
+                newLine.isAltReg = result.isAltReg;
+                newLine.regUseMask = result.regUseMask;
+                newLine.selfRegMask = result.selfRegMask;
 
                 bool successChoise = makeChoise(contextCopy, newLine, regCopy, regIndex, word, x);
                 if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
@@ -1512,7 +1516,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters; // | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
