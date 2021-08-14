@@ -4,10 +4,11 @@
 #include <cassert>
 #include <string>
 
+#include "compressed_line.h"
+
 static const uint8_t  IX_REG_PREFIX = 0xdd;
 static const uint8_t  IY_REG_PREFIX = 0xfd;
 
-struct CompressedLine;
 class Register16;
 
 class Register8
@@ -77,8 +78,64 @@ public:
     void incValue(CompressedLine& line);
     void decValue(CompressedLine& line);
     void setBit(CompressedLine& line, uint8_t bit);
+    
     template <int N>
-    bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16);
+    inline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16)
+    {
+        if (name == 'f')
+            return false;
+
+        for (const auto& reg16 : registers16)
+        {
+            if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
+                continue;
+            if (reg16.h.name == 'i')
+                continue;
+
+            if (reg16.h.hasValue(byte))
+            {
+                line.useReg(reg16.h);
+                line.selfReg(*this);
+                loadFromReg(line, reg16.h);
+                return true;
+            }
+            else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
+            {
+                line.useReg(reg16.l);
+                line.selfReg(*this);
+                loadFromReg(line, reg16.l);
+                return true;
+            }
+        }
+
+        if (isEmpty())
+        {
+            line.selfReg(*this);
+            loadX(line, byte);
+        }
+        else if (*value == byte - 1)
+        {
+            line.useReg(*this);
+            incValue(line);
+            if (auto f = findRegister8(registers16, 'f'))
+                f->value.reset();
+        }
+        else if (*value == byte + 1)
+        {
+            line.useReg(*this);
+            decValue(line);
+            if (auto f = findRegister8(registers16, 'f'))
+                f->value.reset();
+        }
+        else
+        {
+            line.selfReg(*this);
+            loadX(line, byte);
+        }
+        return true;
+    }
+
+
 };
 
 class Register16
@@ -164,7 +221,82 @@ public:
     bool updateToValueForAF(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers);
 
     template <int N>
-    bool updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers);
+    bool updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
+    {
+        if (hasValue16(value))
+        {
+            line.useReg(h, l);
+            return true;
+        }
+
+        if (h.name == 'a')
+            return updateToValueForAF(line, value, registers);
+
+        const uint8_t hiByte = value >> 8;
+        const uint8_t lowByte = (uint8_t)value;
+
+        if (h.hasValue(hiByte))
+        {
+            line.useReg(h);
+            l.updateToValue(line, lowByte, registers);
+        }
+        else if (l.hasValue(lowByte))
+        {
+            line.useReg(l);
+            h.updateToValue(line, hiByte, registers);
+        }
+        else if (!isEmpty() && value16() == value + 1)
+        {
+            line.useReg(h, l);
+            dec(line);
+        }
+        else if (!isEmpty() && value16() == value - 1)
+        {
+            line.useReg(h, l);
+            inc(line);
+        }
+        else
+        {
+            const Register8* regH = nullptr;
+            const Register8* regL = nullptr;
+
+            for (const auto& reg16 : registers)
+            {
+                if (reg16.isAlt != isAlt)
+                    continue;
+                if (reg16.h.hasValue(hiByte) && !reg16.hasReg8(regL))
+                    regH = &reg16.h;
+                else if (reg16.h.hasValue(lowByte) && !reg16.hasReg8(regH))
+                    regL = &reg16.h;
+                else if (reg16.l.name != 'f' && reg16.l.hasValue(hiByte) && !reg16.hasReg8(regL))
+                    regH = &reg16.l;
+                else if (reg16.l.name != 'f' && reg16.l.hasValue(lowByte) && !reg16.hasReg8(regH))
+                    regL = &reg16.l;
+            }
+
+            if (regH && regL)
+            {
+                if (regL->name == h.name)
+                {
+                    l.loadFromReg(line, *regL);
+                    h.loadFromReg(line, *regH);
+                }
+                else
+                {
+                    h.loadFromReg(line, *regH);
+                    l.loadFromReg(line, *regL);
+                }
+                line.useReg(h, *regH);
+                line.useReg(h, *regL);
+            }
+            else
+            {
+                loadXX(line, value);
+                line.selfReg(h, l);
+            }
+        }
+        return true;
+    }
 
     void dec(CompressedLine& line, int repeat = 1);
     void inc(CompressedLine& line, int repeat = 1);

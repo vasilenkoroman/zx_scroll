@@ -39,6 +39,7 @@ struct Context
     int imageHeight = 0;
     uint8_t* buffer = nullptr;
     std::vector<bool>* maskColor = nullptr;
+    std::vector<int>* sameBytesCount = nullptr;
     int y = 0;
     int maxX = 31;
     int minX = 0;
@@ -205,47 +206,6 @@ void inversBlock(uint8_t* buffer, int x, int y)
     }
 }
 
-int sameVerticalBytes(const Context& context, int x)
-{
-    int result = 0;
-    if (!(context.flags & (verticalCompressionL | verticalCompressionH)))
-        return 0;
-
-    uint8_t* ptr = context.buffer + context.y * 32 + x;
-    for (; x <= context.maxX; ++x)
-    {
-        uint8_t currentByte = *ptr;
-        if (!isHiddenData(context.maskColor, x, context.y / 8))
-        {
-            if (context.flags & verticalCompressionH)
-            {
-                int nextLine = context.y - context.scrollDelta;
-                if (nextLine < 0)
-                    nextLine += context.imageHeight;
-                auto ptr = context.buffer + nextLine * 32 + x;
-                if (*ptr != currentByte)
-                    return result;
-
-                if (isHiddenData(context.maskColor, x, nextLine / 8))
-                    return result; //< There is any byte in invisible color. draw again.
-            }
-            if (context.flags & verticalCompressionL)
-            {
-                int nextLine = (context.y + context.scrollDelta) % context.imageHeight;
-                auto ptr = context.buffer + nextLine * 32 + x;
-                if (*ptr != currentByte)
-                    return result;
-
-                if (isHiddenData(context.maskColor, x, nextLine / 8))
-                    return result; //< There is any byte in invisible color. draw again.
-            }
-        }
-        ++result;
-        ++ptr;
-    };
-    return result;
-}
-
 int sameVerticalWorlds(uint8_t* buffer, int x, int y)
 {
     if (y == 191 || y == 0)
@@ -273,7 +233,7 @@ bool compressLine(
     int x);
 
 template <int N>
-bool makeChoise(
+inline bool makeChoise(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
@@ -286,8 +246,8 @@ bool makeChoise(
         result.exx();
 
     // Word in network byte order here (swap bytes call before)
-    bool canAvoidFirst = canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
-    bool canAvoidSecond = canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
+    bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
+    bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
 
     bool success;
     if (canAvoidFirst && canAvoidSecond)
@@ -389,7 +349,8 @@ bool compressLine(
 
     while (x <= context.maxX)
     {
-        int verticalRepCount =  sameVerticalBytes(context, x);
+        int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(context.y * 32 + x) : 0;
+        verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
         if (!(context.flags & oddVerticalCompression))
             verticalRepCount &= ~1;
 
@@ -422,8 +383,8 @@ bool compressLine(
         // push existing 16 bit value.
         bool isChoised = false;
 
-        bool canAvoidFirst = canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
-        bool canAvoidSecond = canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
+        bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
+        bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
 
         if (x < context.maxX)
         {
@@ -581,7 +542,8 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
-CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors, int imageHeight)
+CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors, 
+    std::vector<int>* sameBytesCount, int imageHeight)
 {
     CompressedData compressedData;
 
@@ -592,6 +554,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
     context.imageHeight = imageHeight;
     context.buffer = buffer;
     context.maskColor = maskColors;
+    context.sameBytesCount = sameBytesCount;
 
     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
 
@@ -612,6 +575,62 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
 
     return compressedData;
 }
+
+
+int sameVerticalBytes(int flags, int scrollDelta, const uint8_t* buffer,
+    std::vector<bool>* maskColor, int x, int y, int imageHeight)
+{
+    int result = 0;
+    if (!(flags & (verticalCompressionL | verticalCompressionH)))
+        return 0;
+
+    const uint8_t* ptr = buffer + y * 32 + x;
+    for (; x < 32; ++x)
+    {
+        uint8_t currentByte = *ptr;
+        if (!isHiddenData(maskColor, x, y / 8))
+        {
+            if (flags & verticalCompressionH)
+            {
+                int nextLine = y - scrollDelta;
+                if (nextLine < 0)
+                    nextLine += imageHeight;
+                auto ptr = buffer + nextLine * 32 + x;
+                if (*ptr != currentByte)
+                    return result;
+
+                if (isHiddenData(maskColor, x, nextLine / 8))
+                    return result; //< There is any byte in invisible color. draw again.
+            }
+            if (flags & verticalCompressionL)
+            {
+                int nextLine = (y + scrollDelta) % imageHeight;
+                auto ptr = buffer + nextLine * 32 + x;
+                if (*ptr != currentByte)
+                    return result;
+
+                if (isHiddenData(maskColor, x, nextLine / 8))
+                    return result; //< There is any byte in invisible color. draw again.
+            }
+        }
+        ++result;
+        ++ptr;
+    };
+    return result;
+}
+
+std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer, 
+    std::vector<bool>* maskColor, int imageHeight)
+{
+    std::vector<int> result;
+    for (int y = 0; y < imageHeight; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+            result.push_back(sameVerticalBytes(flags, kScrollDelta, buffer, maskColor, x, y, imageHeight));
+    }
+    return result;
+}
+
 
 CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
@@ -650,9 +669,10 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight, *a.value);
+    std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
 
-    CompressedData result = compressImageAsync(flags, buffer, &maskColor, imageHeight);
+    CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
     if (!(flags & inverseColors))
         return result;
 
@@ -665,13 +685,13 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             int lineNum = y * 8;
 
             inversBlock(buffer, x, y);
-            auto candidateLeft = compressImageAsync(flags, buffer, &maskColor, imageHeight);
+            auto candidateLeft = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
             inversBlock(buffer, x+1, y);
-            auto candidateBoth = compressImageAsync(flags, buffer, &maskColor, imageHeight);
+            auto candidateBoth = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
             inversBlock(buffer, x, y);
-            auto candidateRight = compressImageAsync(flags, buffer, &maskColor, imageHeight);
+            auto candidateRight = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
             inversBlock(buffer, x + 1, y);
 
             const int resultTicks = result.ticks();
@@ -988,6 +1008,8 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
     context.flags = verticalCompressionL;
     context.imageHeight = imageHeight;
     context.buffer = buffer;
+    std::vector<int> sameBytesCount = createSameBytesTable(context.flags, buffer, /*maskColors*/ nullptr, imageHeight);
+    context.sameBytesCount = &sameBytesCount;
 
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
@@ -1042,6 +1064,8 @@ void calculateMulticolorTimings(const CompressedData& data, const CompressedData
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
+    int flags = verticalCompressionL | interlineRegisters;
+    std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight);
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
@@ -1049,10 +1073,11 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
         
         Context context;
         context.scrollDelta = kScrollDelta;
-        context.flags = verticalCompressionL | interlineRegisters;
+        context.flags = flags;
         context.imageHeight = imageHeight / 8;
         context.buffer = buffer;
         context.y = y;
+        context.sameBytesCount = &sameBytesCount;
         CompressedLine line;
         bool success = compressLineMain(context, line, registers);
         compressedData.data.push_back(line);

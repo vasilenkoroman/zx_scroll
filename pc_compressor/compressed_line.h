@@ -5,8 +5,6 @@
 #include <vector>
 #include <memory>
 
-#include "registers.h"
-
 class Register8;
 class Register16;
 
