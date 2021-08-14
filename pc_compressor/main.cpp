@@ -324,11 +324,9 @@ bool compressLineMain(
     else
         line = line1;
 
+    line.inputRegisters = std::make_shared<std::vector<Register16>>();
     for (const auto& reg16 : registers)
-    {
-        line.inputRegisters = std::make_shared<std::vector<Register16>>();
         line.inputRegisters->push_back(reg16);
-    }
 
     if (useSecondLine)
         registers = registers2;
