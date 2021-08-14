@@ -245,12 +245,12 @@ public:
             line.useReg(l);
             h.updateToValue(line, hiByte, registers);
         }
-        else if (!isEmpty() && value16() == value + 1)
+        else if (hasValue16(value + 1))
         {
             line.useReg(h, l);
             dec(line);
         }
-        else if (!isEmpty() && value16() == value - 1)
+        else if (hasValue16(value - 1))
         {
             line.useReg(h, l);
             inc(line);

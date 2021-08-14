@@ -51,7 +51,7 @@ void serialize(std::vector<uint8_t>& data, uint16_t value)
     data.push_back(value >> 8);
 }
 
-bool isHiddenData(uint8_t* colorBuffer, int x, int y)
+inline bool isHiddenData(uint8_t* colorBuffer, int x, int y)
 {
     if (!colorBuffer)
         return false;
@@ -59,7 +59,7 @@ bool isHiddenData(uint8_t* colorBuffer, int x, int y)
     return (colorData & 7) == ((colorData >> 3) & 7);
 }
 
-bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
+inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
 {
     if (!hiddenData || hiddenData->empty())
         return false;
@@ -325,18 +325,20 @@ bool compressLineMain(
         line = line1;
 
     for (const auto& reg16 : registers)
-        line.inputRegisters.push_back(reg16);
+    {
+        line.inputRegisters = std::make_shared<std::vector<Register16>>();
+        line.inputRegisters->push_back(reg16);
+    }
 
     if (useSecondLine)
         registers = registers2;
     else
         registers = registers1;
 
-    for (const auto& reg16 : registers)
-        line.outputRegisters.push_back(reg16);
-
     return true;
 }
+
+static Register16 sp("sp");
 
 template <int N>
 bool compressLine(
@@ -345,16 +347,16 @@ bool compressLine(
     std::array<Register16, N>& registers,
     int x)
 {
-    static Register16 sp("sp");
 
     while (x <= context.maxX)
     {
-        int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(context.y * 32 + x) : 0;
+        const int index = context.y * 32 + x;
+        int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
         if (!(context.flags & oddVerticalCompression))
             verticalRepCount &= ~1;
 
-        uint16_t* buffer16 = (uint16_t*) (context.buffer + context.y * 32 + x);
+        uint16_t* buffer16 = (uint16_t*) (context.buffer + index);
         uint16_t word = *buffer16;
         word = swapBytes(word);
 
@@ -468,7 +470,7 @@ bool compressLine(
                 newLine.selfRegMask = result.selfRegMask;
 
                 bool successChoise = makeChoise(contextCopy, newLine, regCopy, regIndex, word, x);
-                if (successChoise && (choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks))
+                if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
                 {
                     chosedRegisters = regCopy;
                     choisedLine = newLine;
