@@ -38,7 +38,7 @@ timings_data
 timings_data_end
 
 src_data
-        INCBIN "resources/samanasuke.bin", 0, 6144
+        INCBIN "resources/jorg.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:

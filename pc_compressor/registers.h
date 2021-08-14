@@ -72,6 +72,7 @@ public:
     void cpl(CompressedLine& line);
     void addReg(CompressedLine& line, const Register8& reg);
     void xorReg(CompressedLine& line, const Register8& reg);
+    void orReg(CompressedLine& line, const Register8& reg);
     void andReg(CompressedLine& line, const Register8& reg);
     void subReg(CompressedLine& line, const Register8& reg);
     void loadFromReg(CompressedLine& line, const Register8& reg);
@@ -227,10 +228,12 @@ public:
         case 0x0042:
             a.subReg(line, a);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0x0045:
             a.xorReg(line, a);
             setValue(value);
+            line.selfReg(a);
             return true;
         }
 
@@ -249,41 +252,49 @@ public:
             a.xorReg(line, a);
             a.addReg(line, a);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0x0041:
             a.subReg(line, a);
             f.scf(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0x0044:
             a.xorReg(line, a);
             f.scf(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0x0054:
             a.xorReg(line, a);
             a.andReg(line, a);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0x0100:
             a.xorReg(line, a);
             a.incValue(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0xffba:
             a.xorReg(line, a);
             a.decValue(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0xff7e:
             a.xorReg(line, a);
             a.cpl(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         case 0xff7a:
             a.subReg(line, a);
             a.cpl(line);
             setValue(value);
+            line.selfReg(a);
             return true;
         }
 
@@ -306,8 +317,12 @@ public:
                 else
                     a.subReg(line, h);
                 if (a.value != hiByte)
+                {
                     h.loadFromReg(line, *reg);
+                    line.useReg(*reg);
+                }
                 setValue(value);
+                line.selfReg(a);
                 return true;
             }
         }

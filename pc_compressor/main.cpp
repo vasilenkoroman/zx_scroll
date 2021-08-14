@@ -328,10 +328,16 @@ bool compressLineMain(
     for (const auto& reg16 : registers)
         line.inputRegisters->push_back(reg16);
 
-    if (useSecondLine)
-        registers = registers2;
-    else
-        registers = registers1;
+    if (context.flags & interlineRegisters)
+    {
+        if (useSecondLine)
+            registers = registers2;
+        else
+            registers = registers1;
+
+        if (auto f = findRegister8(registers, 'f'))
+            f->value.reset(); //< Interline registers is not supported for 'f'
+    }
 
     return true;
 }
@@ -495,6 +501,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
         [context, lines]()
         {
             std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+            //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)

@@ -41,8 +41,10 @@ void Register8::cpl(CompressedLine& line)
 void Register8::addReg(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
+    assert(!isEmpty());
     line.drawTicks += 4;
     line.data.push_back(0x80 + reg.reg8Index);
+    value = *value + *reg.value;
 }
 
 void Register8::xorReg(CompressedLine& line, const Register8& reg)
@@ -50,6 +52,25 @@ void Register8::xorReg(CompressedLine& line, const Register8& reg)
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0xa8 + reg.reg8Index);
+
+    if (reg.name != 'a')
+    {
+        assert(!isEmpty());
+        value = *value ^ *reg.value;
+    }
+    else
+    {
+        value = 0;
+    }
+}
+
+void Register8::orReg(CompressedLine& line, const Register8& reg)
+{
+    assert(name == 'a');
+    line.drawTicks += 4;
+    line.data.push_back(0xb0 + reg.reg8Index);
+    assert(!isEmpty());
+    value = *value | *reg.value;
 }
 
 void Register8::andReg(CompressedLine& line, const Register8& reg)
@@ -57,6 +78,15 @@ void Register8::andReg(CompressedLine& line, const Register8& reg)
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0xa0 + reg.reg8Index);
+    if (reg.name != 'a')
+    {
+        assert(!isEmpty());
+        value = *value & *reg.value;
+    }
+    else
+    {
+        value = 0;
+    }
 }
 
 void Register8::subReg(CompressedLine& line, const Register8& reg)
@@ -64,6 +94,15 @@ void Register8::subReg(CompressedLine& line, const Register8& reg)
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0x90 + reg.reg8Index);
+    if (reg.name != 'a')
+    {
+        assert(!isEmpty());
+        value = *value - *reg.value;
+    }
+    else
+    {
+        value = 0;
+    }
 }
 
 void Register8::loadFromReg(CompressedLine& line, const Register8& reg)

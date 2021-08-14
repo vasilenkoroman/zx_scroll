@@ -33,9 +33,6 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
 
     for (const auto& reg16: *inputRegisters)
     {
-        if (reg16.h.name == 'a')
-            continue;
-
         uint8_t hMask = 1 << reg16.h.reg8Index;
         uint8_t lMask = 1 << reg16.l.reg8Index;
 
@@ -43,8 +40,8 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
 
         if (!(selfRegMask & hMask) && (regUseMask & hMask))
             usedReg.h.value = reg16.h.value;
-
-        if (!(selfRegMask & lMask) && (regUseMask & lMask))
+        
+        if (!(selfRegMask & lMask) && (regUseMask & lMask) && reg16.l.name != 'f')
             usedReg.l.value = reg16.l.value;
 
         if (!usedReg.h.isEmpty() || !usedReg.l.isEmpty())
