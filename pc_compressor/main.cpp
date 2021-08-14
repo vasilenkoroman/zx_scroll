@@ -368,8 +368,6 @@ bool compressLine(
         {
             if (auto hl = findRegister(registers, "hl"))
             {
-                if (!result.isAltAf)
-                    ;// result.exAf();
                 hl->updateToValue(result, -verticalRepCount, registers);
                 hl->addSP(result);
                 if (auto f = findRegister8(registers, 'f'))

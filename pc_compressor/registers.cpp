@@ -200,115 +200,14 @@ void Register16::push(CompressedLine& line) const
         line.data.push_back(l.indexRegPrefix);
         line.drawTicks += 4;
     }
-    line.data.push_back(0xc5 + reg16Index() * 8);
+    const int index = h.name == 'a' ? 6 : reg16Index();
+    line.data.push_back(0xc5 + index * 8);
     line.drawTicks += 11;
     if (!h.isEmpty())
         line.useReg(h);
     if (!l.isEmpty())
         line.useReg(l);
 }
-
-template <int N>
-bool Register16::updateToValueForAF(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
-{
-    auto& a = h;
-    auto& f = l;
-
-    switch (value)
-    {
-    case 0x0042:
-        a.subReg(line, a);
-        setValue(value);
-        return true;
-    case 0x0045:
-        a.xorReg(line, a);
-        setValue(value);
-        return true;
-    }
-
-    const uint8_t hiByte = value >> 8;
-    const uint8_t lowByte = (uint8_t)value;
-
-    if (f.hasValue(lowByte))
-    {
-        a.loadX(line, hiByte);
-        return true;
-    }
-
-    switch (value)
-    {
-    case 0x0040:
-        a.xorReg(line, a);
-        a.addReg(line, a);
-        setValue(value);
-        return true;
-    case 0x0041:
-        a.subReg(line, a);
-        f.scf(line);
-        setValue(value);
-        return true;
-    case 0x0044:
-        a.xorReg(line, a);
-        f.scf(line);
-        setValue(value);
-        return true;
-    case 0x0054:
-        a.xorReg(line, a);
-        a.andReg(line, a);
-        setValue(value);
-        return true;
-    case 0x0100:
-        a.xorReg(line, a);
-        a.incValue(line);
-        setValue(value);
-        return true;
-    case 0xffba:
-        a.xorReg(line, a);
-        a.decValue(line);
-        setValue(value);
-        return true;
-    case 0xff7e:
-        a.xorReg(line, a);
-        a.cpl(line);
-        setValue(value);
-        return true;
-    case 0xff7a:
-        a.subReg(line, a);
-        a.cpl(line);
-        setValue(value);
-        return true;
-    }
-
-    if (lowByte == 0x44 || lowByte == 0x42)
-    {
-        const Register8* reg = nullptr;
-        for (const auto& reg16 : registers)
-        {
-            if (reg16.l.name == 'f')
-                continue;
-            if (reg16.h.hasValue(hiByte))
-                reg = &reg16.h;
-            else if (reg16.l.hasValue(hiByte))
-                reg = &reg16.l;
-        }
-        if (reg)
-        {
-            if (lowByte == 0x44)
-                a.xorReg(line, h);
-            else
-                a.subReg(line, h);
-            if (a.value != hiByte)
-                h.loadFromReg(line, *reg);
-            setValue(value);
-            return true;
-        }
-    }
-
-    return false;
-}
-
-template bool Register16::updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, 3>& registers);
-
 
 void Register16::dec(CompressedLine& line, int repeat)
 {
