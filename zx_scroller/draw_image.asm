@@ -6,7 +6,7 @@
 screen_addr:    equ 16384
 screen_size:    equ 1024 * 6 + 768
 screen_end:     equ 5b00h
-generated_code: equ screen_end + 768
+generated_code: equ 5e00h
 
 /*************** Image data. ******************/
 
@@ -15,6 +15,8 @@ generated_code: equ screen_end + 768
         INCBIN "resources/compressed_data.main"
 color_code        
         INCBIN "resources/compressed_data.color"
+multicolor_data
+        INCBIN "resources/compressed_data.multicolor"
 
         align	4
 descriptors
@@ -26,7 +28,7 @@ color_descriptor
 
         align	2
 multicolor_descriptor
-        INCBIN "resources/compressed_data.multicolor"
+        INCBIN "resources/compressed_data.multicolor_descriptor"
 
         align	2
 jpix_table
@@ -38,7 +40,7 @@ timings_data
 timings_data_end
 
 src_data
-        INCBIN "resources/jorg.bin", 0, 6144
+        INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
@@ -346,12 +348,32 @@ rep:    ld hl, 65535
         pop bc
         ret
 
+test_draw_multicolor_line:
+        ld (stack_bottom), sp                           ; 20
+
+        add hl, hl
+        ld de, multicolor_descriptor
+        add hl, de
+        ld e, (hl)
+        inc l
+        ld d, (hl)
+        ex de, hl
+
+        ld sp, 16384+6144+32
+        ld ix, $+5
+        jp hl // multicolor line to draw
+
+        ld sp, (stack_bottom)                         ; 20        
+        ret
+
+
 /*************** Main. ******************/
 main:
         di
         ld sp, stack_top
 
-        //jp multicolor_descriptor
+        ld hl, 5        ; multicolor line index
+        call test_draw_multicolor_line
 
         ; Change border color
         ld a, 1

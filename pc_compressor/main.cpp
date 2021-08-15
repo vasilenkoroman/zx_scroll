@@ -24,11 +24,15 @@ static const int lineSize = 32;
 static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 
+// flags
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
 static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
+static const int useMoreRegisters = 32;
+
+
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
 
@@ -44,6 +48,85 @@ struct Context
     int maxX = 31;
     int minX = 0;
 };
+
+
+enum class Operation
+{
+    none,
+    add,
+    sub
+};
+
+struct SourceArguments
+{
+    uint8_t a = 0;
+    uint8_t b = 0;
+    Operation op = Operation::none;
+};
+
+static const int kUnusedAfValue = 0x0042;
+std::vector<SourceArguments> afValueForAdd(65536);
+std::vector<SourceArguments> afValueForSub(65536);
+
+void createAfValueTable()
+{
+    // calculate AF for operation: LD A, a: ADD B
+    for (int a = 0; a < 256; ++a)
+    {
+        for (int b = 0; b < 256; ++b)
+        {
+            {
+                uint8_t result = (uint8_t)a + (uint8_t)b;
+                uint8_t flags = a & 0x38; // F5, F3 from A
+
+                flags |= result & 0x80;   // S flag
+
+                if (result == 0)
+                    flags |= 0x40;   // Z flag
+
+                if ((result & 0x0f) < (a & 0x0f))
+                    flags |= 0x10;   // H flag (half carry)
+
+                if ((result & 0x80) != (a & 0x80))
+                    flags |= 0x40;   // V flag (overflow)
+
+                flags &= ~0x20;   // N flag is reset (not a substraction)
+
+                if (result < a)
+                    flags |= 0x1;   // C flag
+
+                uint16_t value = (result << 8) + flags;
+                afValueForAdd[value] = { (uint8_t) a, (uint8_t) b, Operation::add };
+            }
+
+            // calculate flags for sub
+            {
+                uint8_t result = (uint8_t)a - (uint8_t)b;
+                uint8_t flags = a & 0x38; // F5, F3 from A
+
+                flags |= result & 0x80;   // S flag
+
+                if (result == 0)
+                    flags |= 0x40;   // Z flag
+
+                if ((result & 0x0f) > (a & 0x0f))
+                    flags |= 0x10;   // H flag (half carry)
+
+                if ((result & 0x80) != (a & 0x80))
+                    flags |= 0x40;   // V flag (overflow)
+
+                flags |= 0x20;   // N flag is set (substraction)
+
+                if (result > a)
+                    flags |= 0x1;   // C flag
+
+                uint16_t value = (result << 8) + flags;
+                afValueForSub[value] = { (uint8_t) a, (uint8_t) b, Operation::sub };
+            }
+
+        }
+    }
+}
 
 void serialize(std::vector<uint8_t>& data, uint16_t value)
 {
@@ -345,6 +428,47 @@ bool compressLineMain(
 static Register16 sp("sp");
 
 template <int N>
+void choiseNextRegister(
+    CompressedLine& choisedLine, 
+    std::array<Register16, N>& chosedRegisters,
+    const Context& context,
+    const CompressedLine& currentLine,
+    const std::array<Register16, N>& registers,
+    const uint16_t word, 
+    const int x)
+{
+    int choisedIndex = -1;
+    for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
+    {
+        auto regCopy = registers;
+
+        CompressedLine newLine;
+        newLine.isAltReg = currentLine.isAltReg;
+        newLine.regUseMask = currentLine.regUseMask;
+        newLine.selfRegMask = currentLine.selfRegMask;
+
+        if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
+            continue;
+
+        bool useNextLine = choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks;
+        if (!useNextLine && newLine.drawTicks == choisedLine.drawTicks)
+        {
+            // preffer empty register
+            if (!registers[choisedIndex].isEmpty())
+                useNextLine = true;
+        }
+
+
+        if (useNextLine)
+        {
+            chosedRegisters = regCopy;
+            choisedLine = newLine;
+            choisedIndex = regIndex;
+        }
+    }
+}
+
+template <int N>
 bool compressLine(
     const Context& context,
     CompressedLine&  result,
@@ -440,44 +564,15 @@ bool compressLine(
 
         CompressedLine choisedLine;
         auto chosedRegisters = registers;
-        for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
-        {
-            auto regCopy = registers;
 
-            CompressedLine newLine;
-            newLine.isAltReg = result.isAltReg;
-            newLine.regUseMask = result.regUseMask;
-            newLine.selfRegMask = result.selfRegMask;
-
-            bool successChoise = makeChoise(context, newLine, regCopy, regIndex, word, x);
-            if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
-            {
-                chosedRegisters = regCopy;
-                choisedLine = newLine;
-            }
-        }
+        choiseNextRegister(choisedLine, chosedRegisters, context, result, registers, word, x);
 
         if ((context.flags & oddVerticalCompression) && choisedLine.data.empty() && x % 2 == 0)
         {
             // try to reset flags for the rest of the line
             Context contextCopy(context);
             contextCopy.flags &= ~oddVerticalCompression;
-            for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
-            {
-                auto regCopy = registers;
-				
-                CompressedLine newLine;
-                newLine.isAltReg = result.isAltReg;
-                newLine.regUseMask = result.regUseMask;
-                newLine.selfRegMask = result.selfRegMask;
-
-                bool successChoise = makeChoise(contextCopy, newLine, regCopy, regIndex, word, x);
-                if (successChoise && (choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks))
-                {
-                    chosedRegisters = regCopy;
-                    choisedLine = newLine;
-                }
-            }
+            choiseNextRegister(choisedLine, chosedRegisters, contextCopy, result, registers, word, x);
         }
 
         if (choisedLine.data.empty())
@@ -500,8 +595,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     return std::async(
         [context, lines]()
         {
-            std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-            //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+            //std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+            std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)
@@ -997,9 +1092,39 @@ CompressedLine  compressMultiColorsLine2(Context context)
     int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
     int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
 
+    //try 1. Use 3 registers, no intermediate stack correction
+
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-    compressLineMain(context, result, registers);
-    result.jpIx();
+    CompressedLine line1;
+    CompressedLine loadLine;
+    CompressedLine pushLine;
+    compressLineMain(context, line1, registers);
+    line1.splitPreLoadAndPush(&loadLine, &pushLine);
+
+    if (pushLine.drawTicks <= t1)
+    {
+        Register16 hl("hl");
+        Register16 sp("sp");
+        if (context.minX >= 5)
+        {
+            hl.loadXX(result, context.minX);
+            hl.addSP(result);
+            sp.loadFromReg16(result, hl);
+        }
+        else
+        {
+            sp.dec(result, context.minX);
+        }
+
+        result += loadLine;
+        result += pushLine;
+
+        result.jpIx();
+        return result;
+    }
+
+    //try 2. Use 4 registers, no intermediate stack correction
+
     return result;
 }
 
@@ -1010,7 +1135,7 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
 
     struct Context context;
     context.scrollDelta = 1;
-    context.flags = verticalCompressionL;
+    context.flags = verticalCompressionL | useMoreRegisters;
     context.imageHeight = imageHeight;
     context.buffer = buffer;
     std::vector<int> sameBytesCount = createSameBytesTable(context.flags, buffer, /*maskColors*/ nullptr, imageHeight);
@@ -1323,7 +1448,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
 
-    return serializedData.size() + reachDescriptors.size() + jpIxDescr.size();
+    return serializedData.size() + reachDescriptors.size();
 }
 
 int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
@@ -1549,6 +1674,8 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    createAfValueTable();
+
     int fileCount = argc - 2;
     int imageHeight = 192 * fileCount;
 
@@ -1588,8 +1715,6 @@ int main(int argc, char** argv)
     const auto t1 = std::chrono::system_clock::now();
 
     CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
-    serializeMultiColorData(realTimeColor, outputFileName, 0);
-
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
@@ -1657,10 +1782,12 @@ int main(int argc, char** argv)
 
 
     int mainDataSize = serializeMainData(data, outputFileName, kCodeOffset, flags);
+    int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
+    serializeMultiColorData(realTimeColor, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
 
-    serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
     serializeTimingData(data, colorData, outputFileName);
+
 
     calculateMulticolorTimings(data, colorData, flags);
 

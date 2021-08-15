@@ -99,18 +99,6 @@ struct CompressedLine
         selfRegMask |= other.selfRegMask;
     }
 
-    ZxData data;
-    std::shared_ptr<std::vector<Register16>> inputRegisters;
-
-    int drawTicks = 0;
-    bool isAltReg = false;
-    bool isAltAf = false;
-    int prelineTicks = 0;
-
-    uint8_t regUseMask = 0;
-    uint8_t selfRegMask = 0;
-
-public:
     void useReg(const Register8& reg);
     void selfReg(const Register8& reg);
     void useReg(const Register8& reg1, const Register8& reg2);
@@ -124,5 +112,20 @@ public:
     std::vector<uint8_t> getFirstCommands(int size) const;
 
     void serialize(std::vector<uint8_t>& vector) const;
+    void append(const uint8_t* buffer, int size);
 
+    int getCommandSize(const uint8_t* ptr) const;
+    void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
+
+public:
+    ZxData data;
+    std::shared_ptr<std::vector<Register16>> inputRegisters;
+
+    int drawTicks = 0;
+    bool isAltReg = false;
+    bool isAltAf = false;
+    int prelineTicks = 0;
+
+    uint8_t regUseMask = 0;
+    uint8_t selfRegMask = 0;
 };
