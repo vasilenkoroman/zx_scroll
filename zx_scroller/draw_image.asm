@@ -4,7 +4,7 @@
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
 screen_addr:    equ 16384
-screen_size:    equ 1024 * 6 + 768
+color_addr:     equ 5800h
 screen_end:     equ 5b00h
 generated_code: equ 5e00h
 
@@ -13,9 +13,9 @@ generated_code: equ 5e00h
     org generated_code
 
         INCBIN "resources/compressed_data.main"
-color_code        
+color_code
         INCBIN "resources/compressed_data.color"
-multicolor_data
+multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
         align	4
@@ -94,7 +94,7 @@ prepare_interruption_table:
         ret
 
 
-draw_4_lines_and_rt_colors:
+draw_multicolor_line:
                 // (stack_bottom) - descriptor
                 // (stack_bottom + 2) - destinatin rastr address to draw
                 // (stack_bottom + 4) - destinatin multicolor address to draw
@@ -105,13 +105,11 @@ draw_4_lines_and_rt_colors:
                 exx                                             ; 4
                 ; hl - rastr address to execute
                 pop hl                                          ; 10
-                pop de ; delay                                  ; 10
                 ; save descriptor
                 ld (stack_bottom), sp                           ; 20
 
                 ; rastr drawing address
                 ld sp, 16384+1024*4                             ; 10
-                //call delay
                 // draw rastr  (4 line)
                 ld ix, $ + 5 ; ret addr                         ; 14
                 jp hl                                           ; 4
@@ -348,22 +346,55 @@ rep:    ld hl, 65535
         pop bc
         ret
 
-test_draw_multicolor_line:
-        ld (stack_bottom), sp                           ; 20
+        MACRO DRAW_MULTICOLOR_LINE lineNum
+                ld sp, (stack_bottom)                           ; 20
+                ; hl - colors to execute
+                pop hl                                          ; 10
+                ; save descriptor
+                ld (stack_bottom), sp                           ; 20
+
+                ; draw RT colors (1 line)
+                ld sp, color_addr + lineNum * 32 + 32           ; 10
+                ld ix, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                // total ticks: 78
+        ENDM
+
+test_draw_multicolor_lines:
+        ld (stack_bottom + 4), sp
 
         add hl, hl
-        ld de, multicolor_descriptor
-        add hl, de
-        ld e, (hl)
-        inc l
-        ld d, (hl)
-        ex de, hl
+        ld sp, multicolor_descriptor
+        add hl, sp
+        ld (stack_bottom), sp
 
-        ld sp, 16384+6144+32
-        ld ix, $+5
-        jp hl // multicolor line to draw
+        // (stack_bottom) - multicolor descriptors
+        DRAW_MULTICOLOR_LINE 23
+        DRAW_MULTICOLOR_LINE 22
+        DRAW_MULTICOLOR_LINE 21
+        DRAW_MULTICOLOR_LINE 20
+        DRAW_MULTICOLOR_LINE 19
+        DRAW_MULTICOLOR_LINE 18
+        DRAW_MULTICOLOR_LINE 17
+        DRAW_MULTICOLOR_LINE 16
+        DRAW_MULTICOLOR_LINE 15
+        DRAW_MULTICOLOR_LINE 14
+        DRAW_MULTICOLOR_LINE 13
+        DRAW_MULTICOLOR_LINE 12
+        DRAW_MULTICOLOR_LINE 11
+        DRAW_MULTICOLOR_LINE 10
+        DRAW_MULTICOLOR_LINE 9
+        DRAW_MULTICOLOR_LINE 8
+        DRAW_MULTICOLOR_LINE 7
+        DRAW_MULTICOLOR_LINE 6
+        DRAW_MULTICOLOR_LINE 5
+        DRAW_MULTICOLOR_LINE 4
+        DRAW_MULTICOLOR_LINE 3
+        DRAW_MULTICOLOR_LINE 2
+        DRAW_MULTICOLOR_LINE 1
+        DRAW_MULTICOLOR_LINE 0
 
-        ld sp, (stack_bottom)                         ; 20        
+        ld sp, (stack_bottom + 4)
         ret
 
 
@@ -372,15 +403,16 @@ main:
         di
         ld sp, stack_top
 
-        ld hl, 5        ; multicolor line index
-        call test_draw_multicolor_line
-
         ; Change border color
         ld a, 1
         out 0xfe,a
 
         call copy_image
-        //call copy_colors
+        call copy_colors
+
+        ld hl, 0        ; multicolor line index
+        call test_draw_multicolor_lines
+        halt
 
         call prepare_interruption_table
         ei
@@ -419,6 +451,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         push bc                         ; 11 ticks
         call draw_image_and_color       ; ~55000 ticks
         pop bc                          ; 10 ticks
+
+        halt
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks

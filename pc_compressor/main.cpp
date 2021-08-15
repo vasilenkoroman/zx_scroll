@@ -1221,6 +1221,20 @@ CompressedLine  compressMultiColorsLine(Context context)
         return result;
     }
 
+    // 3. Try to split line on 2 segments
+    if (pushLine.drawTicks <= t2)
+    {
+        // TODO: implement me
+        assert(0);
+        abort();
+    }
+
+    // 4. Split line on 3 segments. It enough for any line
+    // TODO: implement me. See commented implementation compressRealtimeColorsLine. It need to finish it.
+    assert(0);
+    abort();
+
+
     return result;
 }
 
@@ -1829,38 +1843,6 @@ int main(int argc, char** argv)
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks(in progress): "
         << realTimeColor.ticks() << ", ratio: " << realTimeColor.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() +  realTimeColor.ticks() << std::endl;
-
-    std::deque<int> ticksSum;
-    int last4LineTicks = 0;
-    int last4LineTicksMax = 0;
-    int worseLine = 0;
-    for (int i = 0; i < 8; ++i)
-    {
-        for (int y = 0; y < data.data.size(); y += 8)
-        {
-            int line = y + i;
-            ticksSum.push_back(data.data[line].drawTicks);
-            last4LineTicks += data.data[line].drawTicks;
-            if (ticksSum.size() > 4)
-            {
-                last4LineTicks -= ticksSum.front();
-                ticksSum.pop_front();
-            }
-            if (last4LineTicks > last4LineTicksMax)
-            {
-                last4LineTicksMax = last4LineTicks;
-                worseLine = line;
-            }
-        }
-    }
-    std::cout << "max 4 line ticks: " << last4LineTicksMax << " worseLine=" << worseLine << std::endl;
-
-    int maxColorTicks = 0;
-    for (int i = 0; i < 24; ++i)
-    {
-        maxColorTicks = std::max(maxColorTicks, realTimeColor.data[i].drawTicks);
-    }
-    std::cout << "max realtime color ticks: " << maxColorTicks << std::endl;
 
     //moveLoadBcFirst(data);
     //moveLoadBcFirst(colorData);
