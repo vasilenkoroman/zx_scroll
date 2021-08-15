@@ -1000,6 +1000,7 @@ void finilizeLine(
     }
 
     result += loadLine;
+    result.preloadTicks = result.drawTicks;
     result += pushLine;
     result.jpIx();
 }
@@ -1146,12 +1147,14 @@ CompressedLine  compressMultiColorsLine(Context context)
     if (pushLine.drawTicks <= t2)
     {
         // TODO: implement me
+        std::cerr << "Not finished yet. need add more code here. Two segment multicolor" << std::endl;
         assert(0);
         abort();
     }
 
     // 4. Split line on 3 segments. It enough for any line
     // TODO: implement me. See commented implementation compressRealtimeColorsLine. It need to finish it.
+    std::cerr << "Not finished yet. need add more code here. Three segment multicolor" << std::endl;
     assert(0);
     abort();
 
@@ -1313,6 +1316,7 @@ void resolveJumpToNextBankInGap(
 }
 
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
+    const CompressedData& multicolorData,
     uint16_t baseOffset,
     std::vector<uint8_t>& serializedData,
     std::vector<int> lineOffset)
@@ -1369,7 +1373,10 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
-int serializeMainData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset, int flags)
+int serializeMainData(
+    const CompressedData& data, 
+    const CompressedData& multicolorData,
+    const std::string& inputFileName, uint16_t codeOffset, int flags)
 {
     using namespace std;
     const int imageHeight = data.data.size();
@@ -1475,6 +1482,7 @@ int serializeMainData(const CompressedData& data, const std::string& inputFileNa
     // serialize Jp Ix descriptors
 
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
+        multicolorData,
         codeOffset, serializedData, lineOffset);
     jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
@@ -1743,7 +1751,10 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    CompressedData realTimeColor = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
+    CompressedData multicolorData = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
+    // Multicolor data displaying from top to bottom
+    std::reverse(multicolorData.data.begin(), multicolorData.data.end());
+
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
@@ -1760,8 +1771,8 @@ int main(int argc, char** argv)
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
         << colorData.ticks() << ", ratio: " << colorData.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks(in progress): "
-        << realTimeColor.ticks() << ", ratio: " << realTimeColor.ticks() / (float) uncompressedColorTicks << std::endl;
-    std::cout << "total ticks: " << data.ticks() + colorData.ticks() +  realTimeColor.ticks() << std::endl;
+        << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float) uncompressedColorTicks << std::endl;
+    std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
 
     // put JP to the latest line for every bank
     for (int bank = 0; bank < 8; ++bank)
@@ -1773,9 +1784,9 @@ int main(int argc, char** argv)
     }
 
 
-    int mainDataSize = serializeMainData(data, outputFileName, kCodeOffset, flags);
+    int mainDataSize = serializeMainData(data, multicolorData, outputFileName, kCodeOffset, flags);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
-    serializeMultiColorData(realTimeColor, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
+    serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
 
     serializeTimingData(data, colorData, outputFileName);

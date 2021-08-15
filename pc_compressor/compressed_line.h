@@ -124,7 +124,7 @@ public:
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
-    int prelineTicks = 0;
+    int preloadTicks = 0;
 
     uint8_t regUseMask = 0;
     uint8_t selfRegMask = 0;
