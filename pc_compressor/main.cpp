@@ -35,6 +35,8 @@ static const int forceToUseExistingRegisters = 32;
 
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
+static const int kLineDurationInTicks = 224;
+
 
 struct Context
 {
@@ -1008,8 +1010,7 @@ void finilizeLine(
 CompressedLine  compressMultiColorsLine(Context context)
 {
     CompressedLine result;
-    static const int kLineLength = 224;
-    static const int kBorderTime = kLineLength - 128;
+    static const int kBorderTime = kLineDurationInTicks - 128;
     static const int kStackMovingTime = 27;
 
     uint8_t* line = context.buffer + context.y * 32;
@@ -1033,7 +1034,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     }
 
     int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
-    int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
+    int t2 = kLineDurationInTicks - kStackMovingTime; // write whole line in 2 tries limit
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
@@ -1315,7 +1316,25 @@ void resolveJumpToNextBankInGap(
     }
 }
 
+struct LineMiddlePointInfo
+{
+    uint8_t* address = nullptr;
+    int ticks = 0;
+    int spDelta = 0;
+    std::vector<Register16> usedRegisters;
+};
+
+LineMiddlePointInfo parseLinesToTick(const uint8_t* startAddress, const uint8_t* endAddress, int ticks)
+{
+    // It contains 8 lines between start and end address
+
+    LineMiddlePointInfo result;
+
+    return result;
+}
+
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
+    const CompressedData& data,
     const CompressedData& multicolorData,
     uint16_t baseOffset,
     std::vector<uint8_t>& serializedData,
@@ -1326,6 +1345,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
     int imageHeight = lineOffset.size();
     const int bankSize = imageHeight / 8;
+    const int colorsHeight = imageHeight / 8;
 
     // . Create delta for JP_IX when shift to 1 line
     for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
@@ -1337,23 +1357,43 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
         for (int i = 1; i <= 3; ++i)
         {
+            int lineStartInBank = lineNumInBank + (i-1) * 8;
+            if (lineStartInBank > bankSize)
+                lineStartInBank -= bankSize;
+            int relativeOffsetToStart = lineOffset[lineStartInBank];
+
+            int associatedMulticolorLine = lineStartInBank - 8;
+            if (associatedMulticolorLine < 0)
+                associatedMulticolorLine += colorsHeight;
+
+            const auto& mcLine = multicolorData.data[associatedMulticolorLine];
+            const auto& dataLine = data.data[associatedMulticolorLine];
+
             int lineEndInBank = lineNumInBank + i * 8;
             if (lineEndInBank > bankSize)
                 lineEndInBank -= bankSize;
             
             int l = lineEndInBank + bankNum * bankSize;
-
             JpIxDescriptor d;
-            int relativeOffset = l < imageHeight ? lineOffset[l] : serializedData.size();
+            int relativeOffsetToEnd = l < imageHeight ? lineOffset[l] : serializedData.size();
             if (lineEndInBank == bankSize)
             {
                 // There is additional JP 'first bank line'  command at the end of latest line in bank.
                 // overwrite this command (if exists) instead of first bytes of the next line in bank.
-                relativeOffset -= 3;
+                relativeOffsetToEnd -= 3;
             }
 
-            d.address = relativeOffset + baseOffset;
-            uint16_t* ptr = (uint16_t*) (serializedData.data() + relativeOffset);
+            int totalTicks = kLineDurationInTicks * 8;
+            int ticksRest = totalTicks - mcLine.drawTicks;
+            ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
+            uint8_t* lineStartAddress = serializedData.data() + relativeOffsetToStart;
+            uint8_t* lineEndAddress = serializedData.data() + relativeOffsetToEnd;
+
+            LineMiddlePointInfo lineMiddleAddress = parseLinesToTick(lineStartAddress, lineEndAddress, ticksRest);
+
+
+            d.address = relativeOffsetToEnd + baseOffset;
+            uint16_t* ptr = (uint16_t*) (serializedData.data() + relativeOffsetToEnd);
             d.originData = *ptr;
             descriptors.push_back(d);
         }
@@ -1482,7 +1522,7 @@ int serializeMainData(
     // serialize Jp Ix descriptors
 
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
-        multicolorData,
+        data, multicolorData,
         codeOffset, serializedData, lineOffset);
     jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 

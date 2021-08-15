@@ -1,0 +1,358 @@
+diff --git a/pc_compressor/main.cpp b/pc_compressor/main.cpp
+index 8dbc903..7349f81 100644
+--- a/pc_compressor/main.cpp
++++ b/pc_compressor/main.cpp
+@@ -38,7 +38,7 @@ struct Context
+     int flags = 0;
+     int imageHeight = 0;
+     uint8_t* buffer = nullptr;
+-    uint8_t* colorBuffer = nullptr;
++    std::vector<bool> maskColor;
+     int y = 0;
+     int maxX = 31;
+     int minX = 0;
+@@ -52,10 +52,19 @@ void serialize(std::vector<uint8_t>& data, uint16_t value)
+ 
+ bool isHiddenData(uint8_t* colorBuffer, int x, int y)
+ {
++    if (!colorBuffer)
++        return false;
+     const uint8_t colorData = colorBuffer[x + y * 32];
+     return (colorData & 7) == ((colorData >> 3) & 7);
+ }
+ 
++bool isHiddenData(const std::vector<bool>& hiddenData, int x, int y)
++{
++    if (hiddenData.empty())
++        return false;
++    return hiddenData[x + y * 32];
++}
++
+ template <int N>
+ Register16* findRegister(std::array<Register16, N>& registers, const std::string& name)
+ {
+@@ -206,23 +215,30 @@ int sameVerticalBytes(const Context& context, int x)
+     for (; x <= context.maxX; ++x)
+     {
+         uint8_t currentByte = *ptr;
+-        if ((context.flags & skipInvisibleColors) && isHiddenData(context.colorBuffer, x, context.y / 8))
+-        {
+-            ;
+-        }
+-        else if (context.y > 0 && (context.flags & verticalCompressionH))
+-        {
+-            int nextLine = (context.y - context.scrollDelta) % context.imageHeight;
+-            auto ptr = context.buffer + nextLine * 32 + x;
+-            if (*ptr != currentByte)
+-                return result;
+-        }
+-        if (context.flags & verticalCompressionL)
++        if (!isHiddenData(context.maskColor, x, context.y / 8))
+         {
+-            int nextLine = (context.y + context.scrollDelta) % context.imageHeight;
+-            auto ptr = context.buffer + nextLine * 32 + x;
+-            if (*ptr != currentByte)
+-                return result;
++            if (context.flags & verticalCompressionH)
++            {
++                int nextLine = context.y - context.scrollDelta;
++                if (nextLine < 0)
++                    nextLine += context.imageHeight;
++                auto ptr = context.buffer + nextLine * 32 + x;
++                if (*ptr != currentByte)
++                    return result;
++
++                if (isHiddenData(context.maskColor, x, nextLine / 8))
++                    return result; //< There is any byte in invisible color. draw again.
++            }
++            if (context.flags & verticalCompressionL)
++            {
++                int nextLine = (context.y + context.scrollDelta) % context.imageHeight;
++                auto ptr = context.buffer + nextLine * 32 + x;
++                if (*ptr != currentByte)
++                    return result;
++
++                if (isHiddenData(context.maskColor, x, nextLine / 8))
++                    return result; //< There is any byte in invisible color. draw again.
++            }
+         }
+         ++result;
+         ++ptr;
+@@ -270,18 +286,14 @@ bool makeChoise(
+         result.exx();
+ 
+     // Word in network byte order here (swap bytes call before)
+-    bool canAvoidFirst = false;
+-    bool canAvoidSecond = false;
+-    if (context.flags & skipInvisibleColors)
+-    {
+-        canAvoidFirst = isHiddenData(context.colorBuffer, x, context.y / 8);
+-        canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
+-    }
++    bool canAvoidFirst = canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
++    bool canAvoidSecond = canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
++
+     bool success;
+     if (canAvoidFirst && canAvoidSecond)
+         success = true;
+     else if (canAvoidFirst)
+-        success = reg.l.updateToValue(result, (uint8_t) word, registers);
++        success = reg.l.updateToValue(result, (uint8_t)word, registers);
+     else if (canAvoidSecond)
+         success = reg.h.updateToValue(result, word >> 8, registers);
+     else
+@@ -290,6 +302,7 @@ bool makeChoise(
+         return false;
+ 
+     reg.push(result);
++
+     return compressLine(context, result, registers, x + 2);
+ }
+ 
+@@ -409,13 +422,8 @@ bool compressLine(
+         // push existing 16 bit value.
+         bool isChoised = false;
+ 
+-        bool canAvoidFirst = false;
+-        bool canAvoidSecond = false;
+-        if (context.flags & skipInvisibleColors)
+-        {
+-            canAvoidFirst = isHiddenData(context.colorBuffer, x, context.y / 8);
+-            canAvoidSecond = isHiddenData(context.colorBuffer, x + 1, context.y / 8);
+-        }
++        bool canAvoidFirst = canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
++        bool canAvoidSecond = canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
+ 
+         if (x < context.maxX)
+         {
+@@ -548,19 +556,103 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
+     );
+ }
+ 
+-CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
++std::optional<int> nextVisibleRastrLine(int x, int colorLine, uint8_t* colorBuffer, int colorHeight, bool moveDown)
++{
++    std::optional<int> result;
++
++    for (int i = 0; i < colorHeight; ++i)
++    {
++        if (!isHiddenData(colorBuffer, x, colorLine))
++        {
++            if (moveDown)
++                result = colorLine * 8;
++            else
++                result = colorLine * 8 + 7;
++            break;
++        }
++        if (moveDown)
++        {
++            colorLine = (colorLine + 1) % colorHeight;
++        }
++        else
++        {
++            --colorLine;
++            if (colorLine < 0)
++                colorLine = colorHeight - 1;
++        }
++    }
++    return result;
++}
++
++std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, uint8_t bestByte)
++{
++    std::vector<bool> result;
++    bool moveDown = flags & verticalCompressionL;
++    for (int y = 0; y < imageHeight / 8; ++y)
++    {
++        for (int x = 0; x < 32; ++x)
++        {
++            if (isHiddenData(colorBuffer, x, y))
++            {
++                auto rastrLineBefore = nextVisibleRastrLine(x, y, colorBuffer, imageHeight / 8, moveDown);
++                auto rastrLineAfter = nextVisibleRastrLine(x, y, colorBuffer, imageHeight / 8, !moveDown);
++                uint8_t* ptr = buffer + y * 32 + x;
++
++                int nextLine = (y + 1) % (imageHeight / 8);
++                int prevLine = y > 0 ? y - 1 : imageHeight / 8 - 1;
++
++                bool canSkip;
++                if (rastrLineBefore && rastrLineAfter)
++                {
++                    uint8_t rastrBefore = buffer[*rastrLineBefore * 32 + x];
++                    uint8_t rastrAfter = buffer[*rastrLineAfter * 32 + x];
++                    bestByte = rastrAfter;
++                    canSkip = isHiddenData(colorBuffer, x, prevLine) || rastrBefore != rastrAfter;
++                    canSkip = true;
++                }
++                else
++                {
++                    canSkip = true;
++                }
++
++                for (int i = 0; i < 8; ++i)
++                {
++                    *ptr = bestByte;
++                    ptr += 32;
++                }
++                // if colorBefore == colorAfter then not skip hidden color bytes during drawing. 
++                // Its more effecient write them as an usual bytes.
++                result.push_back(canSkip);
++            }
++            else
++            {
++                result.push_back(false);
++            }
++        }
++    }
++
++    return result;
++}
++
++CompressedData compressImageAsync(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, uint8_t bestByte)
+ {
+     CompressedData compressedData;
+ 
++
++    Context context;
++    context.scrollDelta = kScrollDelta;
++    context.flags = flags;
++    context.imageHeight = imageHeight;
++    context.buffer = buffer;
++
++    if (flags & skipInvisibleColors)
++        context.maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight, bestByte);
++
++
+     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
++
+     for (int i = 0; i < 8; ++i)
+     {
+-        Context context;
+-        context.scrollDelta = kScrollDelta;
+-        context.flags = flags;
+-        context.imageHeight = imageHeight;
+-        context.buffer = buffer;
+-        context.colorBuffer = colorBuffer;
+ 
+         std::vector<int > lines;
+         for (int y = 0; y < imageHeight; y += 8)
+@@ -613,7 +705,7 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
+ 
+     std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
+ 
+-    CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
++    CompressedData result = compressImageAsync(flags, buffer, colorBuffer, imageHeight, *a.value);
+     if (!(flags & inverseColors))
+         return result;
+ 
+@@ -626,13 +718,13 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
+             int lineNum = y * 8;
+ 
+             inversBlock(buffer, x, y);
+-            auto candidateLeft = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
++            auto candidateLeft = compressImageAsync(flags, buffer, colorBuffer, imageHeight, *a.value);
+ 
+             inversBlock(buffer, x+1, y);
+-            auto candidateBoth = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
++            auto candidateBoth = compressImageAsync(flags, buffer, colorBuffer, imageHeight, *a.value);
+ 
+             inversBlock(buffer, x, y);
+-            auto candidateRight = compressImageAsync(flags, buffer, colorBuffer, imageHeight);
++            auto candidateRight = compressImageAsync(flags, buffer, colorBuffer, imageHeight, *a.value);
+             inversBlock(buffer, x + 1, y);
+ 
+             const int resultTicks = result.ticks();
+@@ -949,7 +1041,6 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
+     context.flags = verticalCompressionL;
+     context.imageHeight = imageHeight;
+     context.buffer = buffer;
+-    context.colorBuffer = buffer;
+ 
+     CompressedData compressedData;
+     for (int y = 0; y < imageHeight; y ++)
+@@ -1014,7 +1105,6 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
+         context.flags = verticalCompressionL | interlineRegisters;
+         context.imageHeight = imageHeight / 8;
+         context.buffer = buffer;
+-        context.colorBuffer = buffer;
+         context.y = y;
+         CompressedLine line;
+         bool success = compressLineMain(context, line, registers);
+@@ -1516,7 +1606,7 @@ int main(int argc, char** argv)
+     mirrorBuffer8(buffer.data(), imageHeight);
+     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
+ 
+-    int flags = verticalCompressionL | interlineRegisters; // | skipInvisibleColors; // | inverseColors;
++    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
+ 
+     const auto t1 = std::chrono::system_clock::now();
+ 
+diff --git a/zx_scroller/draw_image.asm b/zx_scroller/draw_image.asm
+index e96adc4..472e189 100644
+--- a/zx_scroller/draw_image.asm
++++ b/zx_scroller/draw_image.asm
+@@ -122,9 +122,12 @@ draw_4_lines_and_rt_colors:
+                 // total ticks: 134
+ 
+ 
+-        MACRO draw_8_lines
++draw_8_lines
+                 // hl - descriptor
+                 // sp - destinatin screen address to draw
++
++                ld b,8
++.rep1:
+                 ld a, (hl)                                      ; 7
+                 ex af, af'                                      ; 4
+                 inc l                                           ; 4
+@@ -138,8 +141,10 @@ draw_4_lines_and_rt_colors:
+                 ld ix, $ + 5                                    ; 14
+                 jp hl                                           ; 4
+                 exx                                             ; 4
++                djnz .rep1
++                jp iy
+                 // total: 66
+-        ENDM
++        
+                 // total 66 ticks (15 bytes)
+ 
+         MACRO draw_8_color_lines
+@@ -229,7 +234,8 @@ draw_image_and_color
+         ld bc, descriptors  + 128 * 2                  ; 10
+         add hl, bc                                     ; 11
+         ld sp, 16384 + 1024 * 2
+-        .8 draw_8_lines
++        ld iy, $+7
++        jp draw_8_lines
+ 
+ /*
+         // ----------- draw colors (middle)
+@@ -245,7 +251,8 @@ draw_image_and_color
+         ld bc, descriptors + 64 * 2                    ; 10
+         add hl, bc                                      ; 11
+         ld sp, 16384 + 1024 * 4
+-        .8 draw_8_lines
++        ld iy, $+7
++        jp draw_8_lines
+ 
+ /*
+         // ----------- draw colors (bottom)
+@@ -261,7 +268,8 @@ draw_image_and_color
+         ld bc, descriptors                              ; 10
+         add hl, bc                                      ; 11
+         ld sp, 16384 + 1024 * 6
+-        .8 draw_8_lines
++        ld iy, $+7
++        jp draw_8_lines
+ 
+         ld sp, (stack_bottom)
+         ret                
+@@ -386,7 +394,7 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
+ 
+ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
+ 
+-        ld bc, 0h                       ; 10  ticks
++        ld bc, 95h                       ; 10  ticks
+         jp .loop
+ .lower_limit_reached:
+         ld bc,  max_scroll_offset       ; 10 ticks
