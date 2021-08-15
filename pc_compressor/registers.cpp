@@ -1,6 +1,96 @@
 #include "registers.h"
 #include "compressed_line.h"
 
+#include <iostream>
+
+enum class Operation
+{
+    none,
+    add,
+    sub
+};
+
+struct SourceArguments
+{
+    uint8_t a = 0;
+    uint8_t b = 0;
+    Operation op = Operation::none;
+};
+
+
+static const int kUnusedAfValue = 0x0042;
+std::vector<SourceArguments> afValueForAdd(65536);
+std::vector<SourceArguments> afValueForSub(65536);
+
+void createAfValueTable()
+{
+    // calculate AF for operation: LD A, a: ADD B
+    for (int a = 0; a < 256; ++a)
+    {
+        for (int b = 0; b < 256; ++b)
+        {
+            {
+                uint8_t result = (uint8_t)a + (uint8_t)b;
+                uint8_t flags = a & 0x38; // F5, F3 from A
+
+                flags |= result & 0x80;   // S flag
+
+                if (result == 0)
+                    flags |= 0x40;   // Z flag
+
+                if ((result & 0x0f) < (a & 0x0f))
+                    flags |= 0x10;   // H flag (half carry)
+
+                if ((result & 0x80) != (a & 0x80))
+                    flags |= 0x40;   // V flag (overflow)
+
+                flags &= ~0x20;   // N flag is reset (not a substraction)
+
+                if (result < a)
+                    flags |= 0x1;   // C flag
+
+                uint16_t value = (result << 8) + flags;
+                afValueForAdd[value] = { (uint8_t)a, (uint8_t)b, Operation::add };
+            }
+
+            // calculate flags for sub
+            {
+                uint8_t result = (uint8_t)a - (uint8_t)b;
+                uint8_t flags = a & 0x38; // F5, F3 from A
+
+                flags |= result & 0x80;   // S flag
+
+                if (result == 0)
+                    flags |= 0x40;   // Z flag
+
+                if ((result & 0x0f) > (a & 0x0f))
+                    flags |= 0x10;   // H flag (half carry)
+
+                if ((result & 0x80) != (a & 0x80))
+                    flags |= 0x40;   // V flag (overflow)
+
+                flags |= 0x20;   // N flag is set (substraction)
+
+                if (result > a)
+                    flags |= 0x1;   // C flag
+
+                uint16_t value = (result << 8) + flags;
+                afValueForSub[value] = { (uint8_t)a, (uint8_t)b, Operation::sub };
+            }
+
+        }
+    }
+
+    int hasValues = 0;
+    for (int i = 0; i < 65535; ++i)
+    {
+        if (afValueForAdd[i].op != Operation::none || afValueForSub[i].op != Operation::none)
+            ++hasValues;
+    }
+    std::cout << "available AFt values for add/sub: " << hasValues << std::endl;
+}
+
+
 void Register8::add(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
