@@ -30,7 +30,7 @@ static const int verticalCompressionL = 2; //< Skip drawing data if it exists on
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
-static const int useMoreRegisters = 32;
+static const int forceToUseExistingRegisters = 32;
 
 
 static const int skipInvisibleColors = 32;
@@ -47,6 +47,7 @@ struct Context
     int y = 0;
     int maxX = 31;
     int minX = 0;
+    int lastOddRepPosition = 32;
 };
 
 
@@ -396,9 +397,11 @@ bool compressLineMain(
     auto registers1 = registers;
     auto registers2 = registers;
 
+    line1.flags = context.flags;
     bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX);
     Context context2 = context;
     context2.flags |= oddVerticalCompression;
+    line2.flags = context2.flags;
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
 
     bool useSecondLine = success2 && line2.drawTicks < line1.drawTicks;
@@ -450,15 +453,7 @@ void choiseNextRegister(
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
             continue;
 
-        bool useNextLine = choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks;
-        if (!useNextLine && newLine.drawTicks == choisedLine.drawTicks)
-        {
-            // preffer empty register
-            if (!registers[choisedIndex].isEmpty())
-                useNextLine = true;
-        }
-
-
+        bool useNextLine = choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks;
         if (useNextLine)
         {
             chosedRegisters = regCopy;
@@ -466,6 +461,49 @@ void choiseNextRegister(
             choisedIndex = regIndex;
         }
     }
+}
+
+template <int N>
+bool loadWordFromExistingRegister(
+    const Context& context,
+    CompressedLine& result,
+    std::array<Register16, N>& registers,
+    const uint16_t word, const int x)
+
+{
+    bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
+    bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
+
+    for (int run = 0; run < 2; ++run)
+    {
+        for (auto& reg : registers)
+        {
+            bool condition = result.isAltReg == reg.isAlt;
+            if (run == 1)
+                condition = !condition;
+            if (!condition)
+                continue;
+
+            bool valueOk;
+            if (canAvoidFirst && canAvoidSecond)
+                valueOk = true;
+            else if (canAvoidFirst)
+                valueOk = reg.l.hasValue((uint8_t)word);
+            else if (canAvoidSecond)
+                valueOk = reg.h.hasValue(word >> 8);
+            else
+                valueOk = reg.hasValue16(word);
+
+            if (valueOk)
+            {
+                if (result.isAltReg != reg.isAlt)
+                    result.exx();
+                reg.push(result);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 template <int N>
@@ -481,7 +519,7 @@ bool compressLine(
         const int index = context.y * 32 + x;
         int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
-        if (!(context.flags & oddVerticalCompression))
+        if (!(context.flags & oddVerticalCompression) || x > context.lastOddRepPosition)
             verticalRepCount &= ~1;
 
         uint16_t* buffer16 = (uint16_t*) (context.buffer + index);
@@ -509,35 +547,10 @@ bool compressLine(
         }
 
         // push existing 16 bit value.
-        bool isChoised = false;
-
-        bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
-        bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
-
-        if (x < context.maxX)
+        if (x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
         {
-            for (auto& reg : registers)
-            {
-                bool valueOk;
-                if (canAvoidFirst && canAvoidSecond)
-                    valueOk = true;
-                else if (canAvoidFirst)
-                    valueOk = reg.l.hasValue((uint8_t)word);
-                else if (canAvoidSecond)
-                    valueOk = reg.h.hasValue(word >> 8);
-                else
-                    valueOk = reg.hasValue16(word);
-
-                if (result.isAltReg == reg.isAlt && valueOk)
-                {
-                    reg.push(result);
-                    x += 2;
-                    isChoised = true;
-                    break;
-                }
-            }
-            if (isChoised)
-                continue;
+            x += 2;
+            continue;
         }
 
         // Decrement stack if line has same value from previous step (vertical compression)
@@ -548,19 +561,15 @@ bool compressLine(
             continue;
         }
 
-        for (auto& reg : registers)
+        if (registers[0].isEmpty())
         {
-            if (result.isAltReg == reg.isAlt && reg.isEmpty() && reg.h.name == 'b')
-            {
-                reg.updateToValue(result, word, registers);
-                reg.push(result);
-                x += 2;
-                isChoised = true;
-                break;
-            }
-        }
-        if (isChoised)
+            if (result.isAltReg != registers[0].isAlt)
+                result.exx();
+            registers[0].updateToValue(result, word, registers);
+            registers[0].push(result);
+            x += 2;
             continue;
+        }
 
         CompressedLine choisedLine;
         auto chosedRegisters = registers;
@@ -573,13 +582,18 @@ bool compressLine(
             Context contextCopy(context);
             contextCopy.flags &= ~oddVerticalCompression;
             choiseNextRegister(choisedLine, chosedRegisters, contextCopy, result, registers, word, x);
+            choisedLine.lastOddRepPosition = x;
         }
 
         if (choisedLine.data.empty())
             return false;
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
+        if (context.flags & oddVerticalCompression)
+            result.lastOddRepPosition = x;
+        result.lastOddRepPosition = choisedLine.lastOddRepPosition;
         registers = chosedRegisters;
+
         return true;
     }
     if (result.isAltReg)
@@ -587,6 +601,8 @@ bool compressLine(
     if (result.isAltAf)
         result.exAf();
     
+    if (context.flags & oddVerticalCompression)
+        result.lastOddRepPosition = context.maxX;
     return true;
 }
 
@@ -1043,7 +1059,31 @@ CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine,
 }
 #endif
 
-CompressedLine  compressMultiColorsLine2(Context context)
+void finilizeLine(
+    const Context& context,
+    CompressedLine& result,
+    const CompressedLine& loadLine,
+    const CompressedLine& pushLine)
+{
+    Register16 hl("hl");
+    Register16 sp("sp");
+    if (context.minX >= 5)
+    {
+        hl.loadXX(result, context.minX);
+        hl.addSP(result);
+        sp.loadFromReg16(result, hl);
+    }
+    else
+    {
+        sp.dec(result, context.minX);
+    }
+
+    result += loadLine;
+    result += pushLine;
+    result.jpIx();
+}
+
+CompressedLine  compressMultiColorsLine(Context context)
 {
     CompressedLine result;
     static const int kLineLength = 224;
@@ -1070,31 +1110,12 @@ CompressedLine  compressMultiColorsLine2(Context context)
             break;
     }
 
-    std::set<uint8_t> uniqueBytes;
-    std::set<uint16_t> uniqueWords;
-    std::vector<uint16_t> allWords;
-    for (int x = context.minX; x <= context.maxX;)
-    {
-        if (line[x] == nextLine[x])
-        {
-            ++x;
-            continue;
-        }
-        uniqueBytes.insert(line[x]);
-        uniqueBytes.insert(line[x+1]);
-        uint16_t* word = (uint16_t*)(line + x);
-        uniqueWords.insert(*word);
-        allWords.push_back(*word);
-        x += 2;
-    }
-    std::cout << "unique bytes=" << uniqueBytes.size() << ". uniq words=" << uniqueWords.size() << ", all words=" << allWords.size() << std::endl;
-
     int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
     int t2 = kLineLength - kStackMovingTime; // write whole line in 2 tries limit
 
-    //try 1. Use 3 registers, no intermediate stack correction
+    //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
     CompressedLine loadLine;
     CompressedLine pushLine;
@@ -1103,27 +1124,102 @@ CompressedLine  compressMultiColorsLine2(Context context)
 
     if (pushLine.drawTicks <= t1)
     {
-        Register16 hl("hl");
-        Register16 sp("sp");
-        if (context.minX >= 5)
-        {
-            hl.loadXX(result, context.minX);
-            hl.addSP(result);
-            sp.loadFromReg16(result, hl);
-        }
-        else
-        {
-            sp.dec(result, context.minX);
-        }
-
-        result += loadLine;
-        result += pushLine;
-
-        result.jpIx();
+        finilizeLine(context, result, loadLine, pushLine);
         return result;
     }
 
-    //try 2. Use 4 registers, no intermediate stack correction
+    //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
+
+    // 2.1 Create used words map (skip holes)
+
+    struct PositionInfo
+    {
+        int position = 0;
+        uint16_t value = 0;
+        int useCount = 0;
+    };
+
+    std::vector<PositionInfo> positionsToUse;
+    std::set<uint16_t> uniqueWords;
+
+    context.lastOddRepPosition = line1.lastOddRepPosition;
+    int x = context.minX;
+    int exxPos = -1;
+    while (x <= context.maxX)
+    {
+        const int index = context.y * 32 + x;
+        int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
+        verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
+        if (x > context.lastOddRepPosition)
+            verticalRepCount &= ~1;
+        if (verticalRepCount)
+        {
+            x += verticalRepCount;
+            continue;
+        }
+        uint16_t* ptr = (uint16_t*) (context.buffer + index);
+        uint16_t word = *ptr;
+        word = swapBytes(word);
+        PositionInfo data{ x, word, 1 };
+        uniqueWords.insert(word);
+        if (uniqueWords.size() > 3 && exxPos == -1)
+            exxPos = positionsToUse.size();
+        positionsToUse.push_back(data);
+
+        x += 2;
+    }
+    assert(x < 32);
+
+    // 2.3 fill register values
+
+    auto hasSameValue = 
+        [](const auto& registers, uint16_t word) 
+        {
+            for (auto& reg: registers)
+            {
+                if (reg.hasValue16(word))
+                    return true;
+            }
+            return false;
+        };
+
+    std::array<Register16, 3> regMain = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::array<Register16, 3> regAlt = { Register16("bc'"), Register16("de'"), Register16("hl'") };
+    loadLine = CompressedLine();
+
+    auto loadRegisters = 
+        [&](auto& registers, int startPos, int endPos) 
+        {
+            int regIndex = 0;
+            for (int i = startPos; i < endPos; ++i)
+            {
+                uint16_t value = positionsToUse[i].value;
+                if (!hasSameValue(registers, value))
+                {
+                    registers[regIndex].updateToValue(loadLine, value, registers);
+                    ++regIndex;
+                    if (regIndex == 3)
+                        break;
+                }
+            }
+        };
+
+    loadRegisters(regAlt, exxPos, positionsToUse.size());
+    loadLine.exx();
+    loadRegisters(regMain, 0, exxPos);
+
+    // 2.4 start compressor with prepared register values
+
+    std::array<Register16, 6> registers6 = { regMain[0], regMain[1], regMain[2], regAlt[0], regAlt[1], regAlt[2] };
+    context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
+    pushLine = CompressedLine();
+    bool success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
+        
+    if (pushLine.drawTicks <= t1)
+    {
+        finilizeLine(context, result, loadLine, pushLine);
+        return result;
+    }
 
     return result;
 }
@@ -1135,7 +1231,7 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
 
     struct Context context;
     context.scrollDelta = 1;
-    context.flags = verticalCompressionL | useMoreRegisters;
+    context.flags = verticalCompressionL;
     context.imageHeight = imageHeight;
     context.buffer = buffer;
     std::vector<int> sameBytesCount = createSameBytesTable(context.flags, buffer, /*maskColors*/ nullptr, imageHeight);
@@ -1145,7 +1241,7 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
     for (int y = 0; y < imageHeight; y ++)
     {
         context.y = y;
-        auto line = compressMultiColorsLine2(context);
+        auto line = compressMultiColorsLine(context);
         /*
         if (!success)
         {

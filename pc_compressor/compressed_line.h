@@ -128,4 +128,6 @@ public:
 
     uint8_t regUseMask = 0;
     uint8_t selfRegMask = 0;
+    int flags = 0;
+    int lastOddRepPosition = 0;
 };

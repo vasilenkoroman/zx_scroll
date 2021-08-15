@@ -330,8 +330,8 @@ public:
         return false;
     }
 
-    template <int N>
-    bool updateToValue(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
+    template <typename T>
+    bool updateToValue(CompressedLine& line, uint16_t value, T& registers)
     {
         if (hasValue16(value))
         {
