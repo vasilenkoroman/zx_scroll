@@ -13,6 +13,7 @@
 
 #include "compressed_line.h"
 #include "registers.h"
+#include "code_parser.h"
 
 static const int totalTicksPerFrame = 71680;
 static const int kCodeOffset = 0x5b00 + 768;
@@ -71,17 +72,6 @@ inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
     if (!hiddenData || hiddenData->empty())
         return false;
     return hiddenData->at(x + y * 32);
-}
-
-template <int N>
-Register16* findRegister(std::array<Register16, N>& registers, const std::string& name)
-{
-    for (auto& reg : registers)
-    {
-        if (reg.name() == name)
-            return &reg;
-    }
-    return nullptr;
 }
 
 struct CompressedData
@@ -479,7 +469,7 @@ bool compressLine(
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
         {
-            sp.dec(result, verticalRepCount);
+            sp.decValue(result, verticalRepCount);
             x += verticalRepCount;
             continue;
         }
@@ -998,7 +988,7 @@ void finilizeLine(
     }
     else
     {
-        sp.dec(result, context.minX);
+        sp.decValue(result, context.minX);
     }
 
     result += loadLine;
@@ -1316,23 +1306,6 @@ void resolveJumpToNextBankInGap(
     }
 }
 
-struct LineMiddlePointInfo
-{
-    uint8_t* address = nullptr;
-    int ticks = 0;
-    int spDelta = 0;
-    std::vector<Register16> usedRegisters;
-};
-
-LineMiddlePointInfo parseLinesToTick(const uint8_t* startAddress, const uint8_t* endAddress, int ticks)
-{
-    // It contains 8 lines between start and end address
-
-    LineMiddlePointInfo result;
-
-    return result;
-}
-
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const CompressedData& data,
     const CompressedData& multicolorData,
@@ -1389,8 +1362,10 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             uint8_t* lineStartAddress = serializedData.data() + relativeOffsetToStart;
             uint8_t* lineEndAddress = serializedData.data() + relativeOffsetToEnd;
 
-            LineMiddlePointInfo lineMiddleAddress = parseLinesToTick(lineStartAddress, lineEndAddress, ticksRest);
-
+            Z80Parser parser;
+            auto lineMiddleAddress = parser.parseCodeToTick(
+                dataLine.getUsedRegisters(),
+                serializedData, relativeOffsetToStart, baseOffset, ticksRest);
 
             d.address = relativeOffsetToEnd + baseOffset;
             uint16_t* ptr = (uint16_t*) (serializedData.data() + relativeOffsetToEnd);

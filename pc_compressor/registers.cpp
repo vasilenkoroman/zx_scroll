@@ -91,11 +91,33 @@ void createAfValueTable()
 }
 
 
-void Register8::add(CompressedLine& line, const Register8& reg)
+void Register8::addReg(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
     line.data.push_back(0x80 + reg.reg8Index); //< ADD a, reg8
     line.drawTicks += 4;
+    addReg(reg);
+}
+
+void Register8::addReg(const Register8& reg)
+{
+    assert(name == 'a');
+    assert(hasValue() && reg.hasValue());
+    value = *value + *reg.value;
+}
+
+void Register8::addValue(uint8_t v)
+{
+    assert(name == 'a');
+    assert(hasValue());
+    value = *value + v;
+}
+
+void Register8::subValue(uint8_t v)
+{
+    assert(name == 'a');
+    assert(hasValue());
+    value = *value - v;
 }
 
 void Register8::loadX(CompressedLine& line, uint8_t byte)
@@ -128,21 +150,17 @@ void Register8::cpl(CompressedLine& line)
     value = ~(*value);
 }
 
-void Register8::addReg(CompressedLine& line, const Register8& reg)
-{
-    assert(name == 'a');
-    assert(!isEmpty());
-    line.drawTicks += 4;
-    line.data.push_back(0x80 + reg.reg8Index);
-    value = *value + *reg.value;
-}
-
 void Register8::xorReg(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0xa8 + reg.reg8Index);
+    xorReg(reg);
+}
 
+void Register8::xorReg(const Register8& reg)
+{
+    assert(name == 'a');
     if (reg.name != 'a')
     {
         assert(!isEmpty());
@@ -154,13 +172,33 @@ void Register8::xorReg(CompressedLine& line, const Register8& reg)
     }
 }
 
+void Register8::xorValue(uint8_t v)
+{
+    assert(name == 'a');
+    assert(hasValue());
+    value = *value ^ v;
+}
+
 void Register8::orReg(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0xb0 + reg.reg8Index);
-    assert(!isEmpty());
+    orReg(reg);
+}
+
+void Register8::orReg(const Register8& reg)
+{
+    assert(name == 'a');
+    assert(hasValue() && reg.hasValue());
     value = *value | *reg.value;
+}
+
+void Register8::orValue(uint8_t v)
+{
+    assert(name == 'a');
+    assert(hasValue());
+    value = *value | v;
 }
 
 void Register8::andReg(CompressedLine& line, const Register8& reg)
@@ -168,6 +206,12 @@ void Register8::andReg(CompressedLine& line, const Register8& reg)
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0xa0 + reg.reg8Index);
+    andReg(reg);
+}
+
+void Register8::andReg(const Register8& reg)
+{
+    assert(name == 'a');
     if (reg.name != 'a')
     {
         assert(!isEmpty());
@@ -179,11 +223,23 @@ void Register8::andReg(CompressedLine& line, const Register8& reg)
     }
 }
 
+void Register8::andValue(uint8_t v)
+{
+    assert(name == 'a');
+    assert(hasValue());
+    value = *value & v;
+}
+
 void Register8::subReg(CompressedLine& line, const Register8& reg)
 {
     assert(name == 'a');
     line.drawTicks += 4;
     line.data.push_back(0x90 + reg.reg8Index);
+    subReg(reg);
+}
+
+void Register8::subReg(const Register8& reg)
+{
     if (reg.name != 'a')
     {
         assert(!isEmpty());
@@ -197,6 +253,7 @@ void Register8::subReg(CompressedLine& line, const Register8& reg)
 
 void Register8::loadFromReg(CompressedLine& line, const Register8& reg)
 {
+    assert(reg.hasValue());
     value = reg.value;
     if (&reg == this)
         return;
@@ -210,6 +267,12 @@ void Register8::loadFromReg(CompressedLine& line, const Register8& reg)
     line.drawTicks += 4;
     const uint8_t data = 0x40 + reg8Index * 8 + reg.reg8Index;
     line.data.push_back(data);
+}
+
+void Register8::loadFromReg(const Register8& reg)
+{
+    assert(reg.hasValue());
+    value = reg.value;
 }
 
 void Register8::incValue(CompressedLine& line)
@@ -227,6 +290,11 @@ void Register8::incValue(CompressedLine& line)
     line.data.push_back(data);
 }
 
+void Register8::incValue()
+{
+    value = *value + 1;
+}
+
 void Register8::decValue(CompressedLine& line)
 {
     value = *value - 1;
@@ -240,6 +308,11 @@ void Register8::decValue(CompressedLine& line)
     line.drawTicks += 4;
     const uint8_t data = 0x05 + 8 * reg8Index;
     line.data.push_back(data);
+}
+
+void Register8::decValue()
+{
+    value = *value - 1;
 }
 
 void Register8::setBit(CompressedLine& line, uint8_t bit)
@@ -338,11 +411,11 @@ void Register16::push(CompressedLine& line) const
         line.useReg(l);
 }
 
-void Register16::dec(CompressedLine& line, int repeat)
+void Register16::decValue(CompressedLine& line, int repeat)
 {
     if (!isEmpty())
     {
-        const auto newValue = value16() - repeat;
+        const uint16_t newValue = value16() - repeat;
         h.value = newValue >> 8;
         l.value = newValue % 256;
     }
@@ -359,7 +432,26 @@ void Register16::dec(CompressedLine& line, int repeat)
     }
 }
 
-void Register16::inc(CompressedLine& line, int repeat)
+void Register16::decValue()
+{
+    assert(!isEmpty());
+    setValue(value16() - 1);
+}
+
+void Register16::incValue()
+{
+    assert(!isEmpty());
+    setValue(value16() + 1);
+}
+
+void Register16::addValue(uint16_t value)
+{
+    assert(!isEmpty());
+    setValue(value16() + value);
+}
+
+
+void Register16::incValue(CompressedLine& line, int repeat)
 {
     if (!isEmpty())
     {

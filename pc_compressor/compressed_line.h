@@ -43,15 +43,6 @@ public:
     }
 };
 
-struct z80Command
-{
-    int size = 0;
-    int ticks = 0;
-    uint8_t usedReg = 0;
-    uint8_t selfReg = 0;
-};
-
-
 struct CompressedLine
 {
 
@@ -123,7 +114,6 @@ struct CompressedLine
     void serialize(std::vector<uint8_t>& vector) const;
     void append(const uint8_t* buffer, int size);
 
-    z80Command parseZ80Command(const uint8_t* ptr) const;
     void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
 
 public:

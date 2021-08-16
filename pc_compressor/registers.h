@@ -66,18 +66,39 @@ public:
         return !value.has_value();
     }
 
-    void add(CompressedLine& line, const Register8& reg);
+    void setValue(uint8_t value) { this->value = value; }
+
     void loadX(CompressedLine& line, uint8_t byte);
     void scf(CompressedLine& line);
     void cpl(CompressedLine& line);
+
+    void addValue(uint8_t);
     void addReg(CompressedLine& line, const Register8& reg);
+    void addReg(const Register8& reg);
+
     void xorReg(CompressedLine& line, const Register8& reg);
+    void xorReg(const Register8& reg);
+    void xorValue(uint8_t v);
+
     void orReg(CompressedLine& line, const Register8& reg);
+    void orReg(const Register8& reg);
+    void orValue(uint8_t v);
+
     void andReg(CompressedLine& line, const Register8& reg);
+    void andReg(const Register8& reg);
+    void andValue(uint8_t v);
+
     void subReg(CompressedLine& line, const Register8& reg);
+    void subReg(const Register8& reg);
+    void subValue(uint8_t);
+
     void loadFromReg(CompressedLine& line, const Register8& reg);
+    void loadFromReg(const Register8& reg);
+
     void incValue(CompressedLine& line);
+    void incValue();
     void decValue(CompressedLine& line);
+    void decValue();
     void setBit(CompressedLine& line, uint8_t bit);
     
     template <int N>
@@ -189,6 +210,8 @@ public:
         h.value = value >> 8;
         l.value = (uint8_t)value;
     }
+    void addValue(uint16_t value);
+
     void loadXX(CompressedLine& line, uint16_t value);
     void addSP(CompressedLine& line, Register8* f = nullptr);
 
@@ -358,12 +381,12 @@ public:
         else if (hasValue16(value + 1))
         {
             line.useReg(h, l);
-            dec(line);
+            decValue(line);
         }
         else if (hasValue16(value - 1))
         {
             line.useReg(h, l);
-            inc(line);
+            incValue(line);
         }
         else
         {
@@ -408,8 +431,10 @@ public:
         return true;
     }
 
-    void dec(CompressedLine& line, int repeat = 1);
-    void inc(CompressedLine& line, int repeat = 1);
+    void decValue(CompressedLine& line, int repeat = 1);
+    void incValue(CompressedLine& line, int repeat = 1);
+    void decValue();
+    void incValue();
     void poke(CompressedLine& line, uint16_t address);
 };
 
@@ -422,6 +447,17 @@ Register8* findRegister8(T& registers, const char& name)
             return &reg.h;
         else if (reg.l.name == name)
             return &reg.l;
+    }
+    return nullptr;
+}
+
+template <typename T>
+Register16* findRegister(T& registers, const std::string& name)
+{
+    for (auto& reg: registers)
+    {
+        if (reg.name() == name)
+            return &reg;
     }
     return nullptr;
 }

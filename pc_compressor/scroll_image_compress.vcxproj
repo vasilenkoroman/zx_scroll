@@ -153,11 +153,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="code_parser.cpp" />
     <ClCompile Include="compressed_line.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="registers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="code_parser.h" />
     <ClInclude Include="compressed_line.h" />
     <ClInclude Include="registers.h" />
   </ItemGroup>
