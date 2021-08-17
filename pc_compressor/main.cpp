@@ -282,16 +282,16 @@ void updateTransitiveRegUsage(T& data)
     {
 
         CompressedLine& line = data[lineNum];
-        uint8_t selfRegMask = line.selfRegMask;
-        auto before = line.regUseMask;
+        uint8_t selfRegMask = line.regUsage.selfRegMask;
+        auto before = line.regUsage.regUseMask;
         for (int j = 1; j <= 8; ++j)
         {
             int nextLineNum = (lineNum + j) % size;
             CompressedLine& nextLine = data[nextLineNum];
 
-            selfRegMask |= nextLine.selfRegMask;
-            uint8_t additionalUsage = nextLine.regUseMask & ~selfRegMask;
-            line.regUseMask |= additionalUsage;
+            selfRegMask |= nextLine.regUsage.selfRegMask;
+            uint8_t additionalUsage = nextLine.regUsage.regUseMask & ~selfRegMask;
+            line.regUsage.regUseMask |= additionalUsage;
         }
 #ifdef VERBOSE
         if (line.regUseMask != before)
@@ -360,8 +360,7 @@ void choiseNextRegister(
 
         CompressedLine newLine;
         newLine.isAltReg = currentLine.isAltReg;
-        newLine.regUseMask = currentLine.regUseMask;
-        newLine.selfRegMask = currentLine.selfRegMask;
+        newLine.regUsage = currentLine.regUsage;
 
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
             continue;

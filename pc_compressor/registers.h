@@ -66,39 +66,41 @@ public:
         return !value.has_value();
     }
 
-    void setValue(uint8_t value) { this->value = value; }
-
     void loadX(CompressedLine& line, uint8_t byte);
+    void loadX(RegUsageInfo& info, uint8_t byte);
     void scf(CompressedLine& line);
     void cpl(CompressedLine& line);
 
-    void addValue(uint8_t);
+    void addValue(RegUsageInfo& info, uint8_t);
+
     void addReg(CompressedLine& line, const Register8& reg);
-    void addReg(const Register8& reg);
+    void addReg(RegUsageInfo& info, const Register8& reg);
 
     void xorReg(CompressedLine& line, const Register8& reg);
-    void xorReg(const Register8& reg);
-    void xorValue(uint8_t v);
+    void xorReg(RegUsageInfo& info, const Register8& reg);
+    void xorValue(RegUsageInfo& info, uint8_t v);
 
     void orReg(CompressedLine& line, const Register8& reg);
-    void orReg(const Register8& reg);
-    void orValue(uint8_t v);
+    void orReg(RegUsageInfo& info, const Register8& reg);
+    void orValue(RegUsageInfo& info, uint8_t v);
 
     void andReg(CompressedLine& line, const Register8& reg);
-    void andReg(const Register8& reg);
-    void andValue(uint8_t v);
+    void andReg(RegUsageInfo& info, const Register8& reg);
+    void andValue(RegUsageInfo& info, uint8_t v);
 
     void subReg(CompressedLine& line, const Register8& reg);
-    void subReg(const Register8& reg);
-    void subValue(uint8_t);
+    void subReg(RegUsageInfo& info, const Register8& reg);
+    void subValue(RegUsageInfo& info, uint8_t);
 
     void loadFromReg(CompressedLine& line, const Register8& reg);
-    void loadFromReg(const Register8& reg);
+    void loadFromReg(RegUsageInfo& info, const Register8& reg);
 
     void incValue(CompressedLine& line);
-    void incValue();
+    void incValue(RegUsageInfo& info);
+
     void decValue(CompressedLine& line);
-    void decValue();
+    void decValue(RegUsageInfo& info);
+
     void setBit(CompressedLine& line, uint8_t bit);
     
     template <int N>
@@ -116,15 +118,11 @@ public:
 
             if (reg16.h.hasValue(byte))
             {
-                line.useReg(reg16.h);
-                line.selfReg(*this);
                 loadFromReg(line, reg16.h);
                 return true;
             }
             else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
             {
-                line.useReg(reg16.l);
-                line.selfReg(*this);
                 loadFromReg(line, reg16.l);
                 return true;
             }
@@ -132,26 +130,22 @@ public:
 
         if (isEmpty())
         {
-            line.selfReg(*this);
             loadX(line, byte);
         }
         else if (*value == uint8_t(byte - 1))
         {
-            line.useReg(*this);
             incValue(line);
             if (auto f = findRegister8(registers16, 'f'))
                 f->value.reset();
         }
         else if (*value == uint8_t(byte + 1))
         {
-            line.useReg(*this);
             decValue(line);
             if (auto f = findRegister8(registers16, 'f'))
                 f->value.reset();
         }
         else
         {
-            line.selfReg(*this);
             loadX(line, byte);
         }
         return true;
@@ -213,6 +207,7 @@ public:
     void addValue(uint16_t value);
 
     void loadXX(CompressedLine& line, uint16_t value);
+    void loadXX(RegUsageInfo& info, uint16_t value);
     void addSP(CompressedLine& line, Register8* f = nullptr);
 
     inline bool isEmpty() const
@@ -238,6 +233,7 @@ public:
         return h.hasValue(value) || l.hasValue(value);
     }
 
+    void push(RegUsageInfo& line) const;
     void push(CompressedLine& line) const;
 
     template <int N>
@@ -251,12 +247,10 @@ public:
         case 0x0042:
             a.subReg(line, a);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0x0045:
             a.xorReg(line, a);
             setValue(value);
-            line.selfReg(a);
             return true;
         }
 
@@ -275,49 +269,41 @@ public:
             a.xorReg(line, a);
             a.addReg(line, a);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0x0041:
             a.subReg(line, a);
             f.scf(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0x0044:
             a.xorReg(line, a);
             f.scf(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0x0054:
             a.xorReg(line, a);
             a.andReg(line, a);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0x0100:
             a.xorReg(line, a);
             a.incValue(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0xffba:
             a.xorReg(line, a);
             a.decValue(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0xff7e:
             a.xorReg(line, a);
             a.cpl(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         case 0xff7a:
             a.subReg(line, a);
             a.cpl(line);
             setValue(value);
-            line.selfReg(a);
             return true;
         }
 
@@ -342,10 +328,8 @@ public:
                 if (a.value != hiByte)
                 {
                     h.loadFromReg(line, *reg);
-                    line.useReg(*reg);
                 }
                 setValue(value);
-                line.selfReg(a);
                 return true;
             }
         }
@@ -358,7 +342,7 @@ public:
     {
         if (hasValue16(value))
         {
-            line.useReg(h, l);
+            line.regUsage.useReg(h, l);
             return true;
         }
 
@@ -370,22 +354,20 @@ public:
 
         if (h.hasValue(hiByte))
         {
-            line.useReg(h);
+            line.regUsage.useReg(h);
             l.updateToValue(line, lowByte, registers);
         }
         else if (l.hasValue(lowByte))
         {
-            line.useReg(l);
+            line.regUsage.useReg(l);
             h.updateToValue(line, hiByte, registers);
         }
         else if (hasValue16(value + 1))
         {
-            line.useReg(h, l);
             decValue(line);
         }
         else if (hasValue16(value - 1))
         {
-            line.useReg(h, l);
             incValue(line);
         }
         else
@@ -419,13 +401,10 @@ public:
                     h.loadFromReg(line, *regH);
                     l.loadFromReg(line, *regL);
                 }
-                line.useReg(h, *regH);
-                line.useReg(h, *regL);
             }
             else
             {
                 loadXX(line, value);
-                line.selfReg(h, l);
             }
         }
         return true;
@@ -433,8 +412,8 @@ public:
 
     void decValue(CompressedLine& line, int repeat = 1);
     void incValue(CompressedLine& line, int repeat = 1);
-    void decValue();
-    void incValue();
+    void decValue(RegUsageInfo& info);
+    void incValue(RegUsageInfo& info);
     void poke(CompressedLine& line, uint16_t address);
 };
 

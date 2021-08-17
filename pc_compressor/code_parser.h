@@ -19,6 +19,7 @@ struct ParseResult
     std::vector<Register16> registers;
     uint16_t lastPushAddress = 0;
     int lastPushTicks = 0;
+    RegUsageInfo info;
 };
 
 class Z80Parser

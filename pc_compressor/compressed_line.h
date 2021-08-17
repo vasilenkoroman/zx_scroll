@@ -8,6 +8,17 @@
 class Register8;
 class Register16;
 
+struct RegUsageInfo
+{
+    void useReg(const Register8& reg);
+    void selfReg(const Register8& reg);
+    void useReg(const Register8& reg1, const Register8& reg2);
+    void selfReg(const Register8& reg1, const Register8& reg2);
+
+    uint8_t regUseMask = 0;
+    uint8_t selfRegMask = 0;
+};
+
 class ZxData
 {
     uint8_t m_buffer[64 + 32];
@@ -95,14 +106,14 @@ struct CompressedLine
     {
         data.append(other.data);
         drawTicks += other.drawTicks;
-        regUseMask |= other.regUseMask;
-        selfRegMask |= other.selfRegMask;
+        regUsage.regUseMask |= other.regUsage.regUseMask;
+        regUsage.selfRegMask |= other.regUsage.selfRegMask;
     }
 
-    void useReg(const Register8& reg);
-    void selfReg(const Register8& reg);
-    void useReg(const Register8& reg1, const Register8& reg2);
-    void selfReg(const Register8& reg1, const Register8& reg2);
+    //void useReg(const Register8& reg);
+    //void selfReg(const Register8& reg);
+    //void useReg(const Register8& reg1, const Register8& reg2);
+    //void selfReg(const Register8& reg1, const Register8& reg2);
 
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters() const;
@@ -125,8 +136,8 @@ public:
     bool isAltAf = false;
     int preloadTicks = 0;
 
-    uint8_t regUseMask = 0;
-    uint8_t selfRegMask = 0;
+    RegUsageInfo regUsage;
+
     int flags = 0;
     int lastOddRepPosition = 0;
 };

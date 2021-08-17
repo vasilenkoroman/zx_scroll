@@ -4,25 +4,25 @@
 #include "registers.h"
 #include "code_parser.h"
 
-void CompressedLine::useReg(const Register8& reg)
+void RegUsageInfo::useReg(const Register8& reg)
 {
     regUseMask |= 1 << reg.reg8Index;
 }
 
-void CompressedLine::selfReg(const Register8& reg)
+void RegUsageInfo::selfReg(const Register8& reg)
 {
     uint8_t mask = 1 << reg.reg8Index;
     if ((regUseMask & mask) == 0)
         selfRegMask |= mask;
 }
 
-void CompressedLine::useReg(const Register8& reg1, const Register8& reg2)
+void RegUsageInfo::useReg(const Register8& reg1, const Register8& reg2)
 {
     useReg(reg1);
     useReg(reg2);
 }
 
-void CompressedLine::selfReg(const Register8& reg1, const Register8& reg2)
+void RegUsageInfo::selfReg(const Register8& reg1, const Register8& reg2)
 {
     selfReg(reg1);
     selfReg(reg2);
@@ -39,10 +39,10 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
 
         Register16 usedReg(reg16.name());
 
-        if (!(selfRegMask & hMask) && (regUseMask & hMask))
+        if (!(regUsage.selfRegMask & hMask) && (regUsage.regUseMask & hMask))
             usedReg.h.value = reg16.h.value;
         
-        if (!(selfRegMask & lMask) && (regUseMask & lMask) && reg16.l.name != 'f')
+        if (!(regUsage.selfRegMask & lMask) && (regUsage.regUseMask & lMask) && reg16.l.name != 'f')
             usedReg.l.value = reg16.l.value;
 
         if (!usedReg.h.isEmpty() || !usedReg.l.isEmpty())
