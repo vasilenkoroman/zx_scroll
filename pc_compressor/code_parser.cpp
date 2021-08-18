@@ -268,7 +268,8 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
 ParseResult Z80Parser::parseCodeToTick(
     const std::vector<Register16>& inputRegisters,
     const std::vector<uint8_t>& serializedData,
-    int offsetToParse,
+    int startOffset,
+    int endOffset,
     uint16_t codeOffset,
     int ticks)
 {
@@ -276,6 +277,7 @@ ParseResult Z80Parser::parseCodeToTick(
     auto& info = result.info;
 
     result.registers = inputRegisters;
+    result.inputRegisters = inputRegisters;
 
     Register16* bc = findRegister(result.registers, "bc");
     Register16* de = findRegister(result.registers, "de");
@@ -291,8 +293,9 @@ ParseResult Z80Parser::parseCodeToTick(
     Register8& a = af->h;
 
 
-    const uint8_t* ptr = serializedData.data() + offsetToParse;
-    while (result.ticks < ticks)
+    const uint8_t* ptr = serializedData.data() + startOffset;
+    const uint8_t* end = serializedData.data() + endOffset;
+    while (result.ticks < ticks && ptr != end)
     {
         auto command = parseCommand(ptr);
         result.ticks += command.ticks;

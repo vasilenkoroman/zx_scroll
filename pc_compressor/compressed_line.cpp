@@ -28,21 +28,21 @@ void RegUsageInfo::selfReg(const Register8& reg1, const Register8& reg2)
     selfReg(reg2);
 }
 
-std::vector<Register16> CompressedLine::getUsedRegisters() const
+std::vector<Register16> RegUsageInfo::getUsedRegisters(const std::vector<Register16>& inputRegisters) const
 {
     std::vector<Register16> result;
 
-    for (const auto& reg16: *inputRegisters)
+    for (const auto& reg16 : inputRegisters)
     {
         uint8_t hMask = 1 << reg16.h.reg8Index;
         uint8_t lMask = 1 << reg16.l.reg8Index;
 
         Register16 usedReg(reg16.name());
 
-        if (!(regUsage.selfRegMask & hMask) && (regUsage.regUseMask & hMask))
+        if (!(selfRegMask & hMask) && (regUseMask & hMask))
             usedReg.h.value = reg16.h.value;
-        
-        if (!(regUsage.selfRegMask & lMask) && (regUsage.regUseMask & lMask) && reg16.l.name != 'f')
+
+        if (!(selfRegMask & lMask) && (regUseMask & lMask) && reg16.l.name != 'f')
             usedReg.l.value = reg16.l.value;
 
         if (!usedReg.h.isEmpty() || !usedReg.l.isEmpty())
@@ -51,10 +51,10 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
     return result;
 }
 
-CompressedLine CompressedLine::getSerializedUsedRegisters() const
+CompressedLine RegUsageInfo::getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters) const
 {
     CompressedLine line;
-    for (auto& reg16 : getUsedRegisters())
+    for (auto& reg16 : getUsedRegisters(inputRegisters))
     {
         if (!reg16.h.isEmpty() && !reg16.l.isEmpty())
             reg16.loadXX(line, reg16.value16());
@@ -66,6 +66,9 @@ CompressedLine CompressedLine::getSerializedUsedRegisters() const
 
     return line;
 }
+
+
+// ----------------------- CompressedLine ------------------------------
 
 void CompressedLine::serialize(std::vector<uint8_t>& vector) const
 {
@@ -149,4 +152,14 @@ void CompressedLine::splitPreLoadAndPush(CompressedLine* preloadLine, Compressed
         ptr += commandSize;
     }
     pushLine->drawTicks = drawTicks - preloadLine->drawTicks;
+}
+
+std::vector<Register16> CompressedLine::getUsedRegisters() const
+{
+    return regUsage.getUsedRegisters(*inputRegisters);
+}
+
+CompressedLine CompressedLine::getSerializedUsedRegisters() const
+{
+    return regUsage.getSerializedUsedRegisters(*inputRegisters);
 }

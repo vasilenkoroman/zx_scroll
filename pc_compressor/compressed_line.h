@@ -7,6 +7,7 @@
 
 class Register8;
 class Register16;
+class CompressedLine;
 
 struct RegUsageInfo
 {
@@ -14,6 +15,10 @@ struct RegUsageInfo
     void selfReg(const Register8& reg);
     void useReg(const Register8& reg1, const Register8& reg2);
     void selfReg(const Register8& reg1, const Register8& reg2);
+
+
+    std::vector<Register16> getUsedRegisters(const std::vector<Register16>& inputRegisters) const;
+    CompressedLine getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters) const;
 
     uint8_t regUseMask = 0;
     uint8_t selfRegMask = 0;
@@ -115,9 +120,6 @@ struct CompressedLine
     //void useReg(const Register8& reg1, const Register8& reg2);
     //void selfReg(const Register8& reg1, const Register8& reg2);
 
-    std::vector<Register16> getUsedRegisters() const;
-    CompressedLine getSerializedUsedRegisters() const;
-
     // Return first 'size' bytes of the line. 
     // It round size up to not break Z80 instruction.
     std::vector<uint8_t> getFirstCommands(int size) const;
@@ -125,8 +127,11 @@ struct CompressedLine
     void serialize(std::vector<uint8_t>& vector) const;
     void append(const uint8_t* buffer, int size);
 
-    void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
+    std::vector<Register16> getUsedRegisters() const;
+    CompressedLine getSerializedUsedRegisters() const;
 
+    void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
+    
 public:
     ZxData data;
     std::shared_ptr<std::vector<Register16>> inputRegisters;
@@ -134,7 +139,7 @@ public:
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
-    int preloadTicks = 0;
+    int drawOffsetTicks = 0;
 
     RegUsageInfo regUsage;
 

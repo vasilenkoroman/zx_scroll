@@ -16,6 +16,7 @@ struct ParseResult
     uint8_t* address = nullptr;
     int ticks = 0;
     int spDelta = 0;
+    std::vector<Register16> inputRegisters;
     std::vector<Register16> registers;
     uint16_t lastPushAddress = 0;
     int lastPushTicks = 0;
@@ -30,6 +31,7 @@ public:
     ParseResult parseCodeToTick(
         const std::vector<Register16>& inputRegisters,
         const std::vector<uint8_t>& serializedData,
-        int offsetToParse,
+        int startOffset,
+        int endOffset,
         uint16_t codeOffset, int ticks);
 };

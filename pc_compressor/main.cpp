@@ -37,7 +37,9 @@ static const int forceToUseExistingRegisters = 32;
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-
+static const int kRtMcContextSwitchDelay = 0;
+static const int kTicksOnScreenPerByte = 4;
+static const int kJpIxCommandLen = 2;
 
 struct Context
 {
@@ -991,7 +993,7 @@ void finilizeLine(
     }
 
     result += loadLine;
-    result.preloadTicks = result.drawTicks;
+    result.drawOffsetTicks -= result.drawTicks; //< spend some time on preload, need start draw earlier
     result += pushLine;
     result.jpIx();
 }
@@ -1036,6 +1038,9 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     if (pushLine.drawTicks <= t1)
     {
+        // Ray should run some bytes on the current line before we start to overwrite it.
+        // At this case ray goes from 32 to minX (backward direction from drawing point of view)
+        result.drawOffsetTicks = (32 - context.minX) * kTicksOnScreenPerByte;
         finilizeLine(context, result, loadLine, pushLine);
         return result;
     }
@@ -1186,35 +1191,6 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
     return compressedData;
 }
 
-void calculateMulticolorTimings(const CompressedData& data, const CompressedData & colorData, int flags)
-{
-    // Start drawing: color since line 0, rastr since line 128
-    const int imageHeight = data.data.size();
-    const int kTotalMulticolorTicks = 224 * 8;
-
-    static const int kMainLoopDelay = 134;
-    static const int kBlockRetDelay = 8; // JP IX
-    
-    for (int colorLine = 0; colorLine < 24; ++colorLine)
-    {
-        const int rastrLine = (128 + colorLine * 4) % imageHeight;
-
-        int colorTicks = colorData.ticks(colorLine, 1);
-        int rastrTicks = data.ticks(rastrLine, 4);
-        int totalTicks = colorTicks + rastrTicks;
-
-        if (flags & interlineRegisters)
-        {
-            const auto preambula = data.data[rastrLine].getSerializedUsedRegisters();
-            totalTicks += preambula.drawTicks;
-        }
-        totalTicks += kJpFirstLineDelay + kMainLoopDelay + kBlockRetDelay*2;
-
-        //std::cout << "line #" << colorLine << ", ticks: " << totalTicks << ", rest: " 
-        //    << kTotalMulticolorTicks - totalTicks << std::endl;
-    }
-}
-
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
@@ -1253,11 +1229,36 @@ void interleaveData(CompressedData& data)
 
 #pragma pack(push)
 #pragma pack(1)
+
+struct DescriptorState
+{
+    uint16_t descriptorLocationPtr = 0; //< The address where descriptor itself is serialized
+    uint16_t lineStartPtr = 0;     //< Start draw lines here.
+    uint16_t lineEndPtr = 0;     //< Stop draw lines here.
+    std::vector<uint8_t> origData;    //< Saved origin data (JP IX command overwrites it).
+    std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
+
+    void serialize(std::vector<uint8_t>& dst)
+    {
+        dst.insert(dst.end(), preambula.begin(), preambula.end());
+        dst.push_back(0xc3); // JP XXXX
+        ::serialize(dst, lineStartPtr);
+    }
+};
+
 struct LineDescriptor
 {
-    uint16_t addressBegin = 0;
-    //uint16_t addressEnd = 0;
+    // From 0.. to the line middle. Used to draw multicolor
+    DescriptorState multicolorData;
+    // From the line middle to the end. Used to draw Rastr on thye back ray.
+    DescriptorState rastrData;
 };
+
+struct SimpleDescriptor
+{
+    uint16_t addressBegin = 0;
+};
+
 struct JpIxDescriptor
 {
     uint16_t address = 0;
@@ -1266,48 +1267,8 @@ struct JpIxDescriptor
 
 #pragma pack(pop)
 
-void resolveJumpToNextBankInGap(
-    uint16_t offset,
-    std::vector<uint8_t>& serializedData,
-    const CompressedData& data,
-    std::vector<int> lineOffsetWithPreambula)
-{
-    // resolve JP to the next bank in Gaps
-    int imageHeight = data.data.size();
-    for (int line = 0; line < imageHeight; ++line)
-    {
-        const int bankSize = imageHeight / 8;
-
-        int bankNum = line / bankSize;
-        int lineNumInBank = line - bankNum * bankSize;
-
-        int lineNumInNextBank = lineNumInBank - 7;
-        int nextBank = bankNum + 1;
-        if (nextBank > 7)
-        {
-            nextBank = 0;
-            ++lineNumInNextBank;
-        }
-        if (lineNumInNextBank < 0)
-            lineNumInNextBank += bankSize;
-
-        int nextLine = nextBank * bankSize + lineNumInNextBank;
-
-        uint16_t currentLineOffset = lineOffsetWithPreambula[line];
-        uint16_t nextLineOffset = lineOffsetWithPreambula[nextLine];
-
-        auto preambula = data.data[line].getSerializedUsedRegisters();
-
-        uint16_t gapOffset = currentLineOffset + preambula.data.size() + data.data[line].data.size();
-        uint16_t* gapPtr = (uint16_t*) (serializedData.data() + gapOffset + 3);
-
-        *gapPtr = nextLineOffset + offset;
-    }
-}
-
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const CompressedData& data,
-    const CompressedData& multicolorData,
     uint16_t baseOffset,
     std::vector<uint8_t>& serializedData,
     std::vector<int> lineOffset)
@@ -1329,7 +1290,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
         for (int i = 1; i <= 3; ++i)
         {
-            int lineStartInBank = lineNumInBank + (i-1) * 8;
+            int lineStartInBank = lineNumInBank + (i - 1) * 8;
             if (lineStartInBank > bankSize)
                 lineStartInBank -= bankSize;
             int relativeOffsetToStart = lineOffset[lineStartInBank];
@@ -1338,13 +1299,12 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             if (associatedMulticolorLine < 0)
                 associatedMulticolorLine += colorsHeight;
 
-            const auto& mcLine = multicolorData.data[associatedMulticolorLine];
             const auto& dataLine = data.data[associatedMulticolorLine];
 
             int lineEndInBank = lineNumInBank + i * 8;
             if (lineEndInBank > bankSize)
                 lineEndInBank -= bankSize;
-            
+
             int l = lineEndInBank + bankNum * bankSize;
             JpIxDescriptor d;
             int relativeOffsetToEnd = l < imageHeight ? lineOffset[l] : serializedData.size();
@@ -1355,19 +1315,10 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
                 relativeOffsetToEnd -= 3;
             }
 
-            int totalTicks = kLineDurationInTicks * 8;
-            int ticksRest = totalTicks - mcLine.drawTicks;
-            ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
-            uint8_t* lineStartAddress = serializedData.data() + relativeOffsetToStart;
             uint8_t* lineEndAddress = serializedData.data() + relativeOffsetToEnd;
 
-            Z80Parser parser;
-            auto lineMiddleAddress = parser.parseCodeToTick(
-                dataLine.getUsedRegisters(),
-                serializedData, relativeOffsetToStart, baseOffset, ticksRest);
-
             d.address = relativeOffsetToEnd + baseOffset;
-            uint16_t* ptr = (uint16_t*) (serializedData.data() + relativeOffsetToEnd);
+            uint16_t* ptr = (uint16_t*)(serializedData.data() + relativeOffsetToEnd);
             d.originData = *ptr;
             descriptors.push_back(d);
         }
@@ -1387,11 +1338,14 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
-int serializeMainData(
+std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     const CompressedData& data, 
     const CompressedData& multicolorData,
     const std::string& inputFileName, uint16_t codeOffset, int flags)
 {
+    std::vector<LineDescriptor> descriptors;
+    std::vector<uint8_t> serializedDescriptors;
+
     using namespace std;
     const int imageHeight = data.data.size();
     ofstream mainDataFile;
@@ -1400,21 +1354,25 @@ int serializeMainData(
     if (!mainDataFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        return { -1, descriptors };
     }
 
-    /**
-     * File format:
-     * vector<LineDescriptor>
-    */
-
-    ofstream lineDescriptorFile;
-    std::string lineDescriptorFileName = inputFileName + ".main_descriptor";
-    lineDescriptorFile.open(lineDescriptorFileName, std::ios::binary);
-    if (!lineDescriptorFile.is_open())
+    ofstream reachDescriptorFile;
+    std::string reachDescriptorFileName = inputFileName + ".mt_and_rt_reach.descriptor";
+    reachDescriptorFile.open(reachDescriptorFileName, std::ios::binary);
+    if (!reachDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        return { -1, descriptors };
+    }
+
+    ofstream rastrDescriptorFile;
+    std::string rastrDescriptorFileName = inputFileName + ".rastr.descriptor";
+    rastrDescriptorFile.open(rastrDescriptorFileName, std::ios::binary);
+    if (!rastrDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return { -1, descriptors };
     }
 
     ofstream jpIxDescriptorFile;
@@ -1423,7 +1381,7 @@ int serializeMainData(
     if (!jpIxDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        return { -1, descriptors };
     }
 
     // serialize main data
@@ -1441,67 +1399,124 @@ int serializeMainData(
 
     // serialize descriptors
 
-    std::vector<uint8_t> reachDescriptors;
-    std::vector<LineDescriptor> descriptors;
+    const int bankSize = imageHeight / 8;
+    const int colorsHeight = bankSize;
 
-    const int bankSizeInLines = imageHeight / 8;
     const int reachDescriptorsBase = codeOffset + serializedData.size();
+
     std::vector<uint16_t> reachDescriptorOffset;
-    for (int d = 0; d < imageHeight + 191; ++d)
+
+    for (int d = 0; d < imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
 
         LineDescriptor descriptor;
         int lineBank = srcLine % 8;
         int lineInBank = srcLine / 8;
-        int lineNum = bankSizeInLines * lineBank + lineInBank;
+        int lineNum = bankSize * lineBank + lineInBank;
 
-        const auto& line = data.data[lineNum];
-        if (d < imageHeight)
+        // Calculate timing for left/right parts in line.
+        int associatedMulticolorLine = lineInBank - 8;
+        if (associatedMulticolorLine < 0)
+            associatedMulticolorLine += colorsHeight;
+
+        const auto& dataLine = data.data[lineInBank];
+        const auto& mcLine = multicolorData.data[associatedMulticolorLine];
+
+        int lineEndInBank = lineInBank + 8;
+        if (lineEndInBank > bankSize)
+            lineEndInBank -= bankSize;
+        int fullLineEndNum = lineEndInBank + lineBank * bankSize;
+
+
+        int relativeOffsetToStart = serializedData[srcLine];
+        int relativeOffsetToEnd = fullLineEndNum < bankSize 
+            ? serializedData[fullLineEndNum]
+            : serializedData.size();
+        if (lineEndInBank == bankSize)
         {
-            const uint16_t lineAddress = lineOffset[lineNum] + codeOffset;
-
-            // create reach descriptor witch preambula(optional)
-            descriptor.addressBegin = reachDescriptorsBase + reachDescriptors.size();
-            reachDescriptorOffset.push_back(descriptor.addressBegin);
-            if (flags & interlineRegisters)
-            {
-                auto preambula = line.getSerializedUsedRegisters();
-                preambula.serialize(reachDescriptors);
-            }
-
-            // The first two bytes of the each line can be overwritted by JP_IX command
-            // Copy these bytes to the descriptor and skip them in JP command
-            static const int kJpIxCommandLen = 2;
-            std::vector<uint8_t> firstCommands = line.getFirstCommands(kJpIxCommandLen);
-            reachDescriptors.insert(reachDescriptors.end(), firstCommands.begin(), firstCommands.end());
-
-            reachDescriptors.push_back(0xc3); // JP XXXX
-            serialize(reachDescriptors, lineAddress + firstCommands.size());
-        }
-        else
-        {
-            descriptor.addressBegin = reachDescriptorOffset[srcLine];
+            // There is additional JP 'first bank line'  command at the end of latest line in bank.
+            // overwrite this command (if exists) instead of first bytes of the next line in bank.
+            relativeOffsetToEnd -= 3;
         }
 
+        // do Split
+        int totalTicks = kLineDurationInTicks * 8;
+        int ticksRest = totalTicks - mcLine.drawTicks;
+        ticksRest += mcLine.drawOffsetTicks;
+        ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
+        ticksRest -= kRtMcContextSwitchDelay;
+
+
+        Z80Parser parser;
+        auto lineMiddleAddress = parser.parseCodeToTick(
+            dataLine.getUsedRegisters(),
+            serializedData,
+            relativeOffsetToStart, relativeOffsetToEnd,
+            codeOffset, ticksRest);
+        int middlePosition = lineMiddleAddress.lastPushAddress + 1;
+
+        auto lineEndAddress = parser.parseCodeToTick(
+            lineMiddleAddress.registers,
+            serializedData,
+            middlePosition, relativeOffsetToEnd,
+            codeOffset, std::numeric_limits<int>::max());
+
+        std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
+
+        auto itr = serializedData.begin() + relativeOffsetToStart;
+        descriptor.multicolorData.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
+        descriptor.multicolorData.lineEndPtr = middlePosition + codeOffset;
+        descriptor.multicolorData.origData.insert(descriptor.multicolorData.origData.end(), itr, itr + 2);
+        if (flags & interlineRegisters)
+        {
+            auto preambula = dataLine.getSerializedUsedRegisters();
+            preambula.serialize(descriptor.multicolorData.preambula);
+        }
+        // In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
+        // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line 
+        // directly in descriptor preambula.
+        descriptor.multicolorData.preambula.insert(descriptor.multicolorData.preambula.end(), 
+            firstCommands.begin(), firstCommands.end());
+
+
+        itr = serializedData.begin() + relativeOffsetToEnd;
+        descriptor.rastrData.lineStartPtr = descriptor.multicolorData.lineEndPtr;
+        descriptor.rastrData.lineEndPtr = relativeOffsetToEnd + codeOffset;
+        descriptor.rastrData.origData.insert(descriptor.rastrData.origData.end(), itr, itr + 2);
+            
+        auto preambula = lineEndAddress.info.getSerializedUsedRegisters(lineEndAddress.inputRegisters);
+        preambula.serialize(descriptor.rastrData.preambula);
         descriptors.push_back(descriptor);
+
+        descriptor.multicolorData.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
+        descriptor.multicolorData.serialize(serializedDescriptors);
+
+        descriptor.rastrData.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
+        descriptor.rastrData.serialize(serializedDescriptors);
     }
 
     for (const auto& descriptor: descriptors)
-        lineDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+        reachDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
-    mainDataFile.write((const char*)reachDescriptors.data(), reachDescriptors.size());
+    mainDataFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
+
+    for (int d = 0; d < imageHeight + 191; ++d)
+    {
+        int lineNum = d % imageHeight;
+        const auto& descriptor = descriptors[lineNum];
+        rastrDescriptorFile.write((const char*) &descriptor.rastrData.descriptorLocationPtr, 2);
+    }
 
     // serialize Jp Ix descriptors
-
+    
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
-        data, multicolorData,
-        codeOffset, serializedData, lineOffset);
+        data, codeOffset, serializedData, lineOffset);
     jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
-
-    return serializedData.size() + reachDescriptors.size();
+    int serializedSize = serializedData.size() + serializedDescriptors.size();
+    return { serializedSize, descriptors };
 }
 
 int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
@@ -1517,11 +1532,11 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
         return -1;
     }
 
-    ofstream colorDescriptorFile;
+    ofstream SimpleDescriptorFile;
 
-    std::string colorDescriptorFileName = inputFileName + ".color_descriptor";
-    colorDescriptorFile.open(colorDescriptorFileName, std::ios::binary);
-    if (!colorDescriptorFile.is_open())
+    std::string SimpleDescriptorFileName = inputFileName + ".color_descriptor";
+    SimpleDescriptorFile.open(SimpleDescriptorFileName, std::ios::binary);
+    if (!SimpleDescriptorFile.is_open())
     {
         std::cerr << "Can not write color destination file" << std::endl;
         return -1;
@@ -1544,12 +1559,12 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     }
 
     // serialize descriptors
-    std::vector<LineDescriptor> descriptors;
+    std::vector<SimpleDescriptor> descriptors;
     for (int d = 0; d < imageHeight + 16; ++d)
     {
         const int srcLine = d % imageHeight;
 
-        LineDescriptor descriptor;
+        SimpleDescriptor descriptor;
         const auto& line = data.data[srcLine];
         const uint16_t lineAddress = lineOffsetWithPreambula[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddress;
@@ -1557,7 +1572,7 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     }
 
     for (const auto& descriptor: descriptors)
-        colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+        SimpleDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
@@ -1578,11 +1593,11 @@ int serializeMultiColorData(const CompressedData& data, const std::string& input
         return -1;
     }
 
-    ofstream colorDescriptorFile;
+    ofstream SimpleDescriptorFile;
 
-    std::string colorDescriptorFileName = inputFileName + ".multicolor_descriptor";
-    colorDescriptorFile.open(colorDescriptorFileName, std::ios::binary);
-    if (!colorDescriptorFile.is_open())
+    std::string SimpleDescriptorFileName = inputFileName + ".multicolor_descriptor";
+    SimpleDescriptorFile.open(SimpleDescriptorFileName, std::ios::binary);
+    if (!SimpleDescriptorFile.is_open())
     {
         std::cerr << "Can not write color destination file" << std::endl;
         return -1;
@@ -1602,10 +1617,10 @@ int serializeMultiColorData(const CompressedData& data, const std::string& input
     }
 
     // serialize descriptors
-    std::vector<LineDescriptor> descriptors;
+    std::vector<SimpleDescriptor> descriptors;
     for (int srcLine = 0; srcLine < imageHeight; ++srcLine)
     {
-        LineDescriptor descriptor;
+        SimpleDescriptor descriptor;
         const auto& line = data.data[srcLine];
         const uint16_t lineAddress = lineOffsetWithPreambula[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddress;
@@ -1613,7 +1628,7 @@ int serializeMultiColorData(const CompressedData& data, const std::string& input
     }
 
     for (const auto& descriptor : descriptors)
-        colorDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+        SimpleDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
@@ -1798,15 +1813,13 @@ int main(int argc, char** argv)
     }
 
 
-    int mainDataSize = serializeMainData(data, multicolorData, outputFileName, kCodeOffset, flags);
+    auto [mainDataSize, descriptors] = serializeMainData(data, multicolorData, outputFileName, kCodeOffset, flags);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
     serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
 
     serializeTimingData(data, colorData, outputFileName);
 
-
-    calculateMulticolorTimings(data, colorData, flags);
 
     return 0;
 }
