@@ -265,7 +265,7 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
     return commands[*ptr];
 }
 
-ParseResult Z80Parser::parseCodeToTick(
+Z80CodeInfo Z80Parser::parseCodeToTick(
     const std::vector<Register16>& inputRegisters,
     const std::vector<uint8_t>& serializedData,
     int startOffset,
@@ -273,7 +273,7 @@ ParseResult Z80Parser::parseCodeToTick(
     uint16_t codeOffset,
     int ticks)
 {
-    ParseResult result;
+    Z80CodeInfo result;
     auto& info = result.info;
 
     result.registers = inputRegisters;

@@ -347,12 +347,12 @@ static Register16 sp("sp");
 
 template <int N>
 void choiseNextRegister(
-    CompressedLine& choisedLine, 
+    CompressedLine& choisedLine,
     std::array<Register16, N>& chosedRegisters,
     const Context& context,
     const CompressedLine& currentLine,
     const std::array<Register16, N>& registers,
-    const uint16_t word, 
+    const uint16_t word,
     const int x)
 {
     int choisedIndex = -1;
@@ -514,7 +514,7 @@ bool compressLine(
         result.exx();
     if (result.isAltAf)
         result.exAf();
-    
+
     if (context.flags & oddVerticalCompression)
         result.lastOddRepPosition = context.maxX;
     return true;
@@ -572,7 +572,7 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
-CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors, 
+CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors,
     std::vector<int>* sameBytesCount, int imageHeight)
 {
     CompressedData compressedData;
@@ -649,7 +649,7 @@ int sameVerticalBytes(int flags, int scrollDelta, const uint8_t* buffer,
     return result;
 }
 
-std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer, 
+std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer,
     std::vector<bool>* maskColor, int imageHeight)
 {
     std::vector<int> result;
@@ -1089,8 +1089,8 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     // 2.3 fill register values
 
-    auto hasSameValue = 
-        [](const auto& registers, uint16_t word) 
+    auto hasSameValue =
+        [](const auto& registers, uint16_t word)
         {
             for (auto& reg: registers)
             {
@@ -1104,8 +1104,8 @@ CompressedLine  compressMultiColorsLine(Context context)
     std::array<Register16, 3> regAlt = { Register16("bc'"), Register16("de'"), Register16("hl'") };
     loadLine = CompressedLine();
 
-    auto loadRegisters = 
-        [&](auto& registers, int startPos, int endPos) 
+    auto loadRegisters =
+        [&](auto& registers, int startPos, int endPos)
         {
             int regIndex = 0;
             for (int i = startPos; i < endPos; ++i)
@@ -1131,7 +1131,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
     pushLine = CompressedLine();
     bool success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
-        
+
     if (pushLine.drawTicks <= t1)
     {
         finilizeLine(context, result, loadLine, pushLine);
@@ -1200,7 +1200,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
     for (int y = 0; y < imageHeight / 8; y ++)
     {
         std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
-        
+
         Context context;
         context.scrollDelta = kScrollDelta;
         context.flags = flags;
@@ -1237,6 +1237,7 @@ struct DescriptorState
     uint16_t lineEndPtr = 0;     //< Stop draw lines here.
     std::vector<uint8_t> origData;    //< Saved origin data (JP IX command overwrites it).
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
+    Z80CodeInfo codeInfo;
 
     void serialize(std::vector<uint8_t>& dst)
     {
@@ -1248,10 +1249,12 @@ struct DescriptorState
 
 struct LineDescriptor
 {
-    // From 0.. to the line middle. Used to draw multicolor
-    DescriptorState multicolorData;
-    // From the line middle to the end. Used to draw Rastr on thye back ray.
-    DescriptorState rastrData;
+    // From 0.. to the line middle. Used to draw rastr during multicolor
+    DescriptorState rastrForMulticolor;
+    // From the line middle to the end. Used to draw rastr during back ray
+    DescriptorState rastrForOffscreen;
+    // Multicolor drawing code
+    uint16_t multicolrAddressPtr = 0;
 };
 
 struct SimpleDescriptor
@@ -1338,12 +1341,12 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
-std::pair<int, std::vector<LineDescriptor>> serializeMainData(
-    const CompressedData& data, 
+int serializeMainData(
+    const CompressedData& data,
     const CompressedData& multicolorData,
+    std::vector<LineDescriptor>& descriptors,
     const std::string& inputFileName, uint16_t codeOffset, int flags)
 {
-    std::vector<LineDescriptor> descriptors;
     std::vector<uint8_t> serializedDescriptors;
 
     using namespace std;
@@ -1354,7 +1357,7 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     if (!mainDataFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return { -1, descriptors };
+        return -1;
     }
 
     ofstream reachDescriptorFile;
@@ -1363,7 +1366,7 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     if (!reachDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return { -1, descriptors };
+        return -1;
     }
 
     ofstream rastrDescriptorFile;
@@ -1372,7 +1375,7 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     if (!rastrDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return { -1, descriptors };
+        return -1;
     }
 
     ofstream jpIxDescriptorFile;
@@ -1381,7 +1384,7 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     if (!jpIxDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
-        return { -1, descriptors };
+        return -1;
     }
 
     // serialize main data
@@ -1430,7 +1433,7 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
 
 
         int relativeOffsetToStart = serializedData[srcLine];
-        int relativeOffsetToEnd = fullLineEndNum < bankSize 
+        int relativeOffsetToEnd = fullLineEndNum < bankSize
             ? serializedData[fullLineEndNum]
             : serializedData.size();
         if (lineEndInBank == bankSize)
@@ -1449,15 +1452,15 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
 
 
         Z80Parser parser;
-        auto lineMiddleAddress = parser.parseCodeToTick(
+        descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
             dataLine.getUsedRegisters(),
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset, ticksRest);
-        int middlePosition = lineMiddleAddress.lastPushAddress + 1;
+        int middlePosition = descriptor.rastrForMulticolor.codeInfo.lastPushAddress + 1;
 
-        auto lineEndAddress = parser.parseCodeToTick(
-            lineMiddleAddress.registers,
+        descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
+            descriptor.rastrForMulticolor.codeInfo.registers,
             serializedData,
             middlePosition, relativeOffsetToEnd,
             codeOffset, std::numeric_limits<int>::max());
@@ -1465,35 +1468,36 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
         auto itr = serializedData.begin() + relativeOffsetToStart;
-        descriptor.multicolorData.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
-        descriptor.multicolorData.lineEndPtr = middlePosition + codeOffset;
-        descriptor.multicolorData.origData.insert(descriptor.multicolorData.origData.end(), itr, itr + 2);
+        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
+        descriptor.rastrForMulticolor.lineEndPtr = middlePosition + codeOffset;
+        descriptor.rastrForMulticolor.origData.insert(descriptor.rastrForMulticolor.origData.end(), itr, itr + 2);
         if (flags & interlineRegisters)
         {
             auto preambula = dataLine.getSerializedUsedRegisters();
-            preambula.serialize(descriptor.multicolorData.preambula);
+            preambula.serialize(descriptor.rastrForMulticolor.preambula);
         }
         // In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
-        // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line 
+        // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
         // directly in descriptor preambula.
-        descriptor.multicolorData.preambula.insert(descriptor.multicolorData.preambula.end(), 
+        descriptor.rastrForMulticolor.preambula.insert(descriptor.rastrForMulticolor.preambula.end(),
             firstCommands.begin(), firstCommands.end());
 
 
         itr = serializedData.begin() + relativeOffsetToEnd;
-        descriptor.rastrData.lineStartPtr = descriptor.multicolorData.lineEndPtr;
-        descriptor.rastrData.lineEndPtr = relativeOffsetToEnd + codeOffset;
-        descriptor.rastrData.origData.insert(descriptor.rastrData.origData.end(), itr, itr + 2);
-            
-        auto preambula = lineEndAddress.info.getSerializedUsedRegisters(lineEndAddress.inputRegisters);
-        preambula.serialize(descriptor.rastrData.preambula);
+        descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
+        descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
+        descriptor.rastrForOffscreen.origData.insert(descriptor.rastrForOffscreen.origData.end(), itr, itr + 2);
+
+        auto preambula = descriptor.rastrForOffscreen.codeInfo.info.getSerializedUsedRegisters(
+            descriptor.rastrForOffscreen.codeInfo.inputRegisters);
+        preambula.serialize(descriptor.rastrForOffscreen.preambula);
         descriptors.push_back(descriptor);
 
-        descriptor.multicolorData.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
-        descriptor.multicolorData.serialize(serializedDescriptors);
+        descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
+        descriptor.rastrForMulticolor.serialize(serializedDescriptors);
 
-        descriptor.rastrData.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
-        descriptor.rastrData.serialize(serializedDescriptors);
+        descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
+        descriptor.rastrForMulticolor.serialize(serializedDescriptors);
     }
 
     for (const auto& descriptor: descriptors)
@@ -1506,17 +1510,17 @@ std::pair<int, std::vector<LineDescriptor>> serializeMainData(
     {
         int lineNum = d % imageHeight;
         const auto& descriptor = descriptors[lineNum];
-        rastrDescriptorFile.write((const char*) &descriptor.rastrData.descriptorLocationPtr, 2);
+        rastrDescriptorFile.write((const char*) &descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
     }
 
     // serialize Jp Ix descriptors
-    
+
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
         data, codeOffset, serializedData, lineOffset);
     jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
     int serializedSize = serializedData.size() + serializedDescriptors.size();
-    return { serializedSize, descriptors };
+    return serializedSize;
 }
 
 int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
@@ -1580,7 +1584,10 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
     return size;
 }
 
-int serializeMultiColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
+int serializeMultiColorData(
+    const CompressedData& data,
+    std::vector<LineDescriptor> descriptors,
+    const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
 
@@ -1593,47 +1600,53 @@ int serializeMultiColorData(const CompressedData& data, const std::string& input
         return -1;
     }
 
-    ofstream SimpleDescriptorFile;
-
-    std::string SimpleDescriptorFileName = inputFileName + ".multicolor_descriptor";
-    SimpleDescriptorFile.open(SimpleDescriptorFileName, std::ios::binary);
-    if (!SimpleDescriptorFile.is_open())
-    {
-        std::cerr << "Can not write color destination file" << std::endl;
-        return -1;
-    }
-
-    // serialize main data
-    int imageHeight = data.data.size();
+    int colorImageHeight = data.data.size();
+    int imageHeight = colorImageHeight * 8;
 
     int size = 0;
-    std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
-    std::vector<int> lineOffsetWithPreambula;
-    for (int y = 0; y < imageHeight; ++y)
+    std::vector<uint8_t> serializedData;
+    std::vector<int> lineOffset;
+    for (int y = 0; y < colorImageHeight; ++y)
     {
         const auto& line = data.data[y];
-        lineOffsetWithPreambula.push_back(serializedData.size());
+        lineOffset.push_back(serializedData.size());
         line.serialize(serializedData);
     }
 
-    // serialize descriptors
-    std::vector<SimpleDescriptor> descriptors;
-    for (int srcLine = 0; srcLine < imageHeight; ++srcLine)
+    // update descriptors
+    for (int d = 0; d < imageHeight + 192; ++d)
     {
-        SimpleDescriptor descriptor;
-        const auto& line = data.data[srcLine];
-        const uint16_t lineAddress = lineOffsetWithPreambula[srcLine] + codeOffset;
-        descriptor.addressBegin = lineAddress;
-        descriptors.push_back(descriptor);
+        int colorLine = (d / 8) % colorImageHeight;
+        const auto& line = data.data[colorLine];
+        const uint16_t lineAddressPtr = lineOffset[colorLine] + codeOffset;
+        descriptors[d].multicolrAddressPtr = lineAddressPtr;
     }
-
-    for (const auto& descriptor : descriptors)
-        SimpleDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
     return serializedData.size();
     return size;
+}
+
+int serializeDescriptors(
+    std::vector<LineDescriptor> descriptors,
+    const std::string& inputFileName)
+{
+    using namespace std;
+
+    ofstream reachDescriptorFile;
+    std::string reachDescriptorFileName = inputFileName + ".mt_and_rt.descriptor";
+    reachDescriptorFile.open(reachDescriptorFileName, std::ios::binary);
+    if (!reachDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+    for (const auto& descriptor : descriptors)
+    {
+        reachDescriptorFile.write((const char*) &descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+        reachDescriptorFile.write((const char*) &descriptor.multicolrAddressPtr, 2);
+    }
 }
 
 int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
@@ -1647,7 +1660,7 @@ int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
 
     const int bankSize = imageHeight / 8;
     int bankNum = screenLineNum % 8;
-    int lineInBank = screenLineNum  / 8;
+    int lineInBank = screenLineNum / 8;
 
     for (int b = 0; b < 8; ++b)
     {
@@ -1812,11 +1825,13 @@ int main(int argc, char** argv)
         data.data[line].jp(firstLineOffset + kCodeOffset);
     }
 
+    std::vector<LineDescriptor> descriptors;
 
-    auto [mainDataSize, descriptors] = serializeMainData(data, multicolorData, outputFileName, kCodeOffset, flags);
+    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
-    serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
+    serializeMultiColorData(multicolorData, descriptors, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
+    serializeDescriptors(descriptors, outputFileName);
 
     serializeTimingData(data, colorData, outputFileName);
 

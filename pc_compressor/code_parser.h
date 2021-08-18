@@ -11,7 +11,7 @@ struct z80Command
     uint8_t selfReg = 0;
 };
 
-struct ParseResult
+struct Z80CodeInfo
 {
     uint8_t* address = nullptr;
     int ticks = 0;
@@ -28,7 +28,7 @@ class Z80Parser
 public:
     static z80Command parseCommand(const uint8_t* ptr);
 
-    ParseResult parseCodeToTick(
+    Z80CodeInfo parseCodeToTick(
         const std::vector<Register16>& inputRegisters,
         const std::vector<uint8_t>& serializedData,
         int startOffset,
