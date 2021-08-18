@@ -1816,6 +1816,13 @@ int main(int argc, char** argv)
         << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
 
+    int worseMulticolorTicks = 0;
+    for (const auto& line : multicolorData.data)
+        worseMulticolorTicks = std::max(worseMulticolorTicks, line.drawTicks);
+
+    std::cout << "multicolor ticks by worse line: " << worseMulticolorTicks*24
+        << "tick lose: " << worseMulticolorTicks * 24 - multicolorData.ticks() << std::endl;
+
     // put JP to the latest line for every bank
     for (int bank = 0; bank < 8; ++bank)
     {
