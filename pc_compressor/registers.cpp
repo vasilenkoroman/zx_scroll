@@ -102,7 +102,7 @@ void Register8::addReg(CompressedLine& line, const Register8& reg)
 void Register8::addReg(RegUsageInfo& info, const Register8& reg)
 {
     assert(name == 'a');
-    assert(hasValue() && reg.hasValue());
+    assert(!isEmpty() && !reg.isEmpty());
     value = *value + *reg.value;
     info.useReg(reg);
     info.useReg(*this);
@@ -111,7 +111,7 @@ void Register8::addReg(RegUsageInfo& info, const Register8& reg)
 void Register8::addValue(RegUsageInfo& info, uint8_t v)
 {
     assert(name == 'a');
-    assert(hasValue());
+    assert(isEmpty());
     value = *value + v;
     info.useReg(*this);
 }
@@ -119,7 +119,7 @@ void Register8::addValue(RegUsageInfo& info, uint8_t v)
 void Register8::subValue(RegUsageInfo& info, uint8_t v)
 {
     assert(name == 'a');
-    assert(hasValue());
+    assert(isEmpty());
     value = *value - v;
     info.useReg(*this);
 }
@@ -188,7 +188,7 @@ void Register8::xorReg(RegUsageInfo& info, const Register8& reg)
 void Register8::xorValue(RegUsageInfo& info, uint8_t v)
 {
     assert(name == 'a');
-    assert(hasValue());
+    assert(isEmpty());
     value = *value ^ v;
     info.useReg(*this);
 }
@@ -204,7 +204,7 @@ void Register8::orReg(CompressedLine& line, const Register8& reg)
 void Register8::orReg(RegUsageInfo& info, const Register8& reg)
 {
     assert(name == 'a');
-    assert(hasValue() && reg.hasValue());
+    assert(!isEmpty() && !reg.isEmpty());
     value = *value | *reg.value;
     info.useReg(*this);
     info.useReg(reg);
@@ -213,7 +213,7 @@ void Register8::orReg(RegUsageInfo& info, const Register8& reg)
 void Register8::orValue(RegUsageInfo& info, uint8_t v)
 {
     assert(name == 'a');
-    assert(hasValue());
+    assert(isEmpty());
     value = *value | v;
     info.useReg(*this);
 }
@@ -245,7 +245,7 @@ void Register8::andReg(RegUsageInfo& info, const Register8& reg)
 void Register8::andValue(RegUsageInfo& info, uint8_t v)
 {
     assert(name == 'a');
-    assert(hasValue());
+    assert(isEmpty());
     value = *value & v;
     info.useReg(*this);
 }
@@ -275,7 +275,7 @@ void Register8::subReg(RegUsageInfo& info, const Register8& reg)
 
 void Register8::loadFromReg(CompressedLine& line, const Register8& reg)
 {
-    assert(reg.hasValue());
+    assert(!reg.isEmpty());
     loadFromReg(line.regUsage, reg);
     if (&reg == this)
         return;
@@ -293,7 +293,7 @@ void Register8::loadFromReg(CompressedLine& line, const Register8& reg)
 
 void Register8::loadFromReg(RegUsageInfo& info, const Register8& reg)
 {
-    assert(reg.hasValue());
+    assert(!reg.isEmpty());
     value = reg.value;
 
     info.useReg(reg);
@@ -427,7 +427,6 @@ void Register16::addSP(CompressedLine& line, Register8* f)
 
 void Register16::push(RegUsageInfo& info) const
 {
-    assert(isAlt == line.isAltReg);
     if (!h.isEmpty())
         info.useReg(h);
     if (!l.isEmpty())
@@ -436,6 +435,7 @@ void Register16::push(RegUsageInfo& info) const
 
 void Register16::push(CompressedLine& line) const
 {
+    assert(isAlt == line.isAltReg);
     push(line.regUsage);
 
     if (h.name == 'i')
