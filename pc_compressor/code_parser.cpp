@@ -271,18 +271,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int startOffset,
     int endOffset,
     uint16_t codeOffset,
-    int ticks)
+    int maxTicks)
 {
     Z80CodeInfo result;
-    auto& info = result.info;
+    RegUsageInfo info;
 
-    result.registers = inputRegisters;
+    auto registers = inputRegisters;
     result.inputRegisters = inputRegisters;
+    result.startOffset = startOffset;
 
-    Register16* bc = findRegister(result.registers, "bc");
-    Register16* de = findRegister(result.registers, "de");
-    Register16* hl = findRegister(result.registers, "hl");
-    Register16* af = findRegister(result.registers, "af");
+    Register16* bc = findRegister(registers, "bc");
+    Register16* de = findRegister(registers, "de");
+    Register16* hl = findRegister(registers, "hl");
+    Register16* af = findRegister(registers, "af");
 
     Register8& b = bc->h;
     Register8& c = bc->l;
@@ -295,20 +296,23 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
     const uint8_t* ptr = serializedData.data() + startOffset;
     const uint8_t* end = serializedData.data() + endOffset;
+    int ticks = 0;
 
     auto push = 
         [&](const Register16* reg)
         {
             reg->push(info);
-            result.lastPushAddress = ptr - serializedData.data();;
-            result.lastPushTicks = result.ticks;
             result.spDelta += 2;
-        };
+            result.outputRegisters = registers;
+            result.regUsage = info;
+            result.endOffset = ptr - serializedData.data() + 1;
+            result.ticks = ticks;
+    };
 
-    while (result.ticks < ticks && ptr != end)
+    while (ticks < maxTicks && ptr != end)
     {
         auto command = parseCommand(ptr);
-        result.ticks += command.ticks;
+        ticks += command.ticks;
 
         switch (*ptr)
         {

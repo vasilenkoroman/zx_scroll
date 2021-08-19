@@ -1457,10 +1457,10 @@ int serializeMainData(
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset, ticksRest);
-        int middlePosition = descriptor.rastrForMulticolor.codeInfo.lastPushAddress + 1;
+        int middlePosition = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
         descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
-            descriptor.rastrForMulticolor.codeInfo.registers,
+            descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
             middlePosition, relativeOffsetToEnd,
             codeOffset, std::numeric_limits<int>::max());
@@ -1488,7 +1488,7 @@ int serializeMainData(
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
         descriptor.rastrForOffscreen.origData.insert(descriptor.rastrForOffscreen.origData.end(), itr, itr + 2);
 
-        auto preambula = descriptor.rastrForOffscreen.codeInfo.info.getSerializedUsedRegisters(
+        auto preambula = descriptor.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
             descriptor.rastrForOffscreen.codeInfo.inputRegisters);
         preambula.serialize(descriptor.rastrForOffscreen.preambula);
         descriptors.push_back(descriptor);

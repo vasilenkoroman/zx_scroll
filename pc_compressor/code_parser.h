@@ -11,14 +11,13 @@ struct z80Command
 
 struct Z80CodeInfo
 {
-    uint8_t* address = nullptr;
+    int startOffset = 0;
+    int endOffset = 0;
     int ticks = 0;
     int spDelta = 0;
     std::vector<Register16> inputRegisters;
-    std::vector<Register16> registers;
-    uint16_t lastPushAddress = 0;
-    int lastPushTicks = 0;
-    RegUsageInfo info;
+    std::vector<Register16> outputRegisters;
+    RegUsageInfo regUsage;
 };
 
 class Z80Parser
@@ -31,5 +30,5 @@ public:
         const std::vector<uint8_t>& serializedData,
         int startOffset,
         int endOffset,
-        uint16_t codeOffset, int ticks);
+        uint16_t codeOffset, int maxTicks);
 };
