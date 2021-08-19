@@ -7,8 +7,6 @@ struct z80Command
 {
     int size = 0;
     int ticks = 0;
-    uint8_t usedReg = 0;
-    uint8_t selfReg = 0;
 };
 
 struct Z80CodeInfo

@@ -525,8 +525,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     return std::async(
         [context, lines]()
         {
-            //std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-            std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+            std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+            //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)
@@ -1432,9 +1432,9 @@ int serializeMainData(
         int fullLineEndNum = lineEndInBank + lineBank * bankSize;
 
 
-        int relativeOffsetToStart = serializedData[srcLine];
-        int relativeOffsetToEnd = fullLineEndNum < bankSize
-            ? serializedData[fullLineEndNum]
+        int relativeOffsetToStart = lineOffset[lineNum];
+        int relativeOffsetToEnd = fullLineEndNum < imageHeight
+            ? lineOffset[fullLineEndNum]
             : serializedData.size();
         if (lineEndInBank == bankSize)
         {
@@ -1446,14 +1446,14 @@ int serializeMainData(
         // do Split
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcLine.drawTicks;
-        ticksRest += mcLine.drawOffsetTicks;
+        //ticksRest += mcLine.drawOffsetTicks;
         ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
 
 
         Z80Parser parser;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
-            dataLine.getUsedRegisters(),
+            *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset, ticksRest);
@@ -1586,7 +1586,7 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
 
 int serializeMultiColorData(
     const CompressedData& data,
-    std::vector<LineDescriptor> descriptors,
+    std::vector<LineDescriptor>& descriptors,
     const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
@@ -1614,7 +1614,7 @@ int serializeMultiColorData(
     }
 
     // update descriptors
-    for (int d = 0; d < imageHeight + 192; ++d)
+    for (int d = 0; d < imageHeight; ++d)
     {
         int colorLine = (d / 8) % colorImageHeight;
         const auto& line = data.data[colorLine];

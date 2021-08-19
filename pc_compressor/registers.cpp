@@ -466,7 +466,7 @@ void Register16::decValue(CompressedLine& line, int repeat)
 
 void Register16::decValue(RegUsageInfo& info)
 {
-    assert(!isEmpty());
+    assert(h.name == 's' || !isEmpty());
     setValue(value16() - 1);
     info.useReg(h, l);
 }
