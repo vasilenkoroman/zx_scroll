@@ -1265,11 +1265,43 @@ struct SimpleDescriptor
 struct JpIxDescriptor
 {
     uint16_t address = 0;
-    uint16_t originData = 0;
+    std::vector<uint8_t> originData;
 };
 
 #pragma pack(pop)
 
+std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
+    const std::vector<LineDescriptor>& descriptors)
+{
+
+    std::vector<JpIxDescriptor> jpIxDescriptors;
+
+    int imageHeight = descriptors.size();
+    const int bankSize = imageHeight / 8;
+    const int colorsHeight = imageHeight / 8;
+
+    // . Create delta for JP_IX when shift to 1 line
+    for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
+    {
+        int line = screenLine % imageHeight;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            int l = line + i * 64;
+            JpIxDescriptor d;
+            d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
+            d.originData = descriptors[l].rastrForMulticolor.origData;
+            jpIxDescriptors.push_back(d);
+
+            d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
+            d.originData = descriptors[l].rastrForOffscreen.origData;
+            jpIxDescriptors.push_back(d);
+        }
+    }
+    return jpIxDescriptors;
+}
+
+#if 0
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const CompressedData& data,
     uint16_t baseOffset,
@@ -1328,6 +1360,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     }
     return descriptors;
 }
+#endif
 
 int nextLineInBank(int line, int imageHeight)
 {
@@ -1373,15 +1406,6 @@ int serializeMainData(
     std::string rastrDescriptorFileName = inputFileName + ".rastr.descriptor";
     rastrDescriptorFile.open(rastrDescriptorFileName, std::ios::binary);
     if (!rastrDescriptorFile.is_open())
-    {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
-    }
-
-    ofstream jpIxDescriptorFile;
-    std::string jpIxDescriptorFileName = inputFileName + ".jpix";
-    jpIxDescriptorFile.open(jpIxDescriptorFileName, std::ios::binary);
-    if (!jpIxDescriptorFile.is_open())
     {
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
@@ -1512,12 +1536,6 @@ int serializeMainData(
         const auto& descriptor = descriptors[lineNum];
         rastrDescriptorFile.write((const char*) &descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
     }
-
-    // serialize Jp Ix descriptors
-
-    std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(
-        data, codeOffset, serializedData, lineOffset);
-    jpIxDescriptorFile.write((const char*)jpIxDescr.data(), jpIxDescr.size() * sizeof(JpIxDescriptor));
 
     int serializedSize = serializedData.size() + serializedDescriptors.size();
     return serializedSize;
@@ -1743,6 +1761,31 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
     return 0;
 }
 
+int serializeJpIxDescriptors(
+    const std::vector<LineDescriptor>& descriptors,
+    const std::string& inputFileName)
+{
+    using namespace std;
+
+    ofstream jpIxDescriptorFile;
+    std::string jpIxDescriptorFileName = inputFileName + ".jpix";
+    jpIxDescriptorFile.open(jpIxDescriptorFileName, std::ios::binary);
+    if (!jpIxDescriptorFile.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+
+    std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(descriptors);
+    for (const auto& d: jpIxDescr)
+    {
+        jpIxDescriptorFile.write((const char*) d.address, sizeof(uint16_t));
+        jpIxDescriptorFile.write((const char*) d.originData.data(), d.originData.size());
+    }
+    
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -1839,6 +1882,8 @@ int main(int argc, char** argv)
     serializeMultiColorData(multicolorData, descriptors, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
     serializeDescriptors(descriptors, outputFileName);
+    
+    serializeJpIxDescriptors(descriptors, outputFileName);
 
     serializeTimingData(data, colorData, outputFileName);
 
