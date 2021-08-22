@@ -299,12 +299,14 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     const uint8_t* ptr = serializedData.data() + startOffset;
     const uint8_t* end = serializedData.data() + endOffset;
     int ticks = 0;
+    int spDelta = 0;
 
     auto push = 
         [&](const Register16* reg)
         {
             reg->push(info);
-            result.spDelta += 2;
+            spDelta += 2;
+            result.spDelta = spDelta;
             result.outputRegisters = registers;
             result.regUsage = info;
             result.endOffset = ptr - serializedData.data() + 1;
@@ -372,19 +374,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             case 0x2e: l.loadX(info, ptr[1]);
                 break;
-            case 0x33: result.spDelta--;    // incSP
+            case 0x33: spDelta--;    // incSP
                 break;
             case 0x34: hl->incValue(info);
                 break;
             case 0x39:
             {
                 // ADD HL, SP. The current value is not known after this
-                result.spDelta -= (int16_t)hl->value16();
+                spDelta -= (int16_t)hl->value16();
                 info.useReg(h, l);
                 hl->reset();
                 break;
             }
-            case 0x3b: result.spDelta++;
+            case 0x3b: spDelta++;
                 break;
             case 0x3c: a.incValue(info);
                 break;

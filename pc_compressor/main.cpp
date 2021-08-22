@@ -1525,6 +1525,9 @@ int serializeMainData(
             relativeOffsetToMid, relativeOffsetToEnd,
             codeOffset, std::numeric_limits<int>::max());
 
+        assert(descriptor.rastrForMulticolor.codeInfo.spDelta 
+            + descriptor.rastrForOffscreen.codeInfo.spDelta == 256);
+
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
