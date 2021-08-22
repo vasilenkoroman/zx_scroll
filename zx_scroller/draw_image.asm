@@ -107,37 +107,42 @@ prepare_interruption_table:
                 ld (hl), e
                 inc hl
                 ld (hl), d
+                pop hl ; skip restore address
         ENDM
 
-        MACRO update_jp_ix_table
-                // hl - screen address to draw*2
-                add hl, hl ; * 4
-                ld de, hl
-                add hl, hl ; * 8
-                add hl, de ; * 12
+jp_ix_line_delta EQU 8 * 6 * 4
+update_jp_ix_table
+                ld (stack_bottom), sp
 
-                ld sp, jpix_table + 8 * 3*4
+                // bc - screen address to draw
+                ld hl, bc
+                add hl, hl ; * 2
+                add hl, hl ; * 4
+                add hl, hl ; * 8
+                ld de, hl
+                add hl, hl ; * 16
+                add hl, de ; * 24  // skip 6 records, 4 bytes each
+
+                ld sp, jpix_table + jp_ix_line_delta
                 add hl, sp
                 ld sp, hl
 
                 // 1. restore data
                 exx
-                .3 restore_jp_ix
+                .6 restore_jp_ix
                 exx
 
                 // 1. write new JP_IX
-                ld sp, -(8 * 3*4)
+                ld sp, -jp_ix_line_delta
                 add hl, sp
                 ld sp, hl
 
                 ld de, JP_IX_CODE
-                write_jp_ix_data
-                pop hl ; skip restore address
-                write_jp_ix_data
-                pop hl ; skip restore address
-                write_jp_ix_data
+                .6 write_jp_ix_data
                 // total 343
-        ENDM
+
+                ld sp, (stack_bottom)
+                ret
 
         MACRO draw_8_lines
                 // hl - descriptor
@@ -177,8 +182,6 @@ draw_offscreen_rastr
         ; save line number * 2
         add hl, hl                                      ; 11
 
-        //update_jp_ix_table
-
         // -------- draw image (bottom)
         ld sp, 16384 + 1024 * 6
         ld bc, rastr_for_offscreen_descriptor           ; 10
@@ -193,6 +196,8 @@ draw_offscreen_rastr
         // ----------- draw image (top)
         add hl, bc                                      ; 11
         .8 draw_8_lines
+
+        //update_jp_ix_table
 
         ld sp, (stack_bottom)
         ret                
@@ -462,7 +467,7 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         call draw_offscreen_rastr
         pop bc
 
-        halt
+        call update_jp_ix_table
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -479,6 +484,17 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         add hl, de
 
         call delay
+
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
 
         ; do increment
         dec bc
@@ -501,4 +517,4 @@ data_segment_end:
 /*************** Commands to SJ asm ******************/
 
     SAVESNA "build/draw_image.sna", main
-    savetap "build/draw_image.tap", main
+    //savetap "build/draw_image.tap", main

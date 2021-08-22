@@ -1864,6 +1864,7 @@ int serializeJpIxDescriptors(
 {
     using namespace std;
 
+    const int imageHeight = descriptors.size();
     ofstream jpIxDescriptorFile;
     std::string jpIxDescriptorFileName = inputFileName + ".jpix";
     jpIxDescriptorFile.open(jpIxDescriptorFileName, std::ios::binary);
@@ -1874,8 +1875,11 @@ int serializeJpIxDescriptors(
     }
 
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(descriptors);
-    for (const auto& d: jpIxDescr)
+    for (int i = 0; i < imageHeight + 8; ++i)
     {
+        const  int line = i % imageHeight;
+        const auto& d = jpIxDescr[line];
+
         jpIxDescriptorFile.write((const char*) &d.address, sizeof(uint16_t));
         jpIxDescriptorFile.write((const char*) d.originData.data(), d.originData.size());
     }
