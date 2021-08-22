@@ -41,6 +41,12 @@ static const int kRtMcContextSwitchDelay = 0;
 static const int kTicksOnScreenPerByte = 4;
 static const int kJpIxCommandLen = 2;
 
+/**
+ * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
+ * Because of descriptor number calculation code doesn't do "line%imageHeight" for perfomance reason. So, just create a bit more descriptors
+ */
+static const int kmaxDescriptorOffset = 128 + 7;
+
 struct Context
 {
     int scrollDelta = 0;
@@ -1708,8 +1714,7 @@ int serializeRastrForMulticolorDescriptors(
     const std::string& inputFileName)
 {
     using namespace std;
-
-    //std::reverse(descriptors.begin(), descriptors.end());
+    int imageHeight = descriptors.size();
 
     ofstream file;
     std::string fileName = inputFileName + ".rastr_for_mc.descriptors";
@@ -1719,8 +1724,13 @@ int serializeRastrForMulticolorDescriptors(
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
     }
-    for (const auto& descriptor : descriptors)
-        file.write((const char*) &descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+
+    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
+    {
+        int line = i % imageHeight;
+        const auto& descriptor = descriptors[line];
+        file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+    }
 }
 
 int serializeRastrForOffscreenDescriptors(
@@ -1728,8 +1738,8 @@ int serializeRastrForOffscreenDescriptors(
     const std::string& inputFileName)
 {
     using namespace std;
+    int imageHeight = descriptors.size();
 
-    //std::reverse(descriptors.begin(), descriptors.end());
 
     ofstream file;
     std::string fileName = inputFileName + ".rastr_for_offscreen.descriptors";
@@ -1739,8 +1749,13 @@ int serializeRastrForOffscreenDescriptors(
         std::cerr << "Can not write destination file" << std::endl;
         return -1;
     }
-    for (const auto& descriptor : descriptors)
+
+    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
+    {
+        int line = i % imageHeight;
+        const auto& descriptor = descriptors[line];
         file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
+    }
 }
 
 int serializeMulticolorDescriptors(
@@ -1875,11 +1890,8 @@ int serializeJpIxDescriptors(
     }
 
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(descriptors);
-    for (int i = 0; i < imageHeight + 8; ++i)
+    for (const auto& d: jpIxDescr)
     {
-        const  int line = i % imageHeight;
-        const auto& d = jpIxDescr[line];
-
         jpIxDescriptorFile.write((const char*) &d.address, sizeof(uint16_t));
         jpIxDescriptorFile.write((const char*) d.originData.data(), d.originData.size());
     }
