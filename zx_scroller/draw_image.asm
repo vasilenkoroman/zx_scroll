@@ -13,22 +13,24 @@ generated_code: equ 5e00h
     org generated_code
 
         INCBIN "resources/compressed_data.main"
+        INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 color_code
         INCBIN "resources/compressed_data.color"
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-        align	4
-descriptors
-        INCBIN "resources/compressed_data.main_descriptor"
+
+        align	2
+rastr_for_mc_descriptors
+        INCBIN "resources/compressed_data.rastr_for_mc_descriptors"
+mc_descriptors
+        INCBIN "resources/compressed_data.mc_descriptors"
+backray_rastr_descriptors
+        INCBIN "resources/compressed_data.rastr.descriptor"
 
         align	2
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
-
-        align	2
-multicolor_descriptor
-        INCBIN "resources/compressed_data.multicolor_descriptor"
 
         align	2
 jpix_table
@@ -94,34 +96,6 @@ prepare_interruption_table:
         ret
 
 
-draw_multicolor_line:
-                // (stack_bottom) - descriptor
-                // (stack_bottom + 2) - destinatin rastr address to draw
-                // (stack_bottom + 4) - destinatin multicolor address to draw
-
-                ld sp, (stack_bottom)                           ; 20
-                ; hl - colors to execute
-                pop hl                                          ; 10
-                exx                                             ; 4
-                ; hl - rastr address to execute
-                pop hl                                          ; 10
-                ; save descriptor
-                ld (stack_bottom), sp                           ; 20
-
-                ; rastr drawing address
-                ld sp, 16384+1024*4                             ; 10
-                // draw rastr  (4 line)
-                ld ix, $ + 5 ; ret addr                         ; 14
-                jp hl                                           ; 4
-
-                ; draw RT colors (1 line)
-                exx                                             ; 4
-                ld sp, 16384+1024*6+768                         ; 10
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                // total ticks: 134
-
-
         MACRO draw_8_lines
                 // hl - descriptor
                 // sp - destinatin screen address to draw
@@ -165,6 +139,7 @@ draw_multicolor_line:
                 inc hl
                 ld (hl), d
         ENDM
+
         MACRO update_jp_ix_table
                 // hl - screen address to draw*2
                 add hl, hl ; * 4
@@ -195,6 +170,7 @@ draw_multicolor_line:
                 // total 343
         ENDM
 
+/*
 draw_image_and_color
         ; bc - line number
         ld (stack_bottom), sp                           ; 20
@@ -265,11 +241,16 @@ draw_image_and_color
 
         ld sp, (stack_bottom)
         ret                
+*/
+
+jp_ix_record_size       equ 4
+jp_ix_records_per_line  equ 2 * 3
+jp_ix_size_for_line     equ jp_ix_records_per_line * jp_ix_record_size
 
 write_initial_jp_ix_table
         ld sp, jpix_table
         ld de, JP_IX_CODE
-        ld b, 24
+        ld b, 8*2*3
 .rep:   pop hl ; address
         ld (hl), e
         inc hl
@@ -346,53 +327,128 @@ rep:    ld hl, 65535
         pop bc
         ret
 
-        MACRO DRAW_MULTICOLOR_LINE lineNum
-                ld sp, (stack_bottom)                           ; 20
-                ; hl - colors to execute
-                pop hl                                          ; 10
-                ; save descriptor
-                ld (stack_bottom), sp                           ; 20
+DRAW_RASTR_AND_MULTICOLOR_LINE_0:
+                ; hl - rastr for multicolor ( up to 8 lines)
+                ld sp, screen_addr + 0 * 256 + 256      ; 10
+                ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
 
                 ; draw RT colors (1 line)
-                ld sp, color_addr + lineNum * 32 + 32           ; 10
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                // total ticks: 78
-        ENDM
+                exx                                     ; 4
+                ld sp, color_addr + 0 * 32 + 32         ; 10
+                ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
+                exx                                     ; 4
+                // total ticks: 74
 
-test_draw_multicolor_lines:
+    MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N:
+                ; hl - rastr for multicolor ( up to 8 lines)
+                ld sp, screen_addr + N * 256 + 256      ; 10
+                ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
+
+                ; draw RT colors (1 line)
+                exx                                     ; 4
+                ld sp, color_addr + N * 32 + 32         ; 10
+                ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
+                exx                                     ; 4
+                // total ticks: 74
+    ENDM                
+
+DRAW_RASTR_AND_MULTICOLOR_LINES:
         ld (stack_bottom + 4), sp
 
-        add hl, hl
-        ld sp, multicolor_descriptor
+        ld hl, bc
+        add hl, hl // * 2
+        ld sp, rastr_for_mc_descriptors
         add hl, sp
-        ld (stack_bottom), sp
+        ld sp, hl
+
+        exx
+        pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (RASTR_16+1), hl
+        exx
+
+        ld sp, 128
+        add hl, sp
+        ld sp, hl
+
+        exx
+        pop hl: ld (RASTR_15+1), hl
+        pop hl: ld (RASTR_14+1), hl
+        pop hl: ld (RASTR_13+1), hl
+        pop hl: ld (RASTR_12+1), hl
+        pop hl: ld (RASTR_11+1), hl
+        pop hl: ld (RASTR_10+1), hl
+        pop hl: ld (RASTR_9+1), hl
+        pop hl: ld (RASTR_8+1), hl
+        exx
+
+        ld sp, 128
+        add hl, sp
+        ld sp, hl
+
+        exx
+        pop hl: ld (RASTR_7+1), hl
+        pop hl: ld (RASTR_6+1), hl
+        pop hl: ld (RASTR_5+1), hl
+        pop hl: ld (RASTR_4+1), hl
+        pop hl: ld (RASTR_3+1), hl
+        pop hl: ld (RASTR_2+1), hl
+        pop hl: ld (RASTR_1+1), hl
+        pop hl: ld (RASTR_0+1), hl
+        exx
+
+        // calculate address of the MC descriptors
+        ld a, c
+        srl b
+        rra
+        srl b
+        rra
+        and ~1
+        ld c, a
+        ld hl, mc_descriptors + 23*2 // Draw from 0 to 23 is backward direction
+        add hl, bc
+        ld e, (hl)
+        inc l
+        ld d, (hl)
+        ex de, hl
+        exx
 
         // (stack_bottom) - multicolor descriptors
-        DRAW_MULTICOLOR_LINE 0
-        DRAW_MULTICOLOR_LINE 1
-        DRAW_MULTICOLOR_LINE 2
-        DRAW_MULTICOLOR_LINE 3
-        DRAW_MULTICOLOR_LINE 4
-        DRAW_MULTICOLOR_LINE 5
-        DRAW_MULTICOLOR_LINE 6
-        DRAW_MULTICOLOR_LINE 7
-        DRAW_MULTICOLOR_LINE 8
-        DRAW_MULTICOLOR_LINE 9
-        DRAW_MULTICOLOR_LINE 10
-        DRAW_MULTICOLOR_LINE 11
-        DRAW_MULTICOLOR_LINE 12
-        DRAW_MULTICOLOR_LINE 13
-        DRAW_MULTICOLOR_LINE 14
-        DRAW_MULTICOLOR_LINE 15
-        DRAW_MULTICOLOR_LINE 16
-        DRAW_MULTICOLOR_LINE 17
-        DRAW_MULTICOLOR_LINE 18
-        DRAW_MULTICOLOR_LINE 19
-        DRAW_MULTICOLOR_LINE 20
-        DRAW_MULTICOLOR_LINE 21
-        DRAW_MULTICOLOR_LINE 22
-        DRAW_MULTICOLOR_LINE 23
+
+//RASTR_0:  ld HL, 0: JP DRAW_RASTR_AND_MULTICOLOR_LINE_0
+RASTR_0:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 0
+RASTR_1:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 1
+RASTR_2:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 2
+RASTR_3:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 3
+RASTR_4:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 4
+RASTR_5:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 5
+RASTR_6:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 6
+RASTR_7:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 7
+RASTR_8:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 8
+RASTR_9:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 9
+RASTR_10: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 10
+RASTR_11: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 11
+RASTR_12: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 12
+RASTR_13: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 13
+RASTR_14: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 14
+RASTR_15: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 15
+RASTR_16: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 16
+RASTR_17: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 17
+RASTR_18: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 18
+RASTR_19: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 19
+RASTR_20: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 20
+RASTR_21: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 21
+RASTR_22: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 22
+RASTR_23: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 23
 
         ld sp, (stack_bottom + 4)
         ret
@@ -410,10 +466,6 @@ main:
         call copy_image
         call copy_colors
 
-        ld hl, 0        ; multicolor line index
-        call test_draw_multicolor_lines
-        halt
-
         call prepare_interruption_table
         ei
         halt
@@ -426,6 +478,11 @@ first_timing_in_interrupt equ 21
         pop af                          ; 10 ticks
 
         call write_initial_jp_ix_table
+
+        ld bc, 0        ; multicolor line index
+        call DRAW_RASTR_AND_MULTICOLOR_LINES
+        halt
+
 
 ticks_after_interrupt equ first_timing_in_interrupt + 34
 
@@ -449,7 +506,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         out 0xfe,a                      ; 11 ticks
 
         push bc                         ; 11 ticks
-        call draw_image_and_color       ; ~55000 ticks
+        //call draw_image_and_color       ; ~55000 ticks
+        call test_DRAW_RASTR_AND_MULTICOLOR_LINEs
         pop bc                          ; 10 ticks
 
         halt
