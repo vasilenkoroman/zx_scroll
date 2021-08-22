@@ -83,13 +83,18 @@ void CompressedLine::append(const uint8_t* buffer, int size)
         data.push_back(*buffer++);
 }
 
-std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const 
+std::vector<uint8_t> CompressedLine::getFirstCommands(int size, int offset) const 
 {
     std::vector<uint8_t> result;
-    const uint8_t* ptr = data.buffer();
+    const uint8_t* ptr = data.buffer() + offset;
     while (result.size() < size)
     {
         int commandSize = Z80Parser::parseCommand(ptr).size;
+        if (commandSize < 1)
+        {
+            std::cerr << "Invalid command size " << commandSize << ". opCode= " << (int) *ptr << std::endl;
+            abort();
+        }
         for (int i = 0; i < commandSize; ++i)
             result.push_back(*ptr++);
     }

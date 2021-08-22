@@ -22,11 +22,11 @@ multicolor_code
 
         align	2
 rastr_for_mc_descriptors
-        INCBIN "resources/compressed_data.rastr_for_mc_descriptors"
+        INCBIN "resources/compressed_data.rastr_for_mc.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
-backray_rastr_descriptors
-        INCBIN "resources/compressed_data.rastr.descriptor"
+rastr_for_offscreen_descriptor
+        INCBIN "resources/compressed_data.rastr_for_offscreen.descriptors"
 
         align	2
 color_descriptor
@@ -95,37 +95,6 @@ prepare_interruption_table:
         im 2
         ret
 
-
-        MACRO draw_8_lines
-                // hl - descriptor
-                // sp - destinatin screen address to draw
-                ld a, (hl)                                      ; 7
-                ex af, af'                                      ; 4
-                inc l                                           ; 4
-                ld a, (hl)                                      ; 7
-                inc hl                                          ; 6
-
-                exx                                             ; 4
-                ld h, a                                         ; 4
-                ex af, af'                                      ; 4
-                ld l, a                                         ; 4
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                exx                                             ; 4
-                // total: 66
-        ENDM
-                // total 66 ticks (15 bytes)
-
-        MACRO draw_8_color_lines
-                ld e, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld d, (hl)                                      ; 7
-                ex de, hl                                       ; 4
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                // total: 40
-        ENDM
-
         MACRO restore_jp_ix
                 pop hl ; address
                 pop de ; restore data
@@ -170,78 +139,63 @@ prepare_interruption_table:
                 // total 343
         ENDM
 
-/*
-draw_image_and_color
+        MACRO draw_8_lines
+                // hl - descriptor
+                // sp - destinatin screen address to draw
+                ld a, (hl)                                      ; 7
+                ex af, af'                                      ; 4
+                inc l                                           ; 4
+                ld a, (hl)                                      ; 7
+                inc hl                                          ; 6
+
+                exx                                             ; 4
+                ld h, a                                         ; 4
+                ex af, af'                                      ; 4
+                ld l, a                                         ; 4
+                ld ix, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                exx                                             ; 4
+                // total: 66
+        ENDM
+                // total 66 ticks (15 bytes)
+
+        MACRO draw_8_color_lines
+                ld e, (hl)                                      ; 7
+                inc l                                           ; 4
+                ld d, (hl)                                      ; 7
+                ex de, hl                                       ; 4
+                ld ix, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                // total: 40
+        ENDM
+
+draw_offscreen_rastr
         ; bc - line number
         ld (stack_bottom), sp                           ; 20
 
         ld hl, bc                                       ; 8
         ; save line number * 2
         add hl, hl                                      ; 11
-        ld (stack_bottom + 2), hl                       ; 16
 
-        update_jp_ix_table
-
-        ; save line number / 4
-/*
-        ld a, c
-        srl b
-        rra
-        srl b
-        rra
-        and ~1
-        ld c, a
-        ld (stack_bottom + 4), bc                       ; 20
-
-        // ----------- draw colors (top)
-        ld hl, color_descriptor + 16 * 2                ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024*6 + 256
-         //draw_8_color_lines
-*/         
-
-        // ----------- draw image (top)
-        ld hl, (stack_bottom + 2)                      ; 16
-        ld bc, descriptors  + 128 * 2                  ; 10
-        add hl, bc                                     ; 11
-        ld sp, 16384 + 1024 * 2
-        .8 draw_8_lines
-
-/*
-        // ----------- draw colors (middle)
-        ld hl, (stack_bottom + 4)
-        ld bc, color_descriptor + 8 * 2                 ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024*6 + 512
-        draw_8_color_lines
-*/        
-
-        // --------- draw image (middle)
-        ld hl, (stack_bottom + 2)                      ; 16
-        ld bc, descriptors + 64 * 2                    ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024 * 4
-        .8 draw_8_lines
-
-/*
-        // ----------- draw colors (bottom)
-        ld hl, (stack_bottom + 4)
-        ld bc, color_descriptor                         ; 10
-        add hl, bc                                      ; 11
-        ld sp, 16384 + 1024*6 + 768
-        //draw_8_color_lines
-*/
+        //update_jp_ix_table
 
         // -------- draw image (bottom)
-        ld hl, (stack_bottom + 2)                       ; 16
-        ld bc, descriptors                              ; 10
-        add hl, bc                                      ; 11
         ld sp, 16384 + 1024 * 6
+        ld bc, rastr_for_offscreen_descriptor           ; 10
+        add hl, bc                                      ; 11
+        .8 draw_8_lines
+
+        // --------- draw image (middle)
+        ld bc, (64 - 8) * 2                            ; 10
+        add hl, bc                                     ; 11
+        .8 draw_8_lines
+
+        // ----------- draw image (top)
+        add hl, bc                                      ; 11
         .8 draw_8_lines
 
         ld sp, (stack_bottom)
         ret                
-*/
 
 jp_ix_record_size       equ 4
 jp_ix_records_per_line  equ 2 * 3
@@ -356,7 +310,7 @@ DRAW_RASTR_AND_MULTICOLOR_LINE_0:
                 // total ticks: 74
     ENDM                
 
-DRAW_RASTR_AND_MULTICOLOR_LINES:
+draw_rastr_and_multicolor_lines:
         ld (stack_bottom + 4), sp
 
         ld hl, bc
@@ -480,7 +434,11 @@ first_timing_in_interrupt equ 21
         call write_initial_jp_ix_table
 
         ld bc, 0        ; multicolor line index
-        call DRAW_RASTR_AND_MULTICOLOR_LINES
+        push bc
+        call draw_rastr_and_multicolor_lines
+        pop bc
+        call draw_offscreen_rastr
+
         halt
 
 

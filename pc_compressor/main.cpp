@@ -1501,11 +1501,6 @@ int serializeMainData(
             middlePosition, relativeOffsetToEnd,
             codeOffset, std::numeric_limits<int>::max());
 
-        if (d == 135)
-        {
-            std::cout << "d=135" << std::endl;
-        }
-
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
         auto itr = serializedData.begin() + relativeOffsetToStart;
@@ -1525,13 +1520,16 @@ int serializeMainData(
 
 
         itr = serializedData.begin() + relativeOffsetToEnd;
-        descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
+        firstCommands = dataLine.getFirstCommands(kJpIxCommandLen, middlePosition - relativeOffsetToStart);
+        descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr + firstCommands.size();
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
         descriptor.rastrForOffscreen.origData.insert(descriptor.rastrForOffscreen.origData.end(), itr, itr + 2);
 
         auto preambula = descriptor.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
             descriptor.rastrForOffscreen.codeInfo.inputRegisters);
         preambula.serialize(descriptor.rastrForOffscreen.preambula);
+        descriptor.rastrForOffscreen.preambula.insert(descriptor.rastrForOffscreen.preambula.end(),
+            firstCommands.begin(), firstCommands.end());
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -1695,7 +1693,7 @@ int serializeRastrForMulticolorDescriptors(
     //std::reverse(descriptors.begin(), descriptors.end());
 
     ofstream file;
-    std::string fileName = inputFileName + ".rastr_for_mc_descriptors";
+    std::string fileName = inputFileName + ".rastr_for_mc.descriptors";
     file.open(fileName, std::ios::binary);
     if (!file.is_open())
     {
@@ -1704,6 +1702,26 @@ int serializeRastrForMulticolorDescriptors(
     }
     for (const auto& descriptor : descriptors)
         file.write((const char*) &descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+}
+
+int serializeRastrForOffscreenDescriptors(
+    std::vector<LineDescriptor> descriptors,
+    const std::string& inputFileName)
+{
+    using namespace std;
+
+    //std::reverse(descriptors.begin(), descriptors.end());
+
+    ofstream file;
+    std::string fileName = inputFileName + ".rastr_for_offscreen.descriptors";
+    file.open(fileName, std::ios::binary);
+    if (!file.is_open())
+    {
+        std::cerr << "Can not write destination file" << std::endl;
+        return -1;
+    }
+    for (const auto& descriptor : descriptors)
+        file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
 }
 
 int serializeMulticolorDescriptors(
@@ -1943,6 +1961,7 @@ int main(int argc, char** argv)
 
     serializeRastrForMulticolorDescriptors(descriptors, outputFileName);
     serializeMulticolorDescriptors(descriptors, outputFileName);
+    serializeRastrForOffscreenDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     serializeTimingData(data, colorData, outputFileName);
