@@ -31,4 +31,7 @@ public:
         int startOffset,
         int endOffset,
         uint16_t codeOffset, int maxTicks);
+
+    // Return first bytes from the buffer. Round it up to op code size.
+    static std::vector<uint8_t> getCode(const uint8_t* buffer, int requestedOpCodeSize);
 };

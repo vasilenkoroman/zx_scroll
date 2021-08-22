@@ -1240,6 +1240,24 @@ struct DescriptorState
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
     Z80CodeInfo codeInfo;
 
+    void setOrigData(uint8_t* ptr)
+    {
+        origData.push_back(*ptr++);
+        origData.push_back(*ptr);
+    }
+
+    void serializeSpDelta(int delta)
+    {
+        CompressedLine data;
+
+        Register16 hl("hl");
+        Register16 sp("sp");
+        hl.loadXX(data, -delta);
+        hl.addSP(data);
+        sp.loadFromReg16(data, hl);
+        data.serialize(preambula);
+    }
+
     void serialize(std::vector<uint8_t>& dst)
     {
         dst.insert(dst.end(), preambula.begin(), preambula.end());
@@ -1493,20 +1511,21 @@ int serializeMainData(
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset, ticksRest);
-        int middlePosition = descriptor.rastrForMulticolor.codeInfo.endOffset;
+
+        int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
         descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
-            middlePosition, relativeOffsetToEnd,
+            relativeOffsetToMid, relativeOffsetToEnd,
             codeOffset, std::numeric_limits<int>::max());
 
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
-        auto itr = serializedData.begin() + relativeOffsetToStart;
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
-        descriptor.rastrForMulticolor.lineEndPtr = middlePosition + codeOffset;
-        descriptor.rastrForMulticolor.origData.insert(descriptor.rastrForMulticolor.origData.end(), itr, itr + 2);
+        descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
+        descriptor.rastrForMulticolor.setOrigData(serializedData.data() + relativeOffsetToMid);
+
         if (flags & interlineRegisters)
         {
             auto preambula = dataLine.getSerializedUsedRegisters();
@@ -1519,12 +1538,12 @@ int serializeMainData(
             firstCommands.begin(), firstCommands.end());
 
 
-        itr = serializedData.begin() + relativeOffsetToEnd;
-        firstCommands = dataLine.getFirstCommands(kJpIxCommandLen, middlePosition - relativeOffsetToStart);
+        firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToMid, kJpIxCommandLen);
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr + firstCommands.size();
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
-        descriptor.rastrForOffscreen.origData.insert(descriptor.rastrForOffscreen.origData.end(), itr, itr + 2);
+        descriptor.rastrForOffscreen.setOrigData(serializedData.data() + relativeOffsetToEnd);
 
+        descriptor.rastrForOffscreen.serializeSpDelta(descriptor.rastrForMulticolor.codeInfo.spDelta);
         auto preambula = descriptor.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
             descriptor.rastrForOffscreen.codeInfo.inputRegisters);
         preambula.serialize(descriptor.rastrForOffscreen.preambula);

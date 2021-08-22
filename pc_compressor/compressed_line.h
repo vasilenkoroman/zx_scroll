@@ -122,7 +122,7 @@ struct CompressedLine
 
     // Return first 'size' bytes of the line. 
     // It round size up to not break Z80 instruction.
-    std::vector<uint8_t> getFirstCommands(int size, int offset = 0) const;
+    std::vector<uint8_t> getFirstCommands(int size) const;
 
     void serialize(std::vector<uint8_t>& vector) const;
     void append(const uint8_t* buffer, int size);

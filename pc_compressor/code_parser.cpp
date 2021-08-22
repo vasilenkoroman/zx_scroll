@@ -1,5 +1,7 @@
 #include "code_parser.h"
 
+#include <iostream>
+
 z80Command Z80Parser::parseCommand(const uint8_t* ptr)
 {
     static std::vector<z80Command> commands =
@@ -603,5 +605,24 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
         ptr += command.size;
     }
 
+    return result;
+}
+
+
+std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCodeSize)
+{
+    std::vector<uint8_t> result;
+    const uint8_t* ptr = buffer;
+    while (result.size() < requestedOpCodeSize)
+    {
+        int commandSize = Z80Parser::parseCommand(ptr).size;
+        if (commandSize < 1)
+        {
+            std::cerr << "Invalid command size " << commandSize << ". opCode= " << (int)*ptr << std::endl;
+            abort();
+        }
+        for (int i = 0; i < commandSize; ++i)
+            result.push_back(*ptr++);
+    }
     return result;
 }

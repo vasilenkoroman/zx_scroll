@@ -433,14 +433,6 @@ first_timing_in_interrupt equ 21
 
         call write_initial_jp_ix_table
 
-        ld bc, 0        ; multicolor line index
-        push bc
-        call draw_rastr_and_multicolor_lines
-        pop bc
-        call draw_offscreen_rastr
-
-        halt
-
 
 ticks_after_interrupt equ first_timing_in_interrupt + 34
 
@@ -463,10 +455,12 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        push bc                         ; 11 ticks
-        //call draw_image_and_color       ; ~55000 ticks
-        call test_DRAW_RASTR_AND_MULTICOLOR_LINEs
-        pop bc                          ; 10 ticks
+        push bc
+        call draw_rastr_and_multicolor_lines
+        pop bc
+        push bc
+        call draw_offscreen_rastr
+        pop bc
 
         halt
 
