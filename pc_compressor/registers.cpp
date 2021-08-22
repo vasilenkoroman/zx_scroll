@@ -407,6 +407,7 @@ void Register16::addSP(CompressedLine& line, Register8* f)
 {
     if (h.name != 'h' && h.name != 'i')
         assert(0);
+    line.regUsage.useReg(h, l);
     h.value.reset();
     l.value.reset();
 

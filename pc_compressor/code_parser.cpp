@@ -46,9 +46,9 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 1, 4}, // 25: dec h
         { 2, 7}, // 26: ld h,*
         { 1, 4}, // 27: daa
-        { 1, -1}, // 28: jr z,* (12/7). -1 means unknown ticks
+        { 2, -1}, // 28: jr z,* (12/7). -1 means unknown ticks
         { 1, 11}, // 29: add hl,hl
-        { 1, 16}, // 2a: ld hl,(**)
+        { 3, 16}, // 2a: ld hl,(**)
         { 1, 6}, // 2b: dec hl
         { 1, 4}, // 2c: inc l
         { 1, 4}, // 2d: dec l
@@ -115,7 +115,7 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 1, 4}, // 6a: ld l,d
         { 1, 4}, // 6b: ld l,e
         { 1, 4}, // 6c: ld l,h
-        { 1, 4}, // 6d: 	ld l,l
+        { 1, 4}, // 6d: ld l,l
         { 1, 7}, // 6e: ld l,(hl)
         { 1, 4}, // 6f: ld l,a
         { 1, 7}, // 70: ld (hl),b
@@ -380,6 +380,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             {
                 // ADD HL, SP. The current value is not known after this
                 result.spDelta -= (int16_t)hl->value16();
+                info.useReg(h, l);
                 hl->reset();
                 break;
             }
@@ -597,6 +598,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0xee: a.xorValue(info, ptr[1]);
                 break;
             case 0xf6: a.orValue(info, ptr[1]);
+                break;
+            case 0xf9: // LD SP, HL
                 break;
             default:
                 // Unsopported command
