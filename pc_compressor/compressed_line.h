@@ -44,6 +44,14 @@ public:
         m_buffer[m_size++] = value;
     }
 
+    inline void push_front(uint8_t value)
+    {
+        assert(m_size < sizeof(m_buffer));
+        memcpy(m_buffer+1, m_buffer, m_size);
+        m_buffer[0] = value;
+        m_size++;
+    }
+
     inline void pop_back()
     {
         --m_size;
@@ -127,6 +135,7 @@ struct CompressedLine
     void serialize(std::vector<uint8_t>& vector) const;
     void append(const uint8_t* buffer, int size);
     void append(const std::vector<uint8_t>& data);
+    void push_front(const std::vector<uint8_t>& data);
 
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters() const;

@@ -88,6 +88,12 @@ void CompressedLine::append(const std::vector<uint8_t>& data)
     append(data.data(), data.size());
 }
 
+void CompressedLine::push_front(const std::vector<uint8_t>& v)
+{
+    for (auto itr = v.rbegin(); itr != v.rend(); ++itr)
+        data.push_front(*itr);
+}
+
 std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const
 {
     return Z80Parser::getCode(data.buffer(), size);

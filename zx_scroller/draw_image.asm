@@ -382,6 +382,8 @@ draw_rastr_and_multicolor_lines:
         ex de, hl
         exx
 
+        scf     // aligned data uses ret nc. prevent these ret
+
         // (stack_bottom) - multicolor descriptors
 
 //RASTR_0:  ld HL, 0: JP DRAW_RASTR_AND_MULTICOLOR_LINE_0

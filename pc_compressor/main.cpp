@@ -1004,7 +1004,7 @@ void finilizeLine(
     // TODO: optimize drawOffset ticks here. Current version is the most simple, but slower solution
     int extraDelay = result.drawOffsetTicks - preloadTicks;
     const auto delay = Z80Parser::genDelay(extraDelay);
-    result.append(delay);
+    result.push_front(delay);
     result.drawTicks += extraDelay;
 
     result += pushLine;
@@ -1476,13 +1476,8 @@ int serializeMainData(
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
-
         if (flags & interlineRegisters)
-        {
-            auto preambula = dataLine.getSerializedUsedRegisters();
-            ticksRest -= preambula.drawTicks;
-            preambula.serialize(descriptor.rastrForMulticolor.preambula);
-        }
+            ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
 
         Z80Parser parser;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
@@ -1509,6 +1504,12 @@ int serializeMainData(
         int ticksDelta = ticksRest - descriptor.rastrForMulticolor.codeInfo.ticks;
         auto extraDelay = Z80Parser::genDelay(ticksDelta);
         descriptor.rastrForMulticolor.addToPreambule(extraDelay);
+
+        if (flags & interlineRegisters)
+        {
+            auto preambula = dataLine.getSerializedUsedRegisters();
+            preambula.serialize(descriptor.rastrForMulticolor.preambula);
+        }
 
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 

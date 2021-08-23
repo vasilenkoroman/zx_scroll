@@ -646,7 +646,15 @@ std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCo
 std::vector<uint8_t> Z80Parser::genDelay(int ticks)
 {
     std::vector<uint8_t> result;
-    while (ticks > 7)
+
+    while (ticks > 10)
+    {
+        ticks -= 7;
+        result.push_back(0x6e); // LD L, (HL)
+
+    }
+
+    if (ticks > 7)
     {
         ticks -= 4;
         result.push_back(0x00); // NOP
@@ -661,7 +669,7 @@ std::vector<uint8_t> Z80Parser::genDelay(int ticks)
             result.push_back(0x23); // INC HL
             break;
         case 5:
-            result.push_back(0xd8); // RET C
+            result.push_back(0xd0); // RET NC
             break;
         case 4:
             result.push_back(0x00); // NOP
