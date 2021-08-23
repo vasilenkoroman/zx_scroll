@@ -35,4 +35,7 @@ public:
 
     // Return first bytes from the buffer. Round it up to op code size.
     static std::vector<uint8_t> getCode(const uint8_t* buffer, int requestedOpCodeSize);
+
+    static std::vector<uint8_t> genDelay(int ticks);
 };
+

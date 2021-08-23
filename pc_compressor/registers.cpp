@@ -451,10 +451,10 @@ void Register16::push(CompressedLine& line) const
 
 void Register16::decValue(CompressedLine& line, int repeat)
 {
-    decValue(line.regUsage);
-
     for (int i = 0; i < repeat; ++i)
     {
+        decValue(line.regUsage);
+
         if (l.indexRegPrefix)
         {
             line.data.push_back(l.indexRegPrefix);
@@ -467,7 +467,10 @@ void Register16::decValue(CompressedLine& line, int repeat)
 
 void Register16::decValue(RegUsageInfo& info)
 {
-    assert(h.name == 's' || !isEmpty());
+    if (h.name == 's')
+        return;
+
+    assert(!isEmpty());
     setValue(value16() - 1);
     info.useReg(h, l);
 }

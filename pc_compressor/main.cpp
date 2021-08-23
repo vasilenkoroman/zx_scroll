@@ -764,7 +764,7 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 }
 
 #if 0
-CompressedLine  compressRealtimeColorsLine(uint16_t* buffer, uint16_t* nextLine, uint16_t generatedCodeMemAddress, bool* success, bool useSlowMode)
+CompressedLine  compressMultiColorsLine(uint16_t* buffer, uint16_t* nextLine, uint16_t generatedCodeMemAddress, bool* success, bool useSlowMode)
 {
     /*
      *      Screen in words [0..15]
@@ -1155,7 +1155,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     }
 
     // 4. Split line on 3 segments. It enough for any line
-    // TODO: implement me. See commented implementation compressRealtimeColorsLine. It need to finish it.
+    // TODO: implement me. See commented implementation compressMultiColorsLine. It need to finish it.
     std::cerr << "Not finished yet. need add more code here. Three segment multicolor" << std::endl;
     assert(0);
     abort();
@@ -1164,7 +1164,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     return result;
 }
 
-CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
+CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 {
     // TODO: fill it
     static const int generatedCodeAddress = 0;
@@ -1186,13 +1186,36 @@ CompressedData compressRealTimeColors(uint8_t* buffer, int imageHeight)
         if (!success)
         {
             // Slow mode uses more ticks in general, but draw line under the ray on 34 ticks faster.
-            line = compressRealtimeColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, true );
+            line = compressMultiColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, true );
             // Slow mode currently uses 6 registers and it is not enough 12 more ticks without compression.
             // If it fail again it need to use more registers. It need to add AF/AF' at this case.
             assert(success);
         }
         */
         compressedData.data.push_back(line);
+    }
+
+    // Align duration for multicolors
+
+    int maxTicks = 0;
+    for (const auto& line : compressedData.data)
+        maxTicks = std::max(maxTicks, line.drawTicks);
+
+    // TODO: consider to avoid +4 here. In case some line need be aligned to [1..3] ticks it is possible
+    // to modify line commands itself.
+    for (auto& line : compressedData.data)
+    {
+        if (maxTicks - line.drawTicks < 4)
+        {
+            maxTicks += 4;
+            break;
+        }
+    }
+
+    for (auto& line: compressedData.data)
+    {
+        auto delayCode = Z80Parser::genDelay(maxTicks - line.drawTicks);
+        line.serialize(delayCode);
     }
 
     return compressedData;
@@ -1309,17 +1332,8 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     {
         int line = screenLine % imageHeight;
 
-        //int bank = line % 8;
-
         for (int i = 0; i < 3; ++i)
         {
-            /*
-            int lineInBank = line / 8 + i * 8;
-            if (lineInBank > bankSize)
-                lineInBank -= bankSize;
-
-            int index = lineInBank * 8 + bank;
-            */
             int l = (line + i * 64) % imageHeight;
 
             JpIxDescriptor d;
@@ -1334,67 +1348,6 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     }
     return jpIxDescriptors;
 }
-
-#if 0
-std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
-    const CompressedData& data,
-    uint16_t baseOffset,
-    std::vector<uint8_t>& serializedData,
-    std::vector<int> lineOffset)
-{
-
-    std::vector<JpIxDescriptor> descriptors;
-
-    int imageHeight = lineOffset.size();
-    const int bankSize = imageHeight / 8;
-    const int colorsHeight = imageHeight / 8;
-
-    // . Create delta for JP_IX when shift to 1 line
-    for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
-    {
-        int line = screenLine % imageHeight;
-
-        int bankNum = line % 8;
-        int lineNumInBank = line / 8;
-
-        for (int i = 1; i <= 3; ++i)
-        {
-            int lineStartInBank = lineNumInBank + (i - 1) * 8;
-            if (lineStartInBank > bankSize)
-                lineStartInBank -= bankSize;
-            int relativeOffsetToStart = lineOffset[lineStartInBank];
-
-            int associatedMulticolorLine = lineStartInBank - 8;
-            if (associatedMulticolorLine < 0)
-                associatedMulticolorLine += colorsHeight;
-
-            const auto& dataLine = data.data[associatedMulticolorLine];
-
-            int lineEndInBank = lineNumInBank + i * 8;
-            if (lineEndInBank > bankSize)
-                lineEndInBank -= bankSize;
-
-            int l = lineEndInBank + bankNum * bankSize;
-            JpIxDescriptor d;
-            int relativeOffsetToEnd = l < imageHeight ? lineOffset[l] : serializedData.size();
-            if (lineEndInBank == bankSize)
-            {
-                // There is additional JP 'first bank line'  command at the end of latest line in bank.
-                // overwrite this command (if exists) instead of first bytes of the next line in bank.
-                relativeOffsetToEnd -= 3;
-            }
-
-            uint8_t* lineEndAddress = serializedData.data() + relativeOffsetToEnd;
-
-            d.address = relativeOffsetToEnd + baseOffset;
-            uint16_t* ptr = (uint16_t*)(serializedData.data() + relativeOffsetToEnd);
-            d.originData = *ptr;
-            descriptors.push_back(d);
-        }
-    }
-    return descriptors;
-}
-#endif
 
 int nextLineInBank(int line, int imageHeight)
 {
@@ -1505,17 +1458,23 @@ int serializeMainData(
         // do Split
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcDrawTicks;
-        //ticksRest += mcLine.drawOffsetTicks;
-        ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
 
+        if (flags & interlineRegisters)
+        {
+            auto preambula = dataLine.getSerializedUsedRegisters();
+            ticksRest -= preambula.drawTicks;
+            preambula.serialize(descriptor.rastrForMulticolor.preambula);
+        }
 
         Z80Parser parser;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
-            codeOffset, ticksRest, /*parseToLastPush*/ true);
+            codeOffset,
+            ticksRest - 4,  // Reserver 4 more ticks because delay<4 is not possible
+            /*parseToLastPush*/ true);
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
@@ -1526,8 +1485,14 @@ int serializeMainData(
             codeOffset, std::numeric_limits<int>::max(),
             /*parseToLastPush*/ false);
 
-        assert(descriptor.rastrForMulticolor.codeInfo.spDelta 
+        assert(descriptor.rastrForMulticolor.codeInfo.spDelta
             + descriptor.rastrForOffscreen.codeInfo.spDelta == 256);
+
+        // align timing for RastrForMulticolor part
+        int ticksDelta = ticksRest - descriptor.rastrForMulticolor.codeInfo.ticks;
+        auto extraDelay = Z80Parser::genDelay(ticksDelta);
+        descriptor.rastrForMulticolor.serialize(extraDelay);
+
 
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
@@ -1535,11 +1500,6 @@ int serializeMainData(
         descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
         descriptor.rastrForMulticolor.setOrigData(serializedData.data() + relativeOffsetToMid);
 
-        if (flags & interlineRegisters)
-        {
-            auto preambula = dataLine.getSerializedUsedRegisters();
-            preambula.serialize(descriptor.rastrForMulticolor.preambula);
-        }
         // In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
         // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
         // directly in descriptor preambula.
@@ -1681,7 +1641,7 @@ int serializeMultiColorData(
         serializedData.push_back(0xdd);
         serializedData.push_back(0xe9);
     }
-    
+
     // Resolve LD HL, PREV_LINE_ADDR
     for (int y = 0; y < colorImageHeight; ++y)
     {
@@ -1887,7 +1847,7 @@ int serializeJpIxDescriptors(
         jpIxDescriptorFile.write((const char*) &d.address, sizeof(uint16_t));
         jpIxDescriptorFile.write((const char*) d.originData.data(), d.originData.size());
     }
-    
+
     return 0;
 }
 
@@ -1941,7 +1901,7 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    CompressedData multicolorData = compressRealTimeColors(colorBuffer.data(), imageHeight / 8);
+    CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
     // Multicolor data displaying from top to bottom
     //std::reverse(multicolorData.data.begin(), multicolorData.data.end());
 
@@ -1964,13 +1924,6 @@ int main(int argc, char** argv)
         << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
 
-    int worseMulticolorTicks = 0;
-    for (const auto& line : multicolorData.data)
-        worseMulticolorTicks = std::max(worseMulticolorTicks, line.drawTicks);
-
-    std::cout << "multicolor ticks by worse line: " << worseMulticolorTicks*24
-        << "tick lose: " << worseMulticolorTicks * 24 - multicolorData.ticks() << std::endl;
-
     // put JP to the latest line for every bank
     for (int bank = 0; bank < 8; ++bank)
     {
@@ -1982,7 +1935,8 @@ int main(int argc, char** argv)
 
     std::vector<LineDescriptor> descriptors;
 
-    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags, worseMulticolorTicks);
+    int multicolorTicks = multicolorData.data[0].drawTicks;
+    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags, multicolorTicks);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
     serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 

@@ -303,7 +303,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int spDelta = 0;
 
     auto updateState =
-        [&]() 
+        [&]()
         {
             result.spDelta = spDelta;
             result.outputRegisters = registers;
@@ -312,7 +312,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             result.ticks = ticks;
         };
 
-    auto push = 
+    auto push =
         [&](const Register16* reg)
         {
             reg->push(info);
@@ -324,6 +324,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     {
         auto command = parseCommand(ptr);
         ticks += command.ticks;
+        if (ticks > maxTicks)
+            break;
 
         switch (*ptr)
         {
@@ -638,5 +640,39 @@ std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCo
         for (int i = 0; i < commandSize; ++i)
             result.push_back(*ptr++);
     }
+    return result;
+}
+
+std::vector<uint8_t> Z80Parser::genDelay(int ticks)
+{
+    std::vector<uint8_t> result;
+    while (ticks > 7)
+    {
+        ticks -= 4;
+        result.push_back(0x00); // NOP
+
+    }
+    switch (ticks)
+    {
+        case 7:
+            result.push_back(0x6e); // LD L, (HL)
+            break;
+        case 6:
+            result.push_back(0x23); // INC HL
+            break;
+        case 5:
+            result.push_back(0xd8); // RET C
+            break;
+        case 4:
+            result.push_back(0x00); // NOP
+            break;
+        case 0:
+            break;
+        default:
+            std::cerr << "Invalid ticks amount to align:" << ticks << std::endl;
+            assert(0);
+            abort();
+    }
+
     return result;
 }
