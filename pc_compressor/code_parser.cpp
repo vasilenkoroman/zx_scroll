@@ -273,8 +273,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int startOffset,
     int endOffset,
     uint16_t codeOffset,
-    int maxTicks,
-    bool parseToLastPush)
+    int maxTicks)
 {
     Z80CodeInfo result;
     RegUsageInfo info;
@@ -299,33 +298,20 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
     const uint8_t* ptr = serializedData.data() + startOffset;
     const uint8_t* end = serializedData.data() + endOffset;
-    int ticks = 0;
-    int spDelta = 0;
-
-    auto updateState =
-        [&]()
-        {
-            result.spDelta = spDelta;
-            result.outputRegisters = registers;
-            result.regUsage = info;
-            result.endOffset = ptr - serializedData.data() + 1;
-            result.ticks = ticks;
-        };
 
     auto push =
         [&](const Register16* reg)
         {
             reg->push(info);
-            spDelta += 2;
-            updateState();
+            result.spDelta += 2;
     };
 
-    while (ticks < maxTicks && ptr != end)
+    while (result.ticks < maxTicks && ptr != end)
     {
         auto command = parseCommand(ptr);
-        ticks += command.ticks;
-        if (ticks > maxTicks)
+        if (result.ticks + command.ticks > maxTicks)
             break;
+        result.ticks += command.ticks;
 
         switch (*ptr)
         {
@@ -383,19 +369,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             case 0x2e: l.loadX(info, ptr[1]);
                 break;
-            case 0x33: spDelta--;    // incSP
+            case 0x33: result.spDelta--;    // incSP
                 break;
             case 0x34: hl->incValue(info);
                 break;
             case 0x39:
             {
                 // ADD HL, SP. The current value is not known after this
-                spDelta -= (int16_t)hl->value16();
+                result.spDelta -= (int16_t)hl->value16();
                 info.useReg(h, l);
                 hl->reset();
                 break;
             }
-            case 0x3b: spDelta++;
+            case 0x3b: result.spDelta++;
                 break;
             case 0x3c: a.incValue(info);
                 break;
@@ -619,8 +605,10 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
         ptr += command.size;
     }
 
-    if (!parseToLastPush)
-        updateState();
+    result.outputRegisters = registers;
+    result.regUsage = info;
+    result.endOffset = ptr - serializedData.data();
+
     return result;
 }
 
