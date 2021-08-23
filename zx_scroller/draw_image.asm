@@ -300,15 +300,16 @@ DRAW_RASTR_AND_MULTICOLOR_LINE_0:
                 exx                                     ; 4
                 // total ticks: 74
 
-    MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N:
+    MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
+RASTR_N?        LD HL, 0
                 ; hl - rastr for multicolor ( up to 8 lines)
-                ld sp, screen_addr + N * 256 + 256      ; 10
+                ld sp, screen_addr + N? * 256 + 256      ; 10
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
 
                 ; draw RT colors (1 line)
                 exx                                     ; 4
-                ld sp, color_addr + N * 32 + 32         ; 10
+                ld sp, color_addr + N? * 32 + 32         ; 10
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
                 exx                                     ; 4
@@ -384,30 +385,30 @@ draw_rastr_and_multicolor_lines:
         // (stack_bottom) - multicolor descriptors
 
 //RASTR_0:  ld HL, 0: JP DRAW_RASTR_AND_MULTICOLOR_LINE_0
-RASTR_0:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 0
-RASTR_1:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 1
-RASTR_2:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 2
-RASTR_3:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 3
-RASTR_4:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 4
-RASTR_5:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 5
-RASTR_6:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 6
-RASTR_7:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 7
-RASTR_8:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 8
-RASTR_9:  ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 9
-RASTR_10: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 10
-RASTR_11: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 11
-RASTR_12: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 12
-RASTR_13: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 13
-RASTR_14: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 14
-RASTR_15: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 15
-RASTR_16: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 16
-RASTR_17: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 17
-RASTR_18: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 18
-RASTR_19: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 19
-RASTR_20: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 20
-RASTR_21: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 21
-RASTR_22: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 22
-RASTR_23: ld HL, 0: DRAW_RASTR_AND_MULTICOLOR_LINE 23
+        DRAW_RASTR_AND_MULTICOLOR_LINE 0
+        DRAW_RASTR_AND_MULTICOLOR_LINE 1
+        DRAW_RASTR_AND_MULTICOLOR_LINE 2
+        DRAW_RASTR_AND_MULTICOLOR_LINE 3
+        DRAW_RASTR_AND_MULTICOLOR_LINE 4
+        DRAW_RASTR_AND_MULTICOLOR_LINE 5
+        DRAW_RASTR_AND_MULTICOLOR_LINE 6
+        DRAW_RASTR_AND_MULTICOLOR_LINE 7
+        DRAW_RASTR_AND_MULTICOLOR_LINE 8
+        DRAW_RASTR_AND_MULTICOLOR_LINE 9
+        DRAW_RASTR_AND_MULTICOLOR_LINE 10
+        DRAW_RASTR_AND_MULTICOLOR_LINE 11
+        DRAW_RASTR_AND_MULTICOLOR_LINE 12
+        DRAW_RASTR_AND_MULTICOLOR_LINE 13
+        DRAW_RASTR_AND_MULTICOLOR_LINE 14
+        DRAW_RASTR_AND_MULTICOLOR_LINE 15
+        DRAW_RASTR_AND_MULTICOLOR_LINE 16
+        DRAW_RASTR_AND_MULTICOLOR_LINE 17
+        DRAW_RASTR_AND_MULTICOLOR_LINE 18
+        DRAW_RASTR_AND_MULTICOLOR_LINE 19
+        DRAW_RASTR_AND_MULTICOLOR_LINE 20
+        DRAW_RASTR_AND_MULTICOLOR_LINE 21
+        DRAW_RASTR_AND_MULTICOLOR_LINE 22
+        DRAW_RASTR_AND_MULTICOLOR_LINE 23
 
         ld sp, (stack_bottom + 4)
         ret
