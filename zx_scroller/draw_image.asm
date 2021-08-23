@@ -110,39 +110,6 @@ prepare_interruption_table:
                 pop hl ; skip restore address
         ENDM
 
-jp_ix_line_delta EQU 8 * 6 * 4
-update_jp_ix_table
-                ld (stack_bottom), sp
-
-                // bc - screen address to draw
-                ld hl, bc
-                add hl, hl ; * 2
-                add hl, hl ; * 4
-                add hl, hl ; * 8
-                ld de, hl
-                add hl, hl ; * 16
-                add hl, de ; * 24  // skip 6 records, 4 bytes each
-
-                ld sp, jpix_table + jp_ix_line_delta
-                add hl, sp
-                ld sp, hl
-
-                // 1. restore data
-                exx
-                .6 restore_jp_ix
-                exx
-
-                // 1. write new JP_IX
-                ld sp, -jp_ix_line_delta
-                add hl, sp
-                ld sp, hl
-
-                ld de, JP_IX_CODE
-                .6 write_jp_ix_data
-                // total 343
-
-                ld sp, (stack_bottom)
-                ret
 
         MACRO draw_8_lines
                 // hl - descriptor
@@ -209,7 +176,7 @@ jp_ix_size_for_line     equ jp_ix_records_per_line * jp_ix_record_size
 write_initial_jp_ix_table
         ld sp, jpix_table
         ld de, JP_IX_CODE
-        ld b, 8*2*3
+        ld b, 8 * jp_ix_records_per_line
 .rep:   pop hl ; address
         ld (hl), e
         inc hl
@@ -220,6 +187,39 @@ write_initial_jp_ix_table
         ld sp, stack_top - 2
         ret
 
+jp_ix_line_delta EQU 8 * jp_ix_size_for_line
+update_jp_ix_table
+                ld (stack_bottom), sp
+
+                // bc - screen address to draw
+                ld hl, bc
+                add hl, hl ; * 2
+                add hl, hl ; * 4
+                add hl, hl ; * 8
+                ld de, hl
+                add hl, hl ; * 16
+                add hl, de ; * 24  // skip 6 records, 4 bytes each
+
+                ld sp, jpix_table + jp_ix_line_delta
+                add hl, sp
+                ld sp, hl
+
+                // 1. restore data
+                exx
+                .6 restore_jp_ix
+                exx
+
+                // 1. write new JP_IX
+                ld sp, -jp_ix_line_delta
+                add hl, sp
+                ld sp, hl
+
+                ld de, JP_IX_CODE
+                .6 write_jp_ix_data
+                // total 343
+
+                ld sp, (stack_bottom)
+                ret
        
 
 /************** delay routine *************/
@@ -460,14 +460,14 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
+        call update_jp_ix_table
+
         push bc
         call draw_rastr_and_multicolor_lines
         pop bc
         push bc
         call draw_offscreen_rastr
         pop bc
-
-        call update_jp_ix_table
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks

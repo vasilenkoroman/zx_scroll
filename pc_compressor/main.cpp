@@ -1515,7 +1515,7 @@ int serializeMainData(
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
-            codeOffset, ticksRest);
+            codeOffset, ticksRest, /*parseToLastPush*/ true);
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
@@ -1523,7 +1523,8 @@ int serializeMainData(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
             relativeOffsetToMid, relativeOffsetToEnd,
-            codeOffset, std::numeric_limits<int>::max());
+            codeOffset, std::numeric_limits<int>::max(),
+            /*parseToLastPush*/ false);
 
         assert(descriptor.rastrForMulticolor.codeInfo.spDelta 
             + descriptor.rastrForOffscreen.codeInfo.spDelta == 256);

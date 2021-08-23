@@ -30,7 +30,8 @@ public:
         const std::vector<uint8_t>& serializedData,
         int startOffset,
         int endOffset,
-        uint16_t codeOffset, int maxTicks);
+        uint16_t codeOffset, int maxTicks,
+        bool parseToLastPush);
 
     // Return first bytes from the buffer. Round it up to op code size.
     static std::vector<uint8_t> getCode(const uint8_t* buffer, int requestedOpCodeSize);

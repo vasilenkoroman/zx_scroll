@@ -273,7 +273,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int startOffset,
     int endOffset,
     uint16_t codeOffset,
-    int maxTicks)
+    int maxTicks,
+    bool parseToLastPush)
 {
     Z80CodeInfo result;
     RegUsageInfo info;
@@ -301,16 +302,22 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int ticks = 0;
     int spDelta = 0;
 
-    auto push = 
-        [&](const Register16* reg)
+    auto updateState =
+        [&]() 
         {
-            reg->push(info);
-            spDelta += 2;
             result.spDelta = spDelta;
             result.outputRegisters = registers;
             result.regUsage = info;
             result.endOffset = ptr - serializedData.data() + 1;
             result.ticks = ticks;
+        };
+
+    auto push = 
+        [&](const Register16* reg)
+        {
+            reg->push(info);
+            spDelta += 2;
+            updateState();
     };
 
     while (ticks < maxTicks && ptr != end)
@@ -610,6 +617,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
         ptr += command.size;
     }
 
+    if (!parseToLastPush)
+        updateState();
     return result;
 }
 
