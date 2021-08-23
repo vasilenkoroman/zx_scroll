@@ -303,7 +303,7 @@ DRAW_RASTR_AND_MULTICOLOR_LINE_0:
     MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
 RASTR_N?        LD HL, 0
                 ; hl - rastr for multicolor ( up to 8 lines)
-                ld sp, screen_addr + N? * 256 + 256      ; 10
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
 
@@ -325,21 +325,7 @@ draw_rastr_and_multicolor_lines:
         add hl, sp
         ld sp, hl
 
-        exx
-        pop hl: ld (RASTR_23+1), hl
-        pop hl: ld (RASTR_22+1), hl
-        pop hl: ld (RASTR_21+1), hl
-        pop hl: ld (RASTR_20+1), hl
-        pop hl: ld (RASTR_19+1), hl
-        pop hl: ld (RASTR_18+1), hl
-        pop hl: ld (RASTR_17+1), hl
-        pop hl: ld (RASTR_16+1), hl
-        exx
-
-        ld sp, 128
-        add hl, sp
-        ld sp, hl
-
+        // Draw bottom 3-th of rastr during middle 3-th of colors
         exx
         pop hl: ld (RASTR_15+1), hl
         pop hl: ld (RASTR_14+1), hl
@@ -350,6 +336,8 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_9+1), hl
         pop hl: ld (RASTR_8+1), hl
         exx
+
+        // Draw middle 3-th of rastr during top 3-th of colors
 
         ld sp, 128
         add hl, sp
@@ -364,6 +352,24 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_2+1), hl
         pop hl: ld (RASTR_1+1), hl
         pop hl: ld (RASTR_0+1), hl
+        exx
+
+        // Draw top 3-th of rastr during bottom 3-th of colors
+        // TODO: it should be a next frame
+
+        ld sp, 128
+        add hl, sp
+        ld sp, hl
+
+        exx
+        pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (RASTR_16+1), hl
         exx
 
         // calculate address of the MC descriptors
