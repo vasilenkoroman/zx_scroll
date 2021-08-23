@@ -998,9 +998,15 @@ void finilizeLine(
     {
         sp.decValue(result, context.minX);
     }
-
     result += loadLine;
-    result.drawOffsetTicks -= result.drawTicks; //< spend some time on preload, need start draw earlier
+    int preloadTicks = result.drawTicks;
+
+    // TODO: optimize drawOffset ticks here. Current version is the most simple, but slower solution
+    int extraDelay = result.drawOffsetTicks - preloadTicks;
+    const auto delay = Z80Parser::genDelay(extraDelay);
+    result.append(delay);
+    result.drawTicks += extraDelay;
+
     result += pushLine;
     //result.jpIx();
 }
@@ -1031,18 +1037,20 @@ CompressedLine  compressMultiColorsLine(Context context)
             break;
     }
 
-    int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermidiate stack moving)
+    int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
     int t2 = kLineDurationInTicks - kStackMovingTime; // write whole line in 2 tries limit
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
+    compressLineMain(context, line1, registers);
+
+#if 0
     CompressedLine loadLine;
     CompressedLine pushLine;
-    compressLineMain(context, line1, registers);
-    line1.splitPreLoadAndPush(&loadLine, &pushLine);
 
+    line1.splitPreLoadAndPush(&loadLine, &pushLine);
     if (pushLine.drawTicks <= t1)
     {
         // Ray should run some bytes on the current line before we start to overwrite it.
@@ -1051,6 +1059,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         finilizeLine(context, result, loadLine, pushLine);
         return result;
     }
+#endif
 
     //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
 
@@ -1109,7 +1118,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     std::array<Register16, 3> regMain = { Register16("bc"), Register16("de"), Register16("hl") };
     std::array<Register16, 3> regAlt = { Register16("bc'"), Register16("de'"), Register16("hl'") };
-    loadLine = CompressedLine();
+    CompressedLine loadLine;
 
     auto loadRegisters =
         [&](auto& registers, int startPos, int endPos)
@@ -1136,11 +1145,12 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     std::array<Register16, 6> registers6 = { regMain[0], regMain[1], regMain[2], regAlt[0], regAlt[1], regAlt[2] };
     context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
-    pushLine = CompressedLine();
+    CompressedLine pushLine;
     bool success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
 
     if (pushLine.drawTicks <= t1)
     {
+        result.drawOffsetTicks = (32 - context.minX) * kTicksOnScreenPerByte;
         finilizeLine(context, result, loadLine, pushLine);
         return result;
     }
@@ -1214,8 +1224,10 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 
     for (auto& line: compressedData.data)
     {
-        auto delayCode = Z80Parser::genDelay(maxTicks - line.drawTicks);
-        line.serialize(delayCode);
+        const int endLineDelay = maxTicks - line.drawTicks;
+        const auto delayCode = Z80Parser::genDelay(endLineDelay);
+        line.append(delayCode);
+        line.drawTicks += endLineDelay;
     }
 
     return compressedData;
@@ -1273,6 +1285,11 @@ struct DescriptorState
     {
         origData.push_back(*ptr++);
         origData.push_back(*ptr);
+    }
+
+    void addToPreambule(const std::vector<uint8_t>& data)
+    {
+        preambula.insert(preambula.end(), data.begin(), data.end());
     }
 
     void serializeSpDelta(int delta)
@@ -1491,8 +1508,7 @@ int serializeMainData(
         // align timing for RastrForMulticolor part
         int ticksDelta = ticksRest - descriptor.rastrForMulticolor.codeInfo.ticks;
         auto extraDelay = Z80Parser::genDelay(ticksDelta);
-        descriptor.rastrForMulticolor.serialize(extraDelay);
-
+        descriptor.rastrForMulticolor.addToPreambule(extraDelay);
 
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
 
@@ -1503,9 +1519,7 @@ int serializeMainData(
         // In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
         // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
         // directly in descriptor preambula.
-        descriptor.rastrForMulticolor.preambula.insert(descriptor.rastrForMulticolor.preambula.end(),
-            firstCommands.begin(), firstCommands.end());
-
+        descriptor.rastrForMulticolor.addToPreambule(firstCommands);
 
         firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToMid, kJpIxCommandLen);
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr + firstCommands.size();
@@ -1516,8 +1530,7 @@ int serializeMainData(
         auto preambula = descriptor.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
             descriptor.rastrForOffscreen.codeInfo.inputRegisters);
         preambula.serialize(descriptor.rastrForOffscreen.preambula);
-        descriptor.rastrForOffscreen.preambula.insert(descriptor.rastrForOffscreen.preambula.end(),
-            firstCommands.begin(), firstCommands.end());
+        descriptor.rastrForOffscreen.addToPreambule(firstCommands);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);

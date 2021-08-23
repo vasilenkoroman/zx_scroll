@@ -83,7 +83,12 @@ void CompressedLine::append(const uint8_t* buffer, int size)
         data.push_back(*buffer++);
 }
 
-std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const 
+void CompressedLine::append(const std::vector<uint8_t>& data)
+{
+    append(data.data(), data.size());
+}
+
+std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const
 {
     return Z80Parser::getCode(data.buffer(), size);
 }
@@ -95,7 +100,7 @@ void CompressedLine::splitPreLoadAndPush(CompressedLine* preloadLine, Compressed
     const uint8_t* end = data.buffer() + data.size();
     bool canUsePreload = true;
     uint8_t regUseMask = 0;
-    
+
     static const uint8_t bcMask = 0x03;
     static const uint8_t deMask = 0xc0;
     static const uint8_t hlMask = 0x30;
@@ -104,7 +109,7 @@ void CompressedLine::splitPreLoadAndPush(CompressedLine* preloadLine, Compressed
     {
         int commandSize = Z80Parser::parseCommand(ptr).size;
         bool toPreload = false;
-        
+
         switch (*ptr)
         {
             case 0x01: // LD BC, XX
