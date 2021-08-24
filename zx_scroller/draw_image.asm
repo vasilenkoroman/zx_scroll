@@ -308,8 +308,8 @@ DRAW_RASTR_AND_MULTICOLOR_LINE_0:
 
 RASTR_N?        LD HL, 0
                 ; hl - rastr for multicolor ( up to 8 lines)
-                //ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
-                ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
+                //ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
 
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
@@ -319,8 +319,8 @@ RASTR_N?        LD HL, 0
     MACRO DRAW_RASTR_LINE N?:
 RASTR_N?        LD HL, 0
                 ; hl - rastr for multicolor ( up to 8 lines)
-                //ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
-                ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
+                //ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
 
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
@@ -347,14 +347,14 @@ draw_rastr_and_multicolor_lines:
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
         exx
-        pop hl: ld (RASTR_8+1), hl
-        pop hl: ld (RASTR_9+1), hl
-        pop hl: ld (RASTR_10+1), hl
-        pop hl: ld (RASTR_11+1), hl
-        pop hl: ld (RASTR_12+1), hl
-        pop hl: ld (RASTR_13+1), hl
-        pop hl: ld (RASTR_14+1), hl
         pop hl: ld (RASTR_15+1), hl
+        pop hl: ld (RASTR_14+1), hl
+        pop hl: ld (RASTR_13+1), hl
+        pop hl: ld (RASTR_12+1), hl
+        pop hl: ld (RASTR_11+1), hl
+        pop hl: ld (RASTR_10+1), hl
+        pop hl: ld (RASTR_9+1), hl
+        pop hl: ld (RASTR_8+1), hl
         exx
 
         // Draw middle 3-th of rastr during top 3-th of colors
@@ -364,32 +364,32 @@ draw_rastr_and_multicolor_lines:
         ld sp, hl
 
         exx
-        pop hl: ld (RASTR_0+1), hl
-        pop hl: ld (RASTR_1+1), hl
-        pop hl: ld (RASTR_2+1), hl
-        pop hl: ld (RASTR_3+1), hl
-        pop hl: ld (RASTR_4+1), hl
-        pop hl: ld (RASTR_5+1), hl
-        pop hl: ld (RASTR_6+1), hl
         pop hl: ld (RASTR_7+1), hl
+        pop hl: ld (RASTR_6+1), hl
+        pop hl: ld (RASTR_5+1), hl
+        pop hl: ld (RASTR_4+1), hl
+        pop hl: ld (RASTR_3+1), hl
+        pop hl: ld (RASTR_2+1), hl
+        pop hl: ld (RASTR_1+1), hl
+        pop hl: ld (RASTR_0+1), hl
         exx
 
         // Draw top 3-th of rastr during bottom 3-th of colors
         // TODO: it should be a next frame
 
-        ld sp, 64*2
+        ld sp, 63*2
         add hl, sp
         ld sp, hl
 
         exx
-        pop hl: ld (RASTR_16+1), hl
-        pop hl: ld (RASTR_17+1), hl
-        pop hl: ld (RASTR_18+1), hl
-        pop hl: ld (RASTR_19+1), hl
-        pop hl: ld (RASTR_20+1), hl
-        pop hl: ld (RASTR_21+1), hl
-        pop hl: ld (RASTR_22+1), hl
         pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (RASTR_16+1), hl
         exx
 
         // calculate address of the MC descriptors
@@ -436,10 +436,10 @@ draw_rastr_and_multicolor_lines:
         DRAW_RASTR_AND_MULTICOLOR_LINE 20
         DRAW_RASTR_AND_MULTICOLOR_LINE 21
         DRAW_RASTR_AND_MULTICOLOR_LINE 22
-        DRAW_RASTR_AND_MULTICOLOR_LINE 23
+        //DRAW_RASTR_AND_MULTICOLOR_LINE 23
+        DRAW_MULTICOLOR_LINE 23
 
         ld sp, (stack_bottom + 4)
-
         pop bc
 
         dec bc
@@ -449,6 +449,12 @@ draw_rastr_and_multicolor_lines:
         ld bc, 191
 .ok
         call update_jp_ix_table
+        push bc
+
+        DRAW_RASTR_LINE 23
+        ld sp, (stack_bottom + 4)
+        pop bc
+
         push bc
         call draw_offscreen_rastr
         pop bc
