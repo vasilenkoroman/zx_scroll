@@ -1743,44 +1743,34 @@ int serializeRastrForOffscreenDescriptors(
     }
 }
 
-int getTicksChainFor64Line(const CompressedData& data, int screenLineNum)
+int getTicksChainFor64Line(
+    const std::vector<LineDescriptor>& descriptors,
+    int screenLineNum)
 {
     static const int kEnterDelay = 4;
     static const int kReturnDelay = 8;
 
     int result = 0;
-    const int imageHeight = data.data.size();
+    const int imageHeight = descriptors.size();
     screenLineNum = screenLineNum % imageHeight;
 
     const int bankSize = imageHeight / 8;
-    int bankNum = screenLineNum % 8;
-    int lineInBank = screenLineNum / 8;
 
     for (int b = 0; b < 8; ++b)
     {
-        bool firstLineInBank = true;
-        int lineInBankCur = lineInBank;
-        for (int i = 0; i < 8; ++i)
-        {
-            const auto& line = data.data[lineInBankCur + bankNum * bankSize];
-            if (firstLineInBank)
-                result += line.getSerializedUsedRegisters().drawTicks;
-            result += line.drawTicks;
-            firstLineInBank = false;
-            lineInBankCur = nextLineInBank(lineInBankCur, imageHeight);
-        }
+        int lineNumber = (screenLineNum + b) % imageHeight;
+        const auto& d = descriptors[lineNumber];
+        result += d.rastrForOffscreen.codeInfo.ticks;
+        auto preambula = d.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
+            d.rastrForOffscreen.codeInfo.inputRegisters);
+        result += preambula.drawTicks;
+
         // The last line in every bank contains "JP firstLine" command. It is 10 ticks.
         // In case of it is the latest drawing line, this command is overwritten by JP IX,
         // this command is not need to take into account.
-        if (lineInBankCur == 0)
+        int lineInBank = lineNumber / 8;
+        if (lineInBank + 8  == bankSize)
             result -= kJpFirstLineDelay;
-
-        ++bankNum;
-        if (bankNum > 7)
-        {
-            bankNum = 0;
-            lineInBank = nextLineInBank(lineInBank, imageHeight);
-        }
     }
     result += kEnterDelay + kReturnDelay;
     return result;
@@ -1807,7 +1797,9 @@ int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
     return result;
 }
 
-int serializeTimingData(const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
+int serializeTimingData(
+    const std::vector<LineDescriptor>& descriptors,
+    const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
 {
     using namespace std;
 
@@ -1826,9 +1818,10 @@ int serializeTimingData(const CompressedData& data, const CompressedData& color,
         int ticks = 0;
         for (int i = 0; i < 3; ++i)
         {
-            ticks += getTicksChainFor64Line(data, line + i * 64);
+            ticks += getTicksChainFor64Line(descriptors, line + i * 64);
             //ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
         }
+        ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
@@ -1956,7 +1949,7 @@ int main(int argc, char** argv)
     serializeRastrForOffscreenDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    serializeTimingData(data, colorData, outputFileName);
+    serializeTimingData(descriptors, data, colorData, outputFileName);
 
 
     return 0;
