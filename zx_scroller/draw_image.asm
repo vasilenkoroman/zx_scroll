@@ -336,7 +336,7 @@ RASTR_N?        LD HL, 0
     ENDM                
 
 draw_rastr_and_multicolor_lines:
-        ld (stack_bottom + 4), sp
+        ld (stack_bottom), sp
 
         ld hl, bc
         add hl, hl // * 2
@@ -376,7 +376,7 @@ draw_rastr_and_multicolor_lines:
         // Draw top 3-th of rastr during bottom 3-th of colors
         // TODO: it should be a next frame
 
-        ld sp, 64*2
+        ld sp, 63*2
         add hl, sp
         ld sp, hl
 
@@ -435,10 +435,10 @@ draw_rastr_and_multicolor_lines:
         DRAW_RASTR_AND_MULTICOLOR_LINE 20
         DRAW_RASTR_AND_MULTICOLOR_LINE 21
         DRAW_RASTR_AND_MULTICOLOR_LINE 22
-        DRAW_RASTR_AND_MULTICOLOR_LINE 23
-        //DRAW_MULTICOLOR_LINE 23
+        //DRAW_RASTR_AND_MULTICOLOR_LINE 23
+        DRAW_MULTICOLOR_LINE 23
 
-        ld sp, (stack_bottom + 4)
+        ld sp, (stack_bottom)
         ret
 
 
@@ -482,21 +482,37 @@ ticks_to_wait equ sync_tick - ticks_after_interrupt
 max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
         ld bc, 0h                       ; 10  ticks
-        jp .loop
-.lower_limit_reached:
+        jp loop1
+lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
-.loop:  
+loop:  
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
         call update_jp_ix_table
+        exx
+        scf
+        ld (stack_top), sp
+        DRAW_RASTR_LINE 23
+        ld sp, (stack_top)
+        exx
+
+loop1:
+        push bc
+        call draw_offscreen_rastr
+        pop bc
 
         push bc
         call draw_rastr_and_multicolor_lines
         pop bc
-        push bc
-        call draw_offscreen_rastr
-        pop bc
+/*
+        exx
+        scf
+        ld (stack_top), sp
+        DRAW_RASTR_LINE 23
+        ld sp, (stack_top)
+        exx
+*/        
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
@@ -531,8 +547,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
         cp 0xff
 
         ; compare to N
-        jp z, .lower_limit_reached      ; 10 ticks
-        jp .loop                        ; 12 ticks
+        jp z, lower_limit_reached      ; 10 ticks
+        jp loop                        ; 12 ticks
  
 /*************** Data segment ******************/
 STACK_SIZE: equ 16  ; in words
