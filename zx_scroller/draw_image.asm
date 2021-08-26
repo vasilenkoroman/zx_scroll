@@ -407,6 +407,8 @@ draw_rastr_and_multicolor_lines:
         ex de, hl
         exx
 
+
+
         scf     // aligned data uses ret nc. prevent these ret
 
         // (stack_bottom) - multicolor descriptors
@@ -428,6 +430,23 @@ draw_rastr_and_multicolor_lines:
         DRAW_RASTR_AND_MULTICOLOR_LINE 13
         DRAW_RASTR_AND_MULTICOLOR_LINE 14
         DRAW_RASTR_AND_MULTICOLOR_LINE 15
+
+
+        ld sp, (stack_bottom)
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+        call long_delay
+
+
+
         DRAW_RASTR_AND_MULTICOLOR_LINE 16
         DRAW_RASTR_AND_MULTICOLOR_LINE 17
         DRAW_RASTR_AND_MULTICOLOR_LINE 18
@@ -516,7 +535,7 @@ loop1:
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
-
+/*
         ; delay
         ld hl, timings_data
         add hl, bc
@@ -529,17 +548,7 @@ loop1:
         add hl, de
 
         call delay
-
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
+*/        
 
         ; do increment
         dec bc

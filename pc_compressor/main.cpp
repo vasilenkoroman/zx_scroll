@@ -1909,7 +1909,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters; // | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
