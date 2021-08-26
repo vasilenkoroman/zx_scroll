@@ -37,7 +37,7 @@ static const int forceToUseExistingRegisters = 32;
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 0;
+static const int kRtMcContextSwitchDelay = 86;
 static const int kTicksOnScreenPerByte = 4;
 static const int kJpIxCommandLen = 2;
 

@@ -284,55 +284,26 @@ rep:    ld hl, 65535
         pop bc
         ret
 
-DRAW_RASTR_AND_MULTICOLOR_LINE_0:
-                ; hl - rastr for multicolor ( up to 8 lines)
-                ld sp, screen_addr + 0 * 256 + 256      ; 10
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-
-                ; draw RT colors (1 line)
-                exx                                     ; 4
-                ld sp, color_addr + 0 * 32 + 32         ; 10
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                exx                                     ; 4
-                // total ticks: 74
-
     MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
-                ; draw RT colors (1 line)
-                exx                                     ; 4
-                ld sp, color_addr + N? * 32 + 32         ; 10
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                exx                                     ; 4
-
-RASTR_N?        LD HL, 0
-                ; hl - rastr for multicolor ( up to 8 lines)
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
-                //ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
-
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                // total ticks: 74
+        DRAW_MULTICOLOR_LINE  N?
+        DRAW_RASTR_LINE N?
+        // total ticks: 70 (86 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
-RASTR_N?        LD HL, 0
-                ; hl - rastr for multicolor ( up to 8 lines)
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256      ; 10
-                //ld sp, screen_addr + (N?/8 + 1)*2048 % 6144 + 2048 - (N? % 8)*256
-
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                // total ticks: 74
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256        ; 10
+                ld ix, $ + 7                                            ; 14
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
+                // total ticks: 34 (40 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_LINE N?:
                 exx                                     ; 4
-                ld sp, color_addr + N? * 32 + 32         ; 10
+                ld sp, color_addr + N? * 32 + 32        ; 10
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
                 exx                                     ; 4
+                // total ticks: 36 (44 with ret)
     ENDM                
 
 draw_rastr_and_multicolor_lines:
@@ -374,9 +345,7 @@ draw_rastr_and_multicolor_lines:
         exx
 
         // Draw top 3-th of rastr during bottom 3-th of colors
-        // TODO: it should be a next frame
-
-        ld sp, 63*2
+        ld sp, 63*2  ; shift to 63 instead of 64 to move on next frame
         add hl, sp
         ld sp, hl
 
@@ -407,13 +376,7 @@ draw_rastr_and_multicolor_lines:
         ex de, hl
         exx
 
-
-
         scf     // aligned data uses ret nc. prevent these ret
-
-        // (stack_bottom) - multicolor descriptors
-
-//RASTR_0:  ld HL, 0: JP DRAW_RASTR_AND_MULTICOLOR_LINE_0
         DRAW_RASTR_AND_MULTICOLOR_LINE 0
         DRAW_RASTR_AND_MULTICOLOR_LINE 1
         DRAW_RASTR_AND_MULTICOLOR_LINE 2
@@ -431,7 +394,6 @@ draw_rastr_and_multicolor_lines:
         DRAW_RASTR_AND_MULTICOLOR_LINE 14
         DRAW_RASTR_AND_MULTICOLOR_LINE 15
 
-
         ld sp, (stack_bottom)
         call long_delay
         call long_delay
@@ -445,8 +407,6 @@ draw_rastr_and_multicolor_lines:
         call long_delay
         call long_delay
 
-
-
         DRAW_RASTR_AND_MULTICOLOR_LINE 16
         DRAW_RASTR_AND_MULTICOLOR_LINE 17
         DRAW_RASTR_AND_MULTICOLOR_LINE 18
@@ -454,7 +414,7 @@ draw_rastr_and_multicolor_lines:
         DRAW_RASTR_AND_MULTICOLOR_LINE 20
         DRAW_RASTR_AND_MULTICOLOR_LINE 21
         DRAW_RASTR_AND_MULTICOLOR_LINE 22
-        //DRAW_RASTR_AND_MULTICOLOR_LINE 23
+        ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
         ld sp, (stack_bottom)
