@@ -1799,24 +1799,25 @@ int getTicksChainFor64Line(
     return result;
 }
 
-int getColorTicksChainFor8Line(const CompressedData& data, int lineNum)
+int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
 {
-    static const int kEnterDelay = 4;
-    static const int kReturnDelay = 8;
-
     int result = 0;
     const int imageHeight = data.data.size();
-    lineNum = lineNum % imageHeight;
 
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 24; ++i)
     {
-        const auto& line = data.data[lineNum];
-        if (i == 0)
-            result += line.getSerializedUsedRegisters().drawTicks;
+        int l  = (lineNum + i) % imageHeight;
+        const auto& line = data.data[l];
         result += line.drawTicks;
-        lineNum = (lineNum + 1) % imageHeight;
+        if (data.data.size() == 24)
+            result += 7; //< Image height 192 has additional filler LD A, 0 for color lines.
     }
-    result += kEnterDelay + kReturnDelay;
+
+    // End line contains JP <first line> command. If drawing is stoppeed on the end line this command is not executed.
+    int endLine = (lineNum + 24) % imageHeight;
+    if (endLine == 0)
+        result -= kJpFirstLineDelay;
+
     return result;
 }
 
@@ -1842,8 +1843,8 @@ int serializeTimingData(
         for (int i = 0; i < 3; ++i)
         {
             ticks += getTicksChainFor64Line(descriptors, line + i * 64);
-            ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
         }
+        ticks += getColorTicksForWholeFrame(color, line / 8);
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
