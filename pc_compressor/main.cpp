@@ -15,6 +15,8 @@
 #include "registers.h"
 #include "code_parser.h"
 
+#define TEMP_FOR_TEST_COLORS 1
+
 static const int totalTicksPerFrame = 71680;
 static const int kCodeOffset = 0x5e00;
 
@@ -1236,7 +1238,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
-    int flags = verticalCompressionL | interlineRegisters;
+    int flags = verticalCompressionL; // | interlineRegisters;
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
     for (int y = 0; y < imageHeight / 8; y ++)
@@ -1321,9 +1323,15 @@ struct LineDescriptor
     // Multicolor drawing code
 };
 
-struct SimpleDescriptor
+struct MulticolorDescriptor
 {
     uint16_t addressBegin = 0;
+};
+
+struct ColorDescriptor
+{
+    uint16_t addressBegin = 0;
+    uint16_t addressEnd = 0;
 };
 
 struct JpIxDescriptor
@@ -1554,9 +1562,11 @@ int serializeMainData(
     return serializedSize;
 }
 
-int serializeColorData(const CompressedData& data, const std::string& inputFileName, uint16_t codeOffset)
+int serializeColorData(const CompressedData& colorData, const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
+
+    int imageHeight = colorData.data.size();
 
     ofstream colorDataFile;
     std::string colorDataFileName = inputFileName + ".color";
@@ -1566,48 +1576,61 @@ int serializeColorData(const CompressedData& data, const std::string& inputFileN
         std::cerr << "Can not write color file" << std::endl;
         return -1;
     }
-
-    ofstream SimpleDescriptorFile;
-
-    std::string SimpleDescriptorFileName = inputFileName + ".color_descriptor";
-    SimpleDescriptorFile.open(SimpleDescriptorFileName, std::ios::binary);
-    if (!SimpleDescriptorFile.is_open())
+    
+    ofstream descriptorFile;
+    std::string descriptorFileName = inputFileName + ".color_descriptor";
+    descriptorFile.open(descriptorFileName, std::ios::binary);
+    if (!descriptorFile.is_open())
     {
         std::cerr << "Can not write color destination file" << std::endl;
         return -1;
     }
 
-    // serialize main data
-    int imageHeight = data.data.size();
+    // serialize color data
 
     int size = 0;
-    std::vector<uint8_t> serializedData; // (data.size() + data.data.size * 16);
+    std::vector<uint8_t> serializedData;
     std::vector<int> lineOffset;
-    for (int y = 0; y < imageHeight; ++y)
-    {
-        const auto& line = data.data[y];
 
+    for (int i = 0; i < colorData.data.size(); ++i)
+    {
+        const auto& line = colorData.data[i];
         lineOffset.push_back(serializedData.size());
-        const auto loadRegPreambula = line.getSerializedUsedRegisters();
-        loadRegPreambula.serialize(serializedData);
+
+        // Currently color routing draws 24 lines at once.
+        // So, for colorHeight=24 JP_IX it will over same line that we are enter.
+        // Make filler to prevent it. It is perfomance loss, but I expect more big images ( > 192 lines) for release.
+        if (imageHeight == 24)
+        {
+            serializedData.push_back(0x3e);
+            serializedData.push_back(0);
+        }
         line.serialize(serializedData);
     }
-
+    
     // serialize color descriptors
-    std::vector<SimpleDescriptor> descriptors;
+    std::vector<ColorDescriptor> descriptors;
     for (int d = 0; d < imageHeight; ++d)
     {
-        const int srcLine = d % imageHeight;
+        const int srcLine = d;
+        const int endLine = (d + 24) % imageHeight;
 
-        SimpleDescriptor descriptor;
-        const auto& line = data.data[srcLine];
-        const uint16_t lineAddress = lineOffset[srcLine] + codeOffset;
-        descriptor.addressBegin = lineAddress;
+        ColorDescriptor descriptor;
+        
+        descriptor.addressBegin = lineOffset[srcLine] + codeOffset;
+        if (imageHeight == 24)
+            descriptor.addressBegin += 2; //< Avoid LD A,0 filler if exists.
+
+        if (endLine == 0)
+            descriptor.addressEnd = serializedData.size() - 3 + codeOffset;
+        else
+            descriptor.addressEnd = lineOffset[endLine] + codeOffset;
+
         descriptors.push_back(descriptor);
     }
-
+    
     for (const auto& descriptor: descriptors)
-        SimpleDescriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+        descriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
@@ -1666,12 +1689,12 @@ int serializeMultiColorData(
 
     // serialize multicolor descriptors
 
-    std::vector<SimpleDescriptor> descriptors;
+    std::vector<MulticolorDescriptor> descriptors;
     for (int d = 0; d < colorImageHeight + 23; ++d)
     {
         const int srcLine = d % colorImageHeight;
 
-        SimpleDescriptor descriptor;
+        MulticolorDescriptor descriptor;
         const auto& line = data.data[srcLine];
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
@@ -1819,7 +1842,7 @@ int serializeTimingData(
         for (int i = 0; i < 3; ++i)
         {
             ticks += getTicksChainFor64Line(descriptors, line + i * 64);
-            //ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
+            ticks += getColorTicksChainFor8Line(color, line/8 + i * 8);
         }
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
@@ -1942,6 +1965,9 @@ int main(int argc, char** argv)
 
     int multicolorTicks = multicolorData.data[0].drawTicks;
     int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags, multicolorTicks);
+    
+    // put JP to the latest line of colors
+    colorData.data[colorData.data.size() - 1].jp(kCodeOffset + mainDataSize);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
     serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 

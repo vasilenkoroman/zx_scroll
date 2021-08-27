@@ -28,7 +28,6 @@ mc_descriptors
 rastr_for_offscreen_descriptor
         INCBIN "resources/compressed_data.rastr_for_offscreen.descriptors"
 
-        align	2
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 
@@ -54,10 +53,70 @@ JP_IX_CODE      equ #e9dd
 LD_BC_XXXX_CODE equ 01h
 LD_DE_XXXX_CODE equ 11h
 
-        MACRO write_byte data
-                ld (hl), data
-                inc hl
-        ENDM
+/************** delay routine *************/
+
+d1      equ     17+15+21+11+15+14
+d2      equ     16
+d3      equ     20+10+11+12
+
+        ALIGN 256
+base    
+        org     base+256-58
+
+delay   xor     a               ; 4
+        or      h               ; 4
+        jr      nz,wait1        ; 12/7  20/15
+        ld      a,l             ; 4
+        sub     d1              ; 7
+        ld      hl,base+d2      ; 10    21
+wait2   sub     l               ; 4
+        jr      nc,wait2        ; 12/7  16/11
+        ld      l,a             ; 4
+        ld      l,(hl)          ; 7
+        jp      (hl)            ; 4     15
+wait1   ld      de,-d3          ; 10
+        add     hl,de           ; 11
+        jr      delay           ; 12    33
+
+t26     nop
+t22     nop
+t18     nop
+t14     nop
+        ret
+
+t27     nop
+t23     nop
+t19     nop
+t15     ret     nc
+        ret
+
+t28     nop
+t24     nop
+t20     nop
+t16     inc     hl
+        ret
+
+t29     nop
+t25     nop
+t21     nop
+t17     ld l, (hl)
+        ret
+
+table   db      t14&255,t15&255,t16&255,t17&255
+        db      t18&255,t19&255,t20&255,t21&255
+        db      t22&255,t23&255,t24&255,t25&255
+        db      t26&255,t27&255,t28&255,t29&255
+
+
+long_delay:
+        push bc
+        ld b, 2
+rep:    ld hl, 65535
+        call delay
+        djnz rep
+        pop bc
+        ret
+
 
 /*************** Draw 8 lines of image.  ******************/
 
@@ -131,15 +190,41 @@ prepare_interruption_table:
         ENDM
                 // total 66 ticks (15 bytes)
 
-        MACRO draw_8_color_lines
-                ld e, (hl)                                      ; 7
-                inc l                                           ; 4
-                ld d, (hl)                                      ; 7
-                ex de, hl                                       ; 4
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                // total: 40
-        ENDM
+draw_colors
+        ; bc - line number / 4
+
+        ld hl, color_descriptor                         ; 10
+        add hl, bc                                      ; 11
+        ld sp, hl                                       ; 6
+        ; iy - address to execute
+        pop iy                                          ; 14
+        ; hl - end of exec address
+        pop hl                                          ; 10
+
+        ; write JP_IX to end exec address, 
+        ; store original data to HL
+        ; store end exec address to de
+        ld sp, hl                                       ; 6
+        ld de, JP_IX_CODE                               ; 10
+        ex de, hl                                       ; 4
+        ex (sp), hl                                     ; 19
+
+        exx                                             ; 4
+        ld sp, color_addr + 768
+        ld ix, $ + 6                                    ; 14
+        jp iy                                           ; 4
+        exx                                             ; 4
+
+        ; Restore data
+        ex hl, de                                       ; 4
+
+        ld (hl), e                                      ; 7
+        inc hl                                          ; 6
+        ld (hl), d                                      ; 7
+
+        ; total 140
+
+        jp draw_colors_end
 
 draw_offscreen_rastr
         ; bc - line number
@@ -220,70 +305,6 @@ update_jp_ix_table
                 ret
        
 
-/************** delay routine *************/
-
-d1      equ     17+15+21+11+15+14
-d2      equ     16
-d3      equ     20+10+11+12
-
-        ALIGN 256
-base    
-        org     base+256-58
-
-delay   xor     a               ; 4
-        or      h               ; 4
-        jr      nz,wait1        ; 12/7  20/15
-        ld      a,l             ; 4
-        sub     d1              ; 7
-        ld      hl,base+d2      ; 10    21
-wait2   sub     l               ; 4
-        jr      nc,wait2        ; 12/7  16/11
-        ld      l,a             ; 4
-        ld      l,(hl)          ; 7
-        jp      (hl)            ; 4     15
-wait1   ld      de,-d3          ; 10
-        add     hl,de           ; 11
-        jr      delay           ; 12    33
-
-t26     nop
-t22     nop
-t18     nop
-t14     nop
-        ret
-
-t27     nop
-t23     nop
-t19     nop
-t15     ret     nc
-        ret
-
-t28     nop
-t24     nop
-t20     nop
-t16     inc     hl
-        ret
-
-t29     nop
-t25     nop
-t21     nop
-t17     ld l, (hl)
-        ret
-
-table   db      t14&255,t15&255,t16&255,t17&255
-        db      t18&255,t19&255,t20&255,t21&255
-        db      t22&255,t23&255,t24&255,t25&255
-        db      t26&255,t27&255,t28&255,t29&255
-
-
-long_delay:
-        push bc
-        ld b, 2
-rep:    ld hl, 65535
-        call delay
-        djnz rep
-        pop bc
-        ret
-
     MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
         DRAW_MULTICOLOR_LINE  N?
         DRAW_RASTR_LINE N?
@@ -360,22 +381,30 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_16+1), hl
         exx
 
-        // calculate address of the MC descriptors
+        // calculate bc / 2
         ld a, c
+        and ~7
         srl b
         rra
-        srl b
-        rra
-        and ~1
         ld c, a
+
+        jp draw_colors
+draw_colors_end        
+
+        // calculate bc / 4
+        srl b
+        rr c
+
+
+        // calculate address of the MC descriptors
         ld hl, mc_descriptors + 23*2 // Draw from 0 to 23 is backward direction
         add hl, bc
         ld e, (hl)
         inc l
         ld d, (hl)
         ex de, hl
-        exx
 
+        exx
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_RASTR_AND_MULTICOLOR_LINE 0
         DRAW_RASTR_AND_MULTICOLOR_LINE 1
