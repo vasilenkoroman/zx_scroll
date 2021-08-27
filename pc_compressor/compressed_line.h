@@ -47,7 +47,7 @@ public:
     inline void push_front(uint8_t value)
     {
         assert(m_size < sizeof(m_buffer));
-        memcpy(m_buffer+1, m_buffer, m_size);
+        memmove(m_buffer+1, m_buffer, m_size);
         m_buffer[0] = value;
         m_size++;
     }

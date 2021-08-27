@@ -571,7 +571,6 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 uint16_t jumpTo = ptr[1] + ((uint16_t)ptr[2] << 8);
                 jumpTo -= codeOffset;
                 ptr = serializedData.data() + jumpTo;
-                result.ticks += command.ticks;
                 continue;
             }
             case 0xc5: // push BC
