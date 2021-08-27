@@ -1788,13 +1788,6 @@ int getTicksChainFor64Line(
         auto preambula = d.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
             d.rastrForOffscreen.codeInfo.inputRegisters);
         result += preambula.drawTicks;
-
-        // The last line in every bank contains "JP firstLine" command. It is 10 ticks.
-        // In case of it is the latest drawing line, this command is overwritten by JP IX,
-        // this command is not need to take into account.
-        int lineInBank = lineNumber / 8;
-        if (lineInBank + 8  == bankSize)
-            result -= kJpFirstLineDelay;
     }
     result += kEnterDelay + kReturnDelay;
     return result;

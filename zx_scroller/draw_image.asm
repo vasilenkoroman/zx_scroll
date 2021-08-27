@@ -423,19 +423,6 @@ draw_colors_end
         DRAW_RASTR_AND_MULTICOLOR_LINE 14
         DRAW_RASTR_AND_MULTICOLOR_LINE 15
 
-        ld sp, (stack_bottom)
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-        call long_delay
-
         DRAW_RASTR_AND_MULTICOLOR_LINE 16
         DRAW_RASTR_AND_MULTICOLOR_LINE 17
         DRAW_RASTR_AND_MULTICOLOR_LINE 18
@@ -513,18 +500,9 @@ loop1:
         push bc
         call draw_rastr_and_multicolor_lines
         pop bc
-/*
-        exx
-        scf
-        ld (stack_top), sp
-        DRAW_RASTR_LINE 23
-        ld sp, (stack_top)
-        exx
-*/        
 
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
-/*
         ; delay
         ld hl, timings_data
         add hl, bc
@@ -533,11 +511,10 @@ loop1:
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-74411;  // extra delay
+        ld hl,  0;  // extra delay
         add hl, de
 
         call delay
-*/        
 
         ; do increment
         dec bc
