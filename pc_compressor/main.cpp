@@ -1619,9 +1619,9 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
     
     // serialize color descriptors
     std::vector<ColorDescriptor> descriptors;
-    for (int d = 0; d < imageHeight; ++d)
+    for (int d = 0; d <= imageHeight; ++d)
     {
-        const int srcLine = d;
+        const int srcLine = d % imageHeight;
         const int endLine = (d + 24) % imageHeight;
 
         ColorDescriptor descriptor;
@@ -1699,7 +1699,7 @@ int serializeMultiColorData(
     // serialize multicolor descriptors
 
     std::vector<MulticolorDescriptor> descriptors;
-    for (int d = 0; d < colorImageHeight + 24; ++d)
+    for (int d = 0; d < colorImageHeight + 25; ++d)
     {
         const int srcLine = d % colorImageHeight;
 
@@ -1865,17 +1865,17 @@ int serializeTimingData(
             ticks += 5;
         }
 
-        if (line % 8 == 1)
+        if (line % 8 == 0)
         {
             // It is jr xx currently in the Z80 code. This branch is in 5 ticks longer.
             
-            // Draw next frame longer in  7 lines faster
-            ticks += kLineDurationInTicks * 7;
+            // Draw next frame longer in  6 lines
+            ticks -= kLineDurationInTicks * 6;
         }
-        else
+        else if (line % 8 > 1)
         {
-            // Draw next frame longer in one line ( 7 lines total)
-            ticks -= kLineDurationInTicks;
+            // Draw next frame faster in one line ( 7 times)
+            ticks += kLineDurationInTicks;
         }
 
 

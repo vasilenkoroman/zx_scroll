@@ -380,10 +380,13 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_16+1), hl
         exx
 
-
         ld a, 7
         and c
         ex af, af'
+
+        ld hl, 7
+        add hl, bc
+        ld bc, hl
 
         // calculate flor(bc,8) / 2
         ld a, ~7
@@ -406,7 +409,7 @@ draw_colors_end
         ld hl, mc_descriptors + 23*2
         jp common
 shift_line: 
-        ld hl, mc_descriptors + 24*2
+        ld hl, mc_descriptors + 22*2
 common:
 
         add hl, bc
@@ -488,7 +491,7 @@ screen_ticks  equ 71680
 first_rastr_line_tick equ  17920
 ticks_per_line equ  224
 
-initial_delay equ 55749
+initial_delay equ 56170
 sync_tick equ screen_ticks + first_rastr_line_tick - first_timing_in_interrupt - initial_delay
 
         ld hl, 32768
@@ -534,7 +537,7 @@ loop1:
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-73780;  // extra delay
+        ld hl,  71680-73809;  // extra delay
         add hl, de
 
         call delay
