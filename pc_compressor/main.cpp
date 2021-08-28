@@ -1238,7 +1238,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
-    int flags = verticalCompressionL; // | interlineRegisters;
+    int flags = verticalCompressionL | verticalCompressionH; // | interlineRegisters;
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
     for (int y = 0; y < imageHeight / 8; y ++)
@@ -1699,7 +1699,7 @@ int serializeMultiColorData(
     // serialize multicolor descriptors
 
     std::vector<MulticolorDescriptor> descriptors;
-    for (int d = 0; d < colorImageHeight + 23; ++d)
+    for (int d = 0; d < colorImageHeight + 24; ++d)
     {
         const int srcLine = d % colorImageHeight;
 
@@ -1858,6 +1858,26 @@ int serializeTimingData(
         // colors
         ticks += getColorTicksForWholeFrame(color, line / 8);
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
+
+        if (line % 8 == 0)
+        {
+            // It is jr xx currently in the Z80 code. This branch is in 5 ticks longer.
+            ticks += 5;
+        }
+
+        if (line % 8 == 1)
+        {
+            // It is jr xx currently in the Z80 code. This branch is in 5 ticks longer.
+            
+            // Draw next frame longer in  7 lines faster
+            ticks += kLineDurationInTicks * 7;
+        }
+        else
+        {
+            // Draw next frame longer in one line ( 7 lines total)
+            ticks -= kLineDurationInTicks;
+        }
+
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));

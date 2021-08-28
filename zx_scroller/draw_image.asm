@@ -1,5 +1,3 @@
-        INCLUDE "wait_ticks.asm"
-
         DEVICE zxspectrum48
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
@@ -382,9 +380,14 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_16+1), hl
         exx
 
-        // calculate bc / 2
-        ld a, c
-        and ~7
+
+        ld a, 7
+        and c
+        ex af, af'
+
+        // calculate flor(bc,8) / 2
+        ld a, ~7
+        and c
         srl b
         rra
         ld c, a
@@ -392,13 +395,20 @@ draw_rastr_and_multicolor_lines:
         jp draw_colors
 draw_colors_end        
 
-        // calculate bc / 4
+        // calculate ceil(bc,8) / 4
         srl b
         rr c
 
-
+        ex af, af'
         // calculate address of the MC descriptors
-        ld hl, mc_descriptors + 23*2 // Draw from 0 to 23 is backward direction
+        // Draw from 0 to 23 is backward direction
+        jr nz, shift_line
+        ld hl, mc_descriptors + 23*2
+        jp common
+shift_line: 
+        ld hl, mc_descriptors + 24*2
+common:
+
         add hl, bc
         ld e, (hl)
         inc l
@@ -407,6 +417,17 @@ draw_colors_end
 
         exx
         scf     // aligned data uses ret nc. prevent these ret
+
+        ld a, 1                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
+
+/*
+        ld hl, 71680/2 - 10
+        call delay
+        ld hl, 71680/2 - 10
+        call delay
+*/        
+
         DRAW_RASTR_AND_MULTICOLOR_LINE 0
         DRAW_RASTR_AND_MULTICOLOR_LINE 1
         DRAW_RASTR_AND_MULTICOLOR_LINE 2
@@ -434,6 +455,9 @@ draw_colors_end
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
+        ld a, 2                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
+
         ld sp, (stack_bottom)
         ret
 
@@ -443,12 +467,10 @@ main:
         di
         ld sp, stack_top
 
-        ; Change border color
-        ld a, 1
-        out 0xfe,a
-
         call copy_image
         call copy_colors
+
+        call write_initial_jp_ix_table
 
         call prepare_interruption_table
         ei
@@ -461,19 +483,19 @@ first_timing_in_interrupt equ 21
         ; remove interrupt data from stack
         pop af                          ; 10 ticks
 
-        call write_initial_jp_ix_table
-
-
-ticks_after_interrupt equ first_timing_in_interrupt + 34
 
 screen_ticks  equ 71680
 first_rastr_line_tick equ  17920
 ticks_per_line equ  224
 
-sync_tick equ first_rastr_line_tick + ticks_per_line * 64
-ticks_to_wait equ sync_tick - ticks_after_interrupt
+initial_delay equ 55749
+sync_tick equ screen_ticks + first_rastr_line_tick - first_timing_in_interrupt - initial_delay
 
-        wait_ticks ticks_to_wait
+        ld hl, 32768
+        call delay
+
+        ld hl, sync_tick
+        call delay
 
 max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 
@@ -482,8 +504,8 @@ max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
 loop:  
-        ld a, 1                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
+        //ld a, 1                         ; 7 ticks
+        //out 0xfe,a                      ; 11 ticks
 
         call update_jp_ix_table
         exx
@@ -502,8 +524,8 @@ loop1:
         call draw_rastr_and_multicolor_lines
         pop bc
 
-        ld a, 2                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
+        //ld a, 2                         ; 7 ticks
+        //out 0xfe,a                      ; 11 ticks
         ; delay
         ld hl, timings_data
         add hl, bc
@@ -512,7 +534,7 @@ loop1:
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  71680-73749;  // extra delay
+        ld hl,  71680-73780;  // extra delay
         add hl, de
 
         call delay
