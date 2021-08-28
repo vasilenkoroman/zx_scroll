@@ -1856,7 +1856,7 @@ int serializeTimingData(
             ticks += getTicksChainFor64Line(descriptors, line + i * 64);
 
         // colors
-        ticks += getColorTicksForWholeFrame(color, line / 8);
+        ticks += getColorTicksForWholeFrame(color, (line+7)/ 8);
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
         if (line % 8 == 0)
@@ -1867,17 +1867,16 @@ int serializeTimingData(
 
         if (line % 8 == 0)
         {
-            // It is jr xx currently in the Z80 code. This branch is in 5 ticks longer.
-            
             // Draw next frame longer in  6 lines
-            ticks -= kLineDurationInTicks * 6;
+            ticks -= kLineDurationInTicks * 7;
         }
-        else if (line % 8 > 1)
+        else //if (line % 8 > 1)
         {
-            // Draw next frame faster in one line ( 7 times)
+            // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-
+        static const int kZ80CodeDelay = 2142;
+        ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));

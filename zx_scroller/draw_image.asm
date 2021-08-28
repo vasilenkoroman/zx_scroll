@@ -106,16 +106,6 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t26&255,t27&255,t28&255,t29&255
 
 
-long_delay:
-        push bc
-        ld b, 2
-rep:    ld hl, 65535
-        call delay
-        djnz rep
-        pop bc
-        ret
-
-
 /*************** Draw 8 lines of image.  ******************/
 
 
@@ -411,25 +401,31 @@ draw_colors_end
 shift_line: 
         ld hl, mc_descriptors + 22*2
 common:
-
+        // prepare in HL' multicolor address to execute
         add hl, bc
         ld e, (hl)
         inc l
         ld d, (hl)
         ex de, hl
-
         exx
+
+        ; delay
+        ld hl, timings_data
+        ld bc, (stack_top-2)
+        add hl, bc
+        add hl, bc
+
+        ld e, (hl)
+        inc l
+        ld d, (hl)
+        ex de, hl
+        ld sp, stack_bottom + 4
+        call delay
+
         scf     // aligned data uses ret nc. prevent these ret
 
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
-
-/*
-        ld hl, 71680/2 - 10
-        call delay
-        ld hl, 71680/2 - 10
-        call delay
-*/        
 
         DRAW_RASTR_AND_MULTICOLOR_LINE 0
         DRAW_RASTR_AND_MULTICOLOR_LINE 1
@@ -473,8 +469,6 @@ main:
         call copy_image
         call copy_colors
 
-        call write_initial_jp_ix_table
-
         call prepare_interruption_table
         ei
         halt
@@ -486,16 +480,15 @@ first_timing_in_interrupt equ 21
         ; remove interrupt data from stack
         pop af                          ; 10 ticks
 
+        call write_initial_jp_ix_table
 
 screen_ticks  equ 71680
 first_rastr_line_tick equ  17920
 ticks_per_line equ  224
 
-initial_delay equ 56170
-sync_tick equ screen_ticks + first_rastr_line_tick - first_timing_in_interrupt - initial_delay
-
-        ld hl, 32768
-        call delay
+initial_delay equ 32050
+sync_tick equ screen_ticks + first_rastr_line_tick - first_timing_in_interrupt - initial_delay + 224*7
+        assert (sync_tick <= 65535)
 
         ld hl, sync_tick
         call delay
@@ -526,21 +519,6 @@ loop1:
         push bc
         call draw_rastr_and_multicolor_lines
         pop bc
-
-        //ld a, 2                         ; 7 ticks
-        //out 0xfe,a                      ; 11 ticks
-        ; delay
-        ld hl, timings_data
-        add hl, bc
-        add hl, bc
-
-        ld e, (hl)
-        inc l
-        ld d, (hl)
-        ld hl,  71680-73809;  // extra delay
-        add hl, de
-
-        call delay
 
         ; do increment
         dec bc
