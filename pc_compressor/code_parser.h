@@ -18,6 +18,7 @@ struct Z80CodeInfo
     std::vector<Register16> inputRegisters;
     std::vector<Register16> outputRegisters;
     RegUsageInfo regUsage;
+    bool hasJump = false;
 };
 
 class Z80Parser
@@ -25,7 +26,9 @@ class Z80Parser
 public:
     static z80Command parseCommand(const uint8_t* ptr);
 
-    Z80CodeInfo parseCodeToTick(
+    static Z80CodeInfo parseCode(const std::vector<uint8_t>& serializedData);
+
+    static Z80CodeInfo parseCodeToTick(
         const std::vector<Register16>& inputRegisters,
         const std::vector<uint8_t>& serializedData,
         int startOffset,

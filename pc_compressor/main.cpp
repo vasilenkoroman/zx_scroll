@@ -1281,6 +1281,7 @@ struct DescriptorState
     uint16_t lineEndPtr = 0;     //< Stop draw lines here.
     std::vector<uint8_t> origData;    //< Saved origin data (JP IX command overwrites it).
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
+    Z80CodeInfo preambulaInfo;     //< How many ticks first commands takes in the preambula
     Z80CodeInfo codeInfo;
 
     void setOrigData(uint8_t* ptr)
@@ -1306,11 +1307,18 @@ struct DescriptorState
         data.serialize(preambula);
     }
 
+    void addJpIx()
+    {
+        if (preambulaInfo.hasJump)
+            return; //< Not need one more jump if preambula already contains it
+        preambula.push_back(0xc3); //< JP XXXX
+        preambula.push_back((uint8_t)lineStartPtr);
+        preambula.push_back(lineStartPtr >> 8);
+    }
+
     void serialize(std::vector<uint8_t>& dst)
     {
         dst.insert(dst.end(), preambula.begin(), preambula.end());
-        dst.push_back(0xc3); // JP XXXX
-        ::serialize(dst, lineStartPtr);
     }
 };
 
@@ -1456,12 +1464,8 @@ int serializeMainData(
         int lineNum = bankSize * lineBank + lineInBank;
 
         // Calculate timing for left/right parts in line.
-        //int associatedMulticolorLine = lineInBank - 8;
-        //if (associatedMulticolorLine < 0)
-        //    associatedMulticolorLine += colorsHeight;
 
         const auto& dataLine = data.data[lineNum];
-        //const auto& mcLine = multicolorData.data[associatedMulticolorLine];
 
         int lineEndInBank = lineInBank + 8;
         if (lineEndInBank > bankSize)
@@ -1519,7 +1523,7 @@ int serializeMainData(
         }
 
         std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
-
+        descriptor.rastrForMulticolor.preambulaInfo = Z80Parser::parseCode(firstCommands);
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
         descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
         descriptor.rastrForMulticolor.setOrigData(serializedData.data() + relativeOffsetToMid);
@@ -1528,8 +1532,11 @@ int serializeMainData(
         // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
         // directly in descriptor preambula.
         descriptor.rastrForMulticolor.addToPreambule(firstCommands);
+        descriptor.rastrForMulticolor.addJpIx();
+
 
         firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToMid, kJpIxCommandLen);
+        descriptor.rastrForOffscreen.preambulaInfo = Z80Parser::parseCode(firstCommands);
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr + firstCommands.size();
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
         descriptor.rastrForOffscreen.setOrigData(serializedData.data() + relativeOffsetToEnd);
@@ -1539,6 +1546,7 @@ int serializeMainData(
             descriptor.rastrForOffscreen.codeInfo.inputRegisters);
         preambula.serialize(descriptor.rastrForOffscreen.preambula);
         descriptor.rastrForOffscreen.addToPreambule(firstCommands);
+        descriptor.rastrForOffscreen.addJpIx();
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -1771,25 +1779,32 @@ int getTicksChainFor64Line(
     const std::vector<LineDescriptor>& descriptors,
     int screenLineNum)
 {
-    static const int kEnterDelay = 4;
     static const int kReturnDelay = 8;
+    static const int k8LinesFuncDelay = 66;
+    static const int kCorrectSpDelay = 27;
 
     int result = 0;
     const int imageHeight = descriptors.size();
     screenLineNum = screenLineNum % imageHeight;
 
     const int bankSize = imageHeight / 8;
-
+    
     for (int b = 0; b < 8; ++b)
     {
         int lineNumber = (screenLineNum + b) % imageHeight;
         const auto& d = descriptors[lineNumber];
-        result += d.rastrForOffscreen.codeInfo.ticks;
-        auto preambula = d.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
-            d.rastrForOffscreen.codeInfo.inputRegisters);
-        result += preambula.drawTicks;
+        
+        int sum = 0;
+        auto info = Z80Parser::parseCode(d.rastrForOffscreen.preambula);
+        sum += info.ticks;
+        sum -= d.rastrForOffscreen.preambulaInfo.ticks;
+        sum += d.rastrForOffscreen.codeInfo.ticks;
+        sum += kReturnDelay;
+        sum += k8LinesFuncDelay;
+
+        result += sum;
+
     }
-    result += kEnterDelay + kReturnDelay;
     return result;
 }
 
@@ -1819,6 +1834,8 @@ int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
 {
+    static const int kOffscreenRastrFuncDelay = 92;
+
     using namespace std;
 
     const int imageHeight = data.data.size();
@@ -1833,11 +1850,12 @@ int serializeTimingData(
 
     for (int line = 0; line < imageHeight; ++line)
     {
-        int ticks = 0;
+        // offscreen rastr
+        int ticks = kOffscreenRastrFuncDelay;
         for (int i = 0; i < 3; ++i)
-        {
             ticks += getTicksChainFor64Line(descriptors, line + i * 64);
-        }
+
+        // colors
         ticks += getColorTicksForWholeFrame(color, line / 8);
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 

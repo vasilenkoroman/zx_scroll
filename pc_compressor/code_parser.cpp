@@ -267,6 +267,19 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
     return commands[*ptr];
 }
 
+Z80CodeInfo Z80Parser::parseCode(const std::vector<uint8_t>& serializedData)
+{
+    std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    return parseCodeToTick(
+        registers, 
+        serializedData, 
+        /*start*/ 0, 
+        /*end*/ serializedData.size(), 
+        /*code offset for JP command*/ 0, 
+        std::numeric_limits<int>::max());
+}
+
+
 Z80CodeInfo Z80Parser::parseCodeToTick(
     const std::vector<Register16>& inputRegisters,
     const std::vector<uint8_t>& serializedData,
@@ -296,6 +309,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     Register8& a = af->h;
 
 
+    const uint8_t* bufferBegin = serializedData.data();
+    const uint8_t* bufferEnd = serializedData.data() + serializedData.size();
     const uint8_t* ptr = serializedData.data() + startOffset;
     const uint8_t* end = serializedData.data() + endOffset;
 
@@ -308,6 +323,9 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
     while (result.ticks < maxTicks && ptr != end)
     {
+        if (ptr < bufferBegin || ptr >= bufferEnd)
+            break;
+
         auto command = parseCommand(ptr);
         if (result.ticks + command.ticks > maxTicks)
             break;
@@ -571,6 +589,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 uint16_t jumpTo = ptr[1] + ((uint16_t)ptr[2] << 8);
                 jumpTo -= codeOffset;
                 ptr = serializedData.data() + jumpTo;
+                result.hasJump = true;
                 continue;
             }
             case 0xc5: // push BC

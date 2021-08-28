@@ -249,7 +249,8 @@ draw_offscreen_rastr
         add hl, bc                                      ; 11
         .8 draw_8_lines
 
-        ld sp, (stack_bottom)
+        ld sp, (stack_bottom)                           ; 20
+        ; // total: 92
         ret                
 
 jp_ix_record_size       equ 4
@@ -511,7 +512,7 @@ loop1:
         ld e, (hl)
         inc l
         ld d, (hl)
-        ld hl,  0;  // extra delay
+        ld hl,  71680-73749;  // extra delay
         add hl, de
 
         call delay
