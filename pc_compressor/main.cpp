@@ -1560,7 +1560,7 @@ int serializeMainData(
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     reachDescriptorFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
 
-    for (int d = 0; d < imageHeight + 191; ++d)
+    for (int d = 0; d < imageHeight + kmaxDescriptorOffset; ++d)
     {
         int lineNum = d % imageHeight;
         const auto& descriptor = descriptors[lineNum];
@@ -1699,7 +1699,7 @@ int serializeMultiColorData(
     // serialize multicolor descriptors
 
     std::vector<MulticolorDescriptor> descriptors;
-    for (int d = 0; d < colorImageHeight + 25; ++d)
+    for (int d = 0; d < colorImageHeight + 23; ++d)
     {
         const int srcLine = d % colorImageHeight;
 

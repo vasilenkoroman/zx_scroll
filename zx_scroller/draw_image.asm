@@ -17,7 +17,6 @@ color_code
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-
         align	2
 rastr_for_mc_descriptors
         INCBIN "resources/compressed_data.rastr_for_mc.descriptors"
@@ -29,11 +28,9 @@ rastr_for_offscreen_descriptor
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 
-        align	2
 jpix_table
         INCBIN "resources/compressed_data.jpix"
 
-        align	2
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
