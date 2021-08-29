@@ -1238,7 +1238,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     CompressedData compressedData;
-    int flags = verticalCompressionL | verticalCompressionH; // | interlineRegisters;
+    int flags = verticalCompressionH; // | interlineRegisters;
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
     for (int y = 0; y < imageHeight / 8; y ++)
