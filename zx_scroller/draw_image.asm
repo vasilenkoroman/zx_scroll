@@ -474,7 +474,11 @@ main:
         halt
 after_interrupt:        
         ; Pentagon timings
-first_timing_in_interrupt equ 21
+first_timing_in_interrupt       equ 22
+screen_ticks                    equ 71680
+first_rastr_line_tick           equ  17920
+screen_start_tick               equ  17988
+ticks_per_line                  equ  224
 
         di                              ; 4 ticks
         ; remove interrupt data from stack
@@ -482,12 +486,9 @@ first_timing_in_interrupt equ 21
 
         call write_initial_jp_ix_table
 
-screen_ticks  equ 71680
-first_rastr_line_tick equ  17920
-ticks_per_line equ  224
-
-initial_delay equ 32050
-sync_tick equ screen_ticks + first_rastr_line_tick - first_timing_in_interrupt - initial_delay + 224*7
+mc_preambula_delay      equ 32
+initial_delay           equ first_timing_in_interrupt + 32050 +  mc_preambula_delay
+sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
 
         ld hl, sync_tick
