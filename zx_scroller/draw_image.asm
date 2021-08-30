@@ -292,7 +292,7 @@ update_jp_ix_table
                 ld a, 0x3f
                 and c
 
-                ; hl = bank number
+                ; hl = bank offset
                 MUL_A jpix_bank_size
 
                 ; bc =  offset in bank (bc/8)
@@ -491,6 +491,16 @@ common:
         ret
 
 
+long_delay:
+        push bc
+        ld b, 2
+rep:    ld hl, 65535
+        call delay
+        djnz rep
+        pop bc
+        ret
+
+
 /*************** Main. ******************/
 main:
         di
@@ -550,6 +560,10 @@ loop1:
 
         push bc
         call draw_rastr_and_multicolor_lines
+        pop bc
+
+        push bc
+        .25 call long_delay
         pop bc
 
         ; do increment
