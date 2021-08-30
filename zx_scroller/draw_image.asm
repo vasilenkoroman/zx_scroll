@@ -442,19 +442,6 @@ common:
         ex de, hl
         exx
 
-        ; delay
-        ld hl, timings_data
-        ld bc, (stack_top-2)
-        add hl, bc
-        add hl, bc
-
-        ld e, (hl)
-        inc l
-        ld d, (hl)
-        ex de, hl
-        ld sp, stack_bottom + 4
-        call delay
-
         scf     // aligned data uses ret nc. prevent these ret
 
         ld a, 1                         ; 7 ticks
@@ -490,8 +477,7 @@ common:
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        ld sp, stack_top - 4
-        ret
+        jp draw_rastr_and_multicolor_lines_done
 
 
 long_delay:
@@ -552,12 +538,23 @@ loop:
         exx
 
 loop1:
+
+        ; delay
+        ld hl, timings_data
+        add hl, bc
+        add hl, bc
+        ld sp, hl
+        pop hl
+
+        ld sp, stack_bottom + 4
+        call delay
+
         draw_offscreen_rastr
 
-        ld sp, stack_top
-        push bc
-        call draw_rastr_and_multicolor_lines
-        pop bc
+        ld (stack_top-2), bc
+        jp draw_rastr_and_multicolor_lines
+draw_rastr_and_multicolor_lines_done
+        ld bc, (stack_top-2)
 
         ; do increment
         dec bc
