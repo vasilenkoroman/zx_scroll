@@ -1356,16 +1356,17 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
     std::vector<JpIxDescriptor> jpIxDescriptors;
 
-    int imageHeight = descriptors.size();
+    const int imageHeight = descriptors.size();
+    const int blocks64 = imageHeight / 64;
     const int bankSize = imageHeight / 8;
     const int colorsHeight = imageHeight / 8;
 
     // . Create delta for JP_IX when shift to 1 line
-    for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
+    for (int i = 0; i < 64 + 8; ++i)
     {
-        int line = screenLine % imageHeight;
+        int line = i % 64;
 
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < blocks64 + 2; ++i)
         {
             int l = (line + i * 64) % imageHeight;
 

@@ -41,6 +41,8 @@ color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
 data_end:
 
+imageHeight     equ (timings_data_end - timings_data) / 2
+
 /*************** Ennd image data. ******************/
 
 JP_HL_CODE      equ 0e9h
@@ -173,7 +175,6 @@ prepare_interruption_table:
                 exx                                             ; 4
                 // total: 66
         ENDM
-                // total 66 ticks (15 bytes)
 
 draw_colors
         ; bc - line number / 4
@@ -238,48 +239,80 @@ draw_offscreen_rastr
         ; // total: 92
         ret                
 
-jp_ix_record_size       equ 4
-jp_ix_records_per_line  equ 2 * 3
-jp_ix_size_for_line     equ jp_ix_records_per_line * jp_ix_record_size
+        ; max A value here is 63
+        MACRO MUL_A value
+                IF value == 40
+                        ld h, 0
+                        rla
+                        rla
+                        ld l, a
+                        add hl, hl ; * 8
+                        ld de, hl
+                        add hl, hl ;* 16
+                        add hl, hl ;* 32
+                        add hl, de ; *40
+                ELSE
+                    ASSERT 0
+                ENDIF
+        ENDM
 
+jp_ix_record_size       equ 8
 write_initial_jp_ix_table
-        ld sp, jpix_table
-        ld de, JP_IX_CODE
-        ld b, 8 * jp_ix_records_per_line
-.rep:   pop hl ; address
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore data
-        djnz .rep
+                ld sp, jpix_table
+                ; skip several descriptors
+                ld de, JP_IX_CODE
 
-        ld sp, stack_top - 2
-        ret
+                ld c, 8
+.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
+.rep:           pop hl                          ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+                pop hl                          ; skip restore data
+                djnz .rep
+                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
+                add hl, sp
+                ld sp, hl
+                dec c
+                jr nz, .loop
 
-jp_ix_line_delta EQU 8 * jp_ix_size_for_line
+
+                ld sp, stack_top - 2
+                ret
+
+jp_ix_line_delta        EQU jp_ix_record_size * 8 * 3
+jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 update_jp_ix_table
                 ld (stack_bottom), sp
-
                 // bc - screen address to draw
-                ld hl, bc
-                add hl, hl ; * 2
-                add hl, hl ; * 4
-                add hl, hl ; * 8
-                ld de, hl
-                add hl, hl ; * 16
-                add hl, de ; * 24  // skip 6 records, 4 bytes each
 
-                ld sp, jpix_table + jp_ix_line_delta
+                // 1. restore data
+
+                ; a = bank number
+                ld a, 0x3f
+                and c
+
+                ; hl = bank number
+                MUL_A jpix_bank_size
+
+                ; bc =  offset in bank (bc/8)
+                ld a, 0xc0
+                and c
+                rr b: rra
+                rr b: rra
+                rr b: rra
+                ld c, a
+                add hl, bc
+                ld sp, jpix_table + jpix_bank_size * 7 + jp_ix_record_size*3
                 add hl, sp
                 ld sp, hl
 
-                // 1. restore data
                 exx
                 .6 restore_jp_ix
                 exx
 
                 // 1. write new JP_IX
-                ld sp, -jp_ix_line_delta
+                ld sp, -(jpix_bank_size * 7 + jp_ix_record_size*3)
                 add hl, sp
                 ld sp, hl
 
@@ -491,7 +524,7 @@ sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         ld hl, sync_tick
         call delay
 
-max_scroll_offset equ (timings_data_end - timings_data) / 2 - 1
+max_scroll_offset equ imageHeight - 1
 
         ld bc, 0h                       ; 10  ticks
         jp loop1
@@ -510,6 +543,7 @@ loop:
         exx
 
 loop1:
+
         push bc
         call draw_offscreen_rastr
         pop bc
