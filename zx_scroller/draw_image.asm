@@ -141,41 +141,6 @@ prepare_interruption_table:
         im 2
         ret
 
-        MACRO restore_jp_ix
-                pop hl ; address
-                pop de ; restore data
-                ld (hl), e
-                inc hl
-                ld (hl), d
-        ENDM
-        MACRO write_jp_ix_data
-                pop hl ; address
-                ld (hl), e
-                inc hl
-                ld (hl), d
-                pop hl ; skip restore address
-        ENDM
-
-
-        MACRO draw_8_lines
-                // hl - descriptor
-                // sp - destinatin screen address to draw
-                ld a, (hl)                                      ; 7
-                ex af, af'                                      ; 4
-                inc l                                           ; 4
-                ld a, (hl)                                      ; 7
-                inc hl                                          ; 6
-
-                exx                                             ; 4
-                ld h, a                                         ; 4
-                ex af, af'                                      ; 4
-                ld l, a                                         ; 4
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                exx                                             ; 4
-                // total: 66
-        ENDM
-
 draw_colors
         ; bc - line number / 4
 
@@ -212,9 +177,27 @@ draw_colors
 
         jp draw_colors_end
 
-draw_offscreen_rastr
+        MACRO draw_8_lines
+                // hl - descriptor
+                // sp - destinatin screen address to draw
+                ld a, (hl)                                      ; 7
+                ex af, af'                                      ; 4
+                inc l                                           ; 4
+                ld a, (hl)                                      ; 7
+                inc hl                                          ; 6
+
+                exx                                             ; 4
+                ld h, a                                         ; 4
+                ex af, af'                                      ; 4
+                ld l, a                                         ; 4
+                ld ix, $ + 5                                    ; 14
+                jp hl                                           ; 4
+                exx                                             ; 4
+                // total: 66
+        ENDM
+
+        MACRO draw_offscreen_rastr
         ; bc - line number
-        ld (stack_bottom), sp                           ; 20
 
         ld hl, bc                                       ; 8
         ; save line number * 2
@@ -222,22 +205,21 @@ draw_offscreen_rastr
 
         // -------- draw image (bottom)
         ld sp, 16384 + 1024 * 6
-        ld bc, rastr_for_offscreen_descriptor           ; 10
-        add hl, bc                                      ; 11
+        ld de, rastr_for_offscreen_descriptor           ; 10
+        add hl, de                                      ; 11
         .8 draw_8_lines
 
         // --------- draw image (middle)
-        ld bc, (64 - 8) * 2                            ; 10
-        add hl, bc                                     ; 11
+        ld de, (64 - 8) * 2                            ; 10
+        add hl, de                                     ; 11
         .8 draw_8_lines
 
         // ----------- draw image (top)
-        add hl, bc                                      ; 11
+        add hl, de                                      ; 11
         .8 draw_8_lines
 
-        ld sp, (stack_bottom)                           ; 20
         ; // total: 92
-        ret                
+        ENDM
 
         ; max A value here is 63
         MACRO MUL_A value
@@ -280,13 +262,26 @@ write_initial_jp_ix_table
                 ld sp, stack_top - 2
                 ret
 
-jp_ix_line_delta        EQU jp_ix_record_size * 8 * 3
-jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
-update_jp_ix_table
-                ld (stack_bottom), sp
-                // bc - screen address to draw
+        MACRO restore_jp_ix
+                pop hl ; address
+                pop de ; restore data
+                ld (hl), e
+                inc hl
+                ld (hl), d
+        ENDM
+        MACRO write_jp_ix_data skipRestoreData
+                pop hl ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+                IF (skipRestoreData == 1)
+                        pop hl ; skip restore address
+                ENDIF                        
+        ENDM
 
-                // 1. restore data
+jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
+        MACRO update_jp_ix_table
+                // bc - screen address to draw
 
                 ; a = bank number
                 ld a, 0x3f
@@ -298,30 +293,39 @@ update_jp_ix_table
                 ; bc =  offset in bank (bc/8)
                 ld a, 0xc0
                 and c
-                rr b: rra
-                rr b: rra
-                rr b: rra
-                ld c, a
-                add hl, bc
-                ld sp, jpix_table + jpix_bank_size * 7 + jp_ix_record_size*3
-                add hl, sp
-                ld sp, hl
-
-                exx
-                .6 restore_jp_ix
-                exx
+                ld d, b
+                rr d: rra
+                rr d: rra
+                rr d: rra
+                ld e, a
+                add hl, de
 
                 // 1. write new JP_IX
-                ld sp, -(jpix_bank_size * 7 + jp_ix_record_size*3)
+                ld sp, jpix_table
                 add hl, sp
                 ld sp, hl
 
                 ld de, JP_IX_CODE
-                .6 write_jp_ix_data
-                // total 343
+                .5 write_jp_ix_data 1
+                write_jp_ix_data 0
 
-                ld sp, (stack_bottom)
-                ret
+                // 2. restore data
+
+                cp (imageHeight/64 - 1) * 8
+                jr nz, eight_bank_correct
+                ld hl, jpix_bank_size * 7 + jp_ix_record_size*3 - 11*2
+                jr common_bank
+eight_bank_correct:
+                ld hl, jpix_bank_size * 8 + jp_ix_record_size - 11*2
+                jr z, common_bank ; align branch duration
+common_bank
+                add hl, sp
+                ld sp, hl
+
+                .6 restore_jp_ix
+
+                // total 712
+        ENDM
        
 
     MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
@@ -347,7 +351,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
     ENDM                
 
 draw_rastr_and_multicolor_lines:
-        ld (stack_bottom), sp
 
         ld hl, bc
         add hl, hl // * 2
@@ -487,7 +490,7 @@ common:
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        ld sp, (stack_bottom)
+        ld sp, stack_top - 4
         ret
 
 
@@ -541,29 +544,19 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
 loop:  
-        //ld a, 1                         ; 7 ticks
-        //out 0xfe,a                      ; 11 ticks
+        update_jp_ix_table
 
-        call update_jp_ix_table
         exx
         scf
-        ld (stack_top), sp
         DRAW_RASTR_LINE 23
-        ld sp, (stack_top)
         exx
 
 loop1:
+        draw_offscreen_rastr
 
-        push bc
-        call draw_offscreen_rastr
-        pop bc
-
+        ld sp, stack_top
         push bc
         call draw_rastr_and_multicolor_lines
-        pop bc
-
-        push bc
-        .25 call long_delay
         pop bc
 
         ; do increment
