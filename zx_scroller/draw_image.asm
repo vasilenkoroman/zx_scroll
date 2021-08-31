@@ -225,14 +225,21 @@ draw_colors
         MACRO MUL_A value
                 IF value == 40
                         ld h, 0
-                        rla
-                        rla
+                        rla        ; * 2
+                        rla        ; * 4
                         ld l, a
                         add hl, hl ; * 8
                         ld de, hl
-                        add hl, hl ;* 16
-                        add hl, hl ;* 32
-                        add hl, de ; *40
+                        add hl, hl ; * 16
+                        add hl, hl ; * 32
+                        add hl, de ; * 40
+                ELSEIF value == 64
+                        ld l, 0
+                        rra
+                        rr l
+                        rra
+                        rr l
+                        ld h, a
                 ELSE
                     ASSERT 0
                 ENDIF
