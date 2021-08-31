@@ -348,7 +348,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 36 (44 with ret)
     ENDM                
 
-prepare_rastr_drawing
+        MACRO prepare_rastr_drawing
         ld hl, bc
         add hl, hl // * 2
         add hl, hl // * 4
@@ -370,11 +370,9 @@ prepare_rastr_drawing
 
         // Draw middle 3-th of rastr during top 3-th of colors
 
-        ld sp, 64*4
-        add hl, sp
+        inc h
         ld sp, hl
 
-        exx
         pop hl: ld (RASTR_7+1), hl:    pop hl: ld (OFF_RASTR_8+1), hl
         pop hl: ld (RASTR_6+1), hl:    pop hl: ld (OFF_RASTR_9+1), hl
         pop hl: ld (RASTR_5+1), hl:    pop hl: ld (OFF_RASTR_10+1), hl
@@ -383,14 +381,13 @@ prepare_rastr_drawing
         pop hl: ld (RASTR_2+1), hl:    pop hl: ld (OFF_RASTR_13+1), hl
         pop hl: ld (RASTR_1+1), hl:    pop hl: ld (OFF_RASTR_14+1), hl
         pop hl: ld (RASTR_0+1), hl:    pop hl: ld (OFF_RASTR_15+1), hl
-        exx
 
         // Draw top 3-th of rastr during bottom 3-th of colors
-        ld sp, 63*4  ; shift to 63 instead of 64 to move on next frame
+        ; shift to 63 for MC rastr instead of 64 to move on next frame
+        ld hl, (63-8) * 4  
         add hl, sp
         ld sp, hl
 
-        exx
         pop hl: ld (RASTR_23+1), hl:    pop hl
         pop hl: ld (RASTR_22+1), hl:    pop hl: ld (OFF_RASTR_16+1), hl
         pop hl: ld (RASTR_21+1), hl:    pop hl: ld (OFF_RASTR_17+1), hl
@@ -400,9 +397,8 @@ prepare_rastr_drawing
         pop hl: ld (RASTR_17+1), hl:    pop hl: ld (OFF_RASTR_21+1), hl
         pop hl: ld (RASTR_16+1), hl:    pop hl: ld (OFF_RASTR_22+1), hl
         pop hl:                         pop hl: ld (OFF_RASTR_23+1), hl
-        exx
 
-        jp prepare_rastr_drawing_end
+        ENDM
 
 
 draw_rastr_and_multicolor_lines:
@@ -546,9 +542,7 @@ loop1:
         ld sp, stack_bottom + 4
         call delay
 
-        jp prepare_rastr_drawing
-prepare_rastr_drawing_end
-
+        prepare_rastr_drawing
         draw_offscreen_rastr
 
         ld (stack_top-2), bc
