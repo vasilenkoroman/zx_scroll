@@ -1876,7 +1876,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 2142;
+        static const int kZ80CodeDelay = 1978;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
