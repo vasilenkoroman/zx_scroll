@@ -410,17 +410,19 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_16+1), hl
         exx
 
+        // save whether bc % 8 == 0
         ld a, 7
         and c
         ex af, af'
 
+        // calculate ceil(bc,8) / 2
+
         ld hl, 7
         add hl, bc
-        ld bc, hl
+        ld b, h
 
-        // calculate flor(bc,8) / 2
         ld a, ~7
-        and c
+        and l
         srl b
         rra
         ld c, a
@@ -428,11 +430,12 @@ draw_rastr_and_multicolor_lines:
         jp draw_colors
 draw_colors_end        
 
-        // calculate ceil(bc,8) / 4
+        // calculate floor(bc,8) / 4
         srl b
         rr c
 
         ex af, af'
+
         // calculate address of the MC descriptors
         // Draw from 0 to 23 is backward direction
         jr nz, shift_line
@@ -454,6 +457,7 @@ common:
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
+        ; timing here on first frame: 91182
         DRAW_RASTR_AND_MULTICOLOR_LINE 0
         DRAW_RASTR_AND_MULTICOLOR_LINE 1
         DRAW_RASTR_AND_MULTICOLOR_LINE 2
