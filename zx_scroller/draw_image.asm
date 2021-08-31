@@ -18,12 +18,10 @@ multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
         align	2
-rastr_for_mc_descriptors
-        INCBIN "resources/compressed_data.rastr_for_mc.descriptors"
+rastr_descriptors
+        INCBIN "resources/compressed_data.rastr.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
-rastr_for_offscreen_descriptor
-        INCBIN "resources/compressed_data.rastr_for_offscreen.descriptors"
 
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
@@ -177,48 +175,41 @@ draw_colors
 
         jp draw_colors_end
 
-        MACRO draw_8_lines
-                // hl - descriptor
-                // sp - destinatin screen address to draw
-                ld a, (hl)                                      ; 7
-                ex af, af'                                      ; 4
-                inc l                                           ; 4
-                ld a, (hl)                                      ; 7
-                inc hl                                          ; 6
+        MACRO DRAW_OFFSCREEN_LINES N?:
+                ld ix, $ + 7                                            ; 14
+OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
+                // total ticks: 24
+        ENDM                
 
-                exx                                             ; 4
-                ld h, a                                         ; 4
-                ex af, af'                                      ; 4
-                ld l, a                                         ; 4
-                ld ix, $ + 5                                    ; 14
-                jp hl                                           ; 4
-                exx                                             ; 4
-                // total: 66
-        ENDM
 
         MACRO draw_offscreen_rastr
-        ; bc - line number
-
-        ld hl, bc                                       ; 8
-        ; save line number * 2
-        add hl, hl                                      ; 11
-
-        // -------- draw image (bottom)
-        ld sp, 16384 + 1024 * 6
-        ld de, rastr_for_offscreen_descriptor           ; 10
-        add hl, de                                      ; 11
-        .8 draw_8_lines
-
-        // --------- draw image (middle)
-        ld de, (64 - 8) * 2                            ; 10
-        add hl, de                                     ; 11
-        .8 draw_8_lines
-
-        // ----------- draw image (top)
-        add hl, de                                      ; 11
-        .8 draw_8_lines
-
-        ; // total: 92
+                ld sp, 16384 + 1024 * 6
+                exx
+                DRAW_OFFSCREEN_LINES 0
+                DRAW_OFFSCREEN_LINES 1
+                DRAW_OFFSCREEN_LINES 2
+                DRAW_OFFSCREEN_LINES 3
+                DRAW_OFFSCREEN_LINES 4
+                DRAW_OFFSCREEN_LINES 5
+                DRAW_OFFSCREEN_LINES 6
+                DRAW_OFFSCREEN_LINES 7
+                DRAW_OFFSCREEN_LINES 8
+                DRAW_OFFSCREEN_LINES 9
+                DRAW_OFFSCREEN_LINES 10
+                DRAW_OFFSCREEN_LINES 11
+                DRAW_OFFSCREEN_LINES 12
+                DRAW_OFFSCREEN_LINES 13
+                DRAW_OFFSCREEN_LINES 14
+                DRAW_OFFSCREEN_LINES 15
+                DRAW_OFFSCREEN_LINES 16
+                DRAW_OFFSCREEN_LINES 17
+                DRAW_OFFSCREEN_LINES 18
+                DRAW_OFFSCREEN_LINES 19
+                DRAW_OFFSCREEN_LINES 20
+                DRAW_OFFSCREEN_LINES 21
+                DRAW_OFFSCREEN_LINES 22
+                DRAW_OFFSCREEN_LINES 23
+                exx
         ENDM
 
         ; max A value here is 63
@@ -357,59 +348,64 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 36 (44 with ret)
     ENDM                
 
-draw_rastr_and_multicolor_lines:
-
+prepare_rastr_drawing
         ld hl, bc
         add hl, hl // * 2
-        ld sp, rastr_for_mc_descriptors
+        add hl, hl // * 4
+        ld sp, rastr_descriptors
         add hl, sp
         ld sp, hl
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
         exx
-        pop hl: ld (RASTR_15+1), hl
-        pop hl: ld (RASTR_14+1), hl
-        pop hl: ld (RASTR_13+1), hl
-        pop hl: ld (RASTR_12+1), hl
-        pop hl: ld (RASTR_11+1), hl
-        pop hl: ld (RASTR_10+1), hl
-        pop hl: ld (RASTR_9+1), hl
-        pop hl: ld (RASTR_8+1), hl
+        pop hl: ld (RASTR_15+1), hl:    pop hl: ld (OFF_RASTR_0+1), hl
+        pop hl: ld (RASTR_14+1), hl:    pop hl: ld (OFF_RASTR_1+1), hl
+        pop hl: ld (RASTR_13+1), hl:    pop hl: ld (OFF_RASTR_2+1), hl
+        pop hl: ld (RASTR_12+1), hl:    pop hl: ld (OFF_RASTR_3+1), hl
+        pop hl: ld (RASTR_11+1), hl:    pop hl: ld (OFF_RASTR_4+1), hl
+        pop hl: ld (RASTR_10+1), hl:    pop hl: ld (OFF_RASTR_5+1), hl
+        pop hl: ld (RASTR_9+1), hl:     pop hl: ld (OFF_RASTR_6+1), hl
+        pop hl: ld (RASTR_8+1), hl:     pop hl: ld (OFF_RASTR_7+1), hl
         exx
 
         // Draw middle 3-th of rastr during top 3-th of colors
 
-        ld sp, 64*2
+        ld sp, 64*4
         add hl, sp
         ld sp, hl
 
         exx
-        pop hl: ld (RASTR_7+1), hl
-        pop hl: ld (RASTR_6+1), hl
-        pop hl: ld (RASTR_5+1), hl
-        pop hl: ld (RASTR_4+1), hl
-        pop hl: ld (RASTR_3+1), hl
-        pop hl: ld (RASTR_2+1), hl
-        pop hl: ld (RASTR_1+1), hl
-        pop hl: ld (RASTR_0+1), hl
+        pop hl: ld (RASTR_7+1), hl:    pop hl: ld (OFF_RASTR_8+1), hl
+        pop hl: ld (RASTR_6+1), hl:    pop hl: ld (OFF_RASTR_9+1), hl
+        pop hl: ld (RASTR_5+1), hl:    pop hl: ld (OFF_RASTR_10+1), hl
+        pop hl: ld (RASTR_4+1), hl:    pop hl: ld (OFF_RASTR_11+1), hl
+        pop hl: ld (RASTR_3+1), hl:    pop hl: ld (OFF_RASTR_12+1), hl
+        pop hl: ld (RASTR_2+1), hl:    pop hl: ld (OFF_RASTR_13+1), hl
+        pop hl: ld (RASTR_1+1), hl:    pop hl: ld (OFF_RASTR_14+1), hl
+        pop hl: ld (RASTR_0+1), hl:    pop hl: ld (OFF_RASTR_15+1), hl
         exx
 
         // Draw top 3-th of rastr during bottom 3-th of colors
-        ld sp, 63*2  ; shift to 63 instead of 64 to move on next frame
+        ld sp, 63*4  ; shift to 63 instead of 64 to move on next frame
         add hl, sp
         ld sp, hl
 
         exx
-        pop hl: ld (RASTR_23+1), hl
-        pop hl: ld (RASTR_22+1), hl
-        pop hl: ld (RASTR_21+1), hl
-        pop hl: ld (RASTR_20+1), hl
-        pop hl: ld (RASTR_19+1), hl
-        pop hl: ld (RASTR_18+1), hl
-        pop hl: ld (RASTR_17+1), hl
-        pop hl: ld (RASTR_16+1), hl
+        pop hl: ld (RASTR_23+1), hl:    pop hl
+        pop hl: ld (RASTR_22+1), hl:    pop hl: ld (OFF_RASTR_16+1), hl
+        pop hl: ld (RASTR_21+1), hl:    pop hl: ld (OFF_RASTR_17+1), hl
+        pop hl: ld (RASTR_20+1), hl:    pop hl: ld (OFF_RASTR_18+1), hl
+        pop hl: ld (RASTR_19+1), hl:    pop hl: ld (OFF_RASTR_19+1), hl
+        pop hl: ld (RASTR_18+1), hl:    pop hl: ld (OFF_RASTR_20+1), hl
+        pop hl: ld (RASTR_17+1), hl:    pop hl: ld (OFF_RASTR_21+1), hl
+        pop hl: ld (RASTR_16+1), hl:    pop hl: ld (OFF_RASTR_22+1), hl
+        pop hl:                         pop hl: ld (OFF_RASTR_23+1), hl
         exx
 
+        jp prepare_rastr_drawing_end
+
+
+draw_rastr_and_multicolor_lines:
 
         // calculate ceil(bc,8) / 2
 
@@ -540,7 +536,6 @@ loop:
         exx
 
 loop1:
-
         ; delay
         ld hl, timings_data
         add hl, bc
@@ -550,6 +545,9 @@ loop1:
 
         ld sp, stack_bottom + 4
         call delay
+
+        jp prepare_rastr_drawing
+prepare_rastr_drawing_end
 
         draw_offscreen_rastr
 

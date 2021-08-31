@@ -1424,15 +1424,6 @@ int serializeMainData(
         return -1;
     }
 
-    ofstream rastrDescriptorFile;
-    std::string rastrDescriptorFileName = inputFileName + ".rastr.descriptor";
-    rastrDescriptorFile.open(rastrDescriptorFileName, std::ios::binary);
-    if (!rastrDescriptorFile.is_open())
-    {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
-    }
-
     // serialize main data
 
     int size = 0;
@@ -1492,7 +1483,7 @@ int serializeMainData(
         if (flags & interlineRegisters)
             ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
-        
+
         Z80Parser parser;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
             *dataLine.inputRegisters,
@@ -1561,13 +1552,6 @@ int serializeMainData(
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
     reachDescriptorFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
 
-    for (int d = 0; d < imageHeight + kmaxDescriptorOffset; ++d)
-    {
-        int lineNum = d % imageHeight;
-        const auto& descriptor = descriptors[lineNum];
-        rastrDescriptorFile.write((const char*) &descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
-    }
-
     int serializedSize = serializedData.size() + serializedDescriptors.size();
     return serializedSize;
 }
@@ -1586,7 +1570,7 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
         std::cerr << "Can not write color file" << std::endl;
         return -1;
     }
-    
+
     ofstream descriptorFile;
     std::string descriptorFileName = inputFileName + ".color_descriptor";
     descriptorFile.open(descriptorFileName, std::ios::binary);
@@ -1617,7 +1601,7 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
         }
         line.serialize(serializedData);
     }
-    
+
     // serialize color descriptors
     std::vector<ColorDescriptor> descriptors;
     for (int d = 0; d <= imageHeight; ++d)
@@ -1626,7 +1610,7 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
         const int endLine = (d + 24) % imageHeight;
 
         ColorDescriptor descriptor;
-        
+
         descriptor.addressBegin = lineOffset[srcLine] + codeOffset;
         if (imageHeight == 24)
             descriptor.addressBegin += 2; //< Avoid LD A,0 filler if exists.
@@ -1638,7 +1622,7 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
 
         descriptors.push_back(descriptor);
     }
-    
+
     for (const auto& descriptor: descriptors)
         descriptorFile.write((const char*)&descriptor, sizeof(descriptor));
 
@@ -1727,15 +1711,16 @@ int serializeMultiColorData(
     return serializedData.size();
 }
 
-int serializeRastrForMulticolorDescriptors(
+int serializeRastrDescriptors(
     std::vector<LineDescriptor> descriptors,
     const std::string& inputFileName)
 {
     using namespace std;
     int imageHeight = descriptors.size();
 
+
     ofstream file;
-    std::string fileName = inputFileName + ".rastr_for_mc.descriptors";
+    std::string fileName = inputFileName + ".rastr.descriptors";
     file.open(fileName, std::ios::binary);
     if (!file.is_open())
     {
@@ -1747,31 +1732,8 @@ int serializeRastrForMulticolorDescriptors(
     {
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
+
         file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
-    }
-}
-
-int serializeRastrForOffscreenDescriptors(
-    std::vector<LineDescriptor> descriptors,
-    const std::string& inputFileName)
-{
-    using namespace std;
-    int imageHeight = descriptors.size();
-
-
-    ofstream file;
-    std::string fileName = inputFileName + ".rastr_for_offscreen.descriptors";
-    file.open(fileName, std::ios::binary);
-    if (!file.is_open())
-    {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
-    }
-
-    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
-    {
-        int line = i % imageHeight;
-        const auto& descriptor = descriptors[line];
         file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
     }
 }
@@ -1789,12 +1751,12 @@ int getTicksChainFor64Line(
     screenLineNum = screenLineNum % imageHeight;
 
     const int bankSize = imageHeight / 8;
-    
+
     for (int b = 0; b < 8; ++b)
     {
         int lineNumber = (screenLineNum + b) % imageHeight;
         const auto& d = descriptors[lineNumber];
-        
+
         int sum = 0;
         auto info = Z80Parser::parseCode(d.rastrForOffscreen.preambula);
         sum += info.ticks;
@@ -1870,7 +1832,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1962;
+        static const int kZ80CodeDelay = 1565;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
@@ -1992,14 +1954,13 @@ int main(int argc, char** argv)
 
     int multicolorTicks = multicolorData.data[0].drawTicks;
     int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags, multicolorTicks);
-    
+
     // put JP to the latest line of colors
     colorData.data[colorData.data.size() - 1].jp(kCodeOffset + mainDataSize);
     int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
     serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
 
-    serializeRastrForMulticolorDescriptors(descriptors, outputFileName);
-    serializeRastrForOffscreenDescriptors(descriptors, outputFileName);
+    serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     serializeTimingData(descriptors, data, colorData, outputFileName);
