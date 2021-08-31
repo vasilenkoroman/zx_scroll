@@ -1862,12 +1862,6 @@ int serializeTimingData(
 
         if (line % 8 == 0)
         {
-            // It is jr xx currently in the Z80 code. This branch is in 5 ticks longer.
-            ticks += 5;
-        }
-
-        if (line % 8 == 0)
-        {
             // Draw next frame longer in  6 lines
             ticks -= kLineDurationInTicks * 7;
         }
@@ -1876,7 +1870,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1974;
+        static const int kZ80CodeDelay = 1962;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;

@@ -142,10 +142,10 @@ prepare_interruption_table:
         ret
 
 draw_colors
-        ; bc - line number / 4
+        ; hl - line number / 4
 
-        ld hl, color_descriptor                         ; 10
-        add hl, bc                                      ; 11
+        ld de, color_descriptor
+        add hl, de                                      ; 10
         ld sp, hl                                       ; 6
         ; iy - address to execute
         pop iy                                          ; 14
@@ -410,40 +410,31 @@ draw_rastr_and_multicolor_lines:
         pop hl: ld (RASTR_16+1), hl
         exx
 
-        // save whether bc % 8 == 0
-        ld a, 7
-        and c
-        ex af, af'
 
         // calculate ceil(bc,8) / 2
 
         ld hl, 7
         add hl, bc
-        ld b, h
 
         ld a, ~7
         and l
-        srl b
-        rra
-        ld c, a
+        srl h : rra
+        ld l, a
 
         jp draw_colors
 draw_colors_end        
 
         // calculate floor(bc,8) / 4
-        srl b
-        rr c
 
-        ex af, af'
+        ld a, ~7
+        and c
+        srl b : rra
+        srl b : rra
+        ld c, a
 
         // calculate address of the MC descriptors
         // Draw from 0 to 23 is backward direction
-        jr nz, shift_line
         ld hl, mc_descriptors + 23*2
-        jp common
-shift_line: 
-        ld hl, mc_descriptors + 22*2
-common:
         // prepare in HL' multicolor address to execute
         add hl, bc
         ld e, (hl)
