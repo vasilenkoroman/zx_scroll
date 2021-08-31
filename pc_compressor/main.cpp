@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <utility>
 #include <array>
 #include <map>
 #include <cassert>
@@ -41,7 +42,6 @@ static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
 static const int kRtMcContextSwitchDelay = 86 + 10; // context switch + ld hl in the end of the multicolor line
 static const int kTicksOnScreenPerByte = 4;
-static const int kJpIxCommandLen = 2;
 
 /**
  * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
@@ -1277,23 +1277,61 @@ void interleaveData(CompressedData& data)
 struct DescriptorState
 {
     uint16_t descriptorLocationPtr = 0; //< The address where descriptor itself is serialized
-    uint16_t lineStartPtr = 0;     //< Start draw lines here.
-    uint16_t lineEndPtr = 0;     //< Stop draw lines here.
-    std::vector<uint8_t> origData;    //< Saved origin data (JP IX command overwrites it).
+    uint16_t lineStartPtr = 0;      //< Start draw lines here.
+    uint16_t lineEndPtr = 0;        //< Stop draw lines here.
+
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
-    Z80CodeInfo preambulaInfo;     //< How many ticks first commands takes in the preambula
-    Z80CodeInfo codeInfo;
+    Z80CodeInfo codeInfo;           //< Descriptor data info.
+    
+    Z80CodeInfo startDataInfo;      //< Information about skipped start block (it's included directly to the descriptor preambula).
+    std::vector<uint8_t> endBlock;  //< Information about replaced end block (JP IX command).
 
-    void setOrigData(uint8_t* ptr)
+    int extraDelay = 0;             //< Alignment delay when serialize preambula.
+    int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
+
+    void setEndBlock(const uint8_t* ptr)
     {
-        origData.push_back(*ptr++);
-        origData.push_back(*ptr);
+        endBlock.push_back(*ptr++);
+        endBlock.push_back(*ptr);
     }
 
-    void addToPreambule(const std::vector<uint8_t>& data)
+    int ticksWithLoadingRegs() const
     {
-        preambula.insert(preambula.end(), data.begin(), data.end());
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        return codeInfo.ticks + regs.drawTicks;
     }
+
+    void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset)
+    {
+        /*
+         * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
+         * So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
+         * directly in descriptor preambula. Additionally, preambula contains alignment delay and correction for SP register if need.
+         */
+
+        if (extraDelay > 0)
+            addToPreambule(Z80Parser::genDelay(extraDelay));
+
+        if (startSpDelta > 0)
+            serializeSpDelta(startSpDelta);
+
+        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        regs.serialize(preambula);
+
+        const auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
+        addToPreambule(firstCommands);
+        startDataInfo = Z80Parser::parseCode(firstCommands);
+        if (!startDataInfo.hasJump)
+            addJpIx(lineStartPtr + firstCommands.size());
+    }
+
+    void serialize(std::vector<uint8_t>& dst)
+    {
+        dst.insert(dst.end(), preambula.begin(), preambula.end());
+    }
+
+private:
 
     void serializeSpDelta(int delta)
     {
@@ -1307,18 +1345,17 @@ struct DescriptorState
         data.serialize(preambula);
     }
 
-    void addJpIx()
+    void addJpIx(uint16_t value)
     {
-        if (preambulaInfo.hasJump)
-            return; //< Not need one more jump if preambula already contains it
         preambula.push_back(0xc3); //< JP XXXX
-        preambula.push_back((uint8_t)lineStartPtr);
-        preambula.push_back(lineStartPtr >> 8);
+        preambula.push_back((uint8_t)value);
+        preambula.push_back(value >> 8);
     }
 
-    void serialize(std::vector<uint8_t>& dst)
+
+    void addToPreambule(const std::vector<uint8_t>& data)
     {
-        dst.insert(dst.end(), preambula.begin(), preambula.end());
+        preambula.insert(preambula.end(), data.begin(), data.end());
     }
 };
 
@@ -1372,11 +1409,11 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
             JpIxDescriptor d;
             d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
-            d.originData = descriptors[l].rastrForMulticolor.origData;
+            d.originData = descriptors[l].rastrForMulticolor.endBlock;
             jpIxDescriptors.push_back(d);
 
             d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
-            d.originData = descriptors[l].rastrForOffscreen.origData;
+            d.originData = descriptors[l].rastrForOffscreen.endBlock;
             jpIxDescriptors.push_back(d);
         }
     }
@@ -1445,6 +1482,20 @@ int serializeMainData(
     const int reachDescriptorsBase = codeOffset + serializedData.size();
 
     std::vector<uint16_t> reachDescriptorOffset;
+    std::vector<std::pair<int, int>> lockedBlocks; //< Skip locked blocks in optimization. Just in case.
+
+    for (int d = 0; d < imageHeight; ++d)
+    {
+        const int srcLine = d % imageHeight;
+
+        LineDescriptor descriptor;
+        int lineBank = srcLine % 8;
+        int lineInBank = srcLine / 8;
+        int lineNum = bankSize * lineBank + lineInBank;
+        const auto& dataLine = data.data[lineNum];
+        int relativeOffsetToStart = lineOffset[lineNum];
+        Z80Parser::optimizePreambula(serializedData, relativeOffsetToStart, lockedBlocks);
+    }
 
     for (int d = 0; d < imageHeight; ++d)
     {
@@ -1464,8 +1515,8 @@ int serializeMainData(
             lineEndInBank -= bankSize;
         int fullLineEndNum = lineEndInBank + lineBank * bankSize;
 
-
         int relativeOffsetToStart = lineOffset[lineNum];
+
         int relativeOffsetToEnd = fullLineEndNum < imageHeight
             ? lineOffset[fullLineEndNum]
             : serializedData.size();
@@ -1480,8 +1531,10 @@ int serializeMainData(
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
+        int linePreambulaTicks = 0;
         if (flags & interlineRegisters)
-            ticksRest -= dataLine.getSerializedUsedRegisters().drawTicks;
+            linePreambulaTicks = dataLine.getSerializedUsedRegisters().drawTicks;
+
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
         Z80Parser parser;
@@ -1490,10 +1543,11 @@ int serializeMainData(
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset,
-            ticksRest - 4);  // Reserver 4 more ticks because delay<4 is not possible
+            ticksRest - linePreambulaTicks - 4);  // Reserver 4 more ticks because delay<4 is not possible
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
+        parser.optimizePreambula(serializedData, relativeOffsetToMid, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
@@ -1504,41 +1558,17 @@ int serializeMainData(
             + descriptor.rastrForOffscreen.codeInfo.spDelta == 256);
 
         // align timing for RastrForMulticolor part
-        int ticksDelta = ticksRest - descriptor.rastrForMulticolor.codeInfo.ticks;
-        auto extraDelay = Z80Parser::genDelay(ticksDelta);
-        descriptor.rastrForMulticolor.addToPreambule(extraDelay);
+        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
+        descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
-        if (flags & interlineRegisters)
-        {
-            auto preambula = dataLine.getSerializedUsedRegisters();
-            preambula.serialize(descriptor.rastrForMulticolor.preambula);
-        }
-
-        std::vector<uint8_t> firstCommands = dataLine.getFirstCommands(kJpIxCommandLen);
-        descriptor.rastrForMulticolor.preambulaInfo = Z80Parser::parseCode(firstCommands);
-        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + firstCommands.size() + codeOffset;
+        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
         descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
-        descriptor.rastrForMulticolor.setOrigData(serializedData.data() + relativeOffsetToMid);
+        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset);
 
-        // In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
-        // So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
-        // directly in descriptor preambula.
-        descriptor.rastrForMulticolor.addToPreambule(firstCommands);
-        descriptor.rastrForMulticolor.addJpIx();
-
-
-        firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToMid, kJpIxCommandLen);
-        descriptor.rastrForOffscreen.preambulaInfo = Z80Parser::parseCode(firstCommands);
-        descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr + firstCommands.size();
+        descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
-        descriptor.rastrForOffscreen.setOrigData(serializedData.data() + relativeOffsetToEnd);
-
-        descriptor.rastrForOffscreen.serializeSpDelta(descriptor.rastrForMulticolor.codeInfo.spDelta);
-        auto preambula = descriptor.rastrForOffscreen.codeInfo.regUsage.getSerializedUsedRegisters(
-            descriptor.rastrForOffscreen.codeInfo.inputRegisters);
-        preambula.serialize(descriptor.rastrForOffscreen.preambula);
-        descriptor.rastrForOffscreen.addToPreambule(firstCommands);
-        descriptor.rastrForOffscreen.addJpIx();
+        descriptor.rastrForOffscreen.startSpDelta = descriptor.rastrForMulticolor.codeInfo.spDelta;
+        descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -1547,6 +1577,12 @@ int serializeMainData(
         descriptor.rastrForOffscreen.serialize(serializedDescriptors);
 
         descriptors.push_back(descriptor);
+    }
+
+    for (auto& descriptor: descriptors)
+    {
+        descriptor.rastrForMulticolor.setEndBlock(serializedData.data() + descriptor.rastrForMulticolor.lineEndPtr - codeOffset);
+        descriptor.rastrForOffscreen.setEndBlock(serializedData.data() + descriptor.rastrForOffscreen.lineEndPtr - codeOffset);
     }
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
@@ -1760,7 +1796,7 @@ int getTicksChainFor64Line(
         int sum = 0;
         auto info = Z80Parser::parseCode(d.rastrForOffscreen.preambula);
         sum += info.ticks;
-        sum -= d.rastrForOffscreen.preambulaInfo.ticks;
+        sum -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         sum += d.rastrForOffscreen.codeInfo.ticks;
         sum += kReturnDelay;
         sum += k8LinesFuncDelay;
