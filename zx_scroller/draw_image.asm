@@ -139,7 +139,7 @@ prepare_interruption_table:
         im 2
         ret
 
-draw_colors
+        MACRO draw_colors
         ; hl - line number / 4
 
         ld de, color_descriptor
@@ -167,13 +167,13 @@ draw_colors
         ; Restore data
         ex hl, de                                       ; 4
 
-        ld (hl), e                                      ; 7
+        ld (hl), e                                      ; 10
         inc hl                                          ; 6
-        ld (hl), d                                      ; 7
+        ld (hl), d                                      ; 10
 
         ; total 140
 
-        jp draw_colors_end
+        ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?:
                 ld ix, $ + 7                                            ; 14
@@ -413,8 +413,7 @@ draw_rastr_and_multicolor_lines:
         srl h : rra
         ld l, a
 
-        jp draw_colors
-draw_colors_end        
+        draw_colors
 
         // calculate floor(bc,8) / 4
 
@@ -429,12 +428,10 @@ draw_colors_end
         ld hl, mc_descriptors + 23*2
         // prepare in HL' multicolor address to execute
         add hl, bc
-        ld e, (hl)
-        inc l
-        ld d, (hl)
-        ex de, hl
+        ld sp, hl
+        pop hl
         exx
-
+        
         scf     // aligned data uses ret nc. prevent these ret
 
         ld a, 1                         ; 7 ticks
@@ -473,7 +470,7 @@ draw_colors_end
 
         jp draw_rastr_and_multicolor_lines_done
 
-
+/*
 long_delay:
         push bc
         ld b, 2
@@ -482,7 +479,7 @@ rep:    ld hl, 65535
         djnz rep
         pop bc
         ret
-
+*/
 
 /*************** Main. ******************/
 main:
@@ -539,28 +536,28 @@ loop1:
         ld sp, hl
         pop hl
 
-        ld sp, stack_bottom + 4
+        ld sp, stack_top
         call delay
 
         prepare_rastr_drawing
         draw_offscreen_rastr
 
-        ld (stack_top-2), bc
+        ld (stack_bottom), bc
         jp draw_rastr_and_multicolor_lines
 draw_rastr_and_multicolor_lines_done
-        ld bc, (stack_top-2)
+        ld bc, (stack_bottom)
 
         ; do increment
         dec bc
         ld a, b
-        cp 0xff
+        inc a
 
         ; compare to N
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
  
 /*************** Data segment ******************/
-STACK_SIZE: equ 16  ; in words
+STACK_SIZE: equ 1  ; in words
 stack_bottom:
         defs STACK_SIZE * 2, 0
 stack_top:
