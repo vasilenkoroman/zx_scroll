@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+
 z80Command Z80Parser::parseCommand(const uint8_t* ptr)
 {
     static std::vector<z80Command> commands =
@@ -264,21 +265,31 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 1, 11} // ff: rst 38h
     };
 
-    return commands[*ptr];
+    auto result = commands[*ptr];
+    result.opCode = *ptr;
+    return result;
 }
 
 Z80CodeInfo Z80Parser::parseCode(const std::vector<uint8_t>& serializedData)
 {
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    for (auto& reg: registers)
+        reg.setValue(0); //< Make registers non-empty to correct update regUseMask
     return parseCodeToTick(
-        registers, 
-        serializedData, 
-        /*start*/ 0, 
-        /*end*/ serializedData.size(), 
-        /*code offset for JP command*/ 0, 
+        registers,
+        serializedData,
+        /*start*/ 0,
+        /*end*/ serializedData.size(),
+        /*code offset for JP command*/ 0,
         std::numeric_limits<int>::max());
 }
 
+Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
+{
+    std::vector<uint8_t> data(size);
+    memcpy(data.data(), buffer, size);
+    return parseCode(data);
+}
 
 Z80CodeInfo Z80Parser::parseCodeToTick(
     const std::vector<Register16>& inputRegisters,
@@ -615,6 +626,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0xf6: a.orValue(info, ptr[1]);
                 break;
             case 0xf9: // LD SP, HL
+                info.useReg(h, l);
                 break;
             default:
                 // Unsopported command
@@ -689,4 +701,80 @@ std::vector<uint8_t> Z80Parser::genDelay(int ticks)
     }
 
     return result;
+}
+
+void swapCommands(uint8_t* buffer, z80Command command1, z80Command command2)
+{
+    std::vector<uint8_t> tmp(command1.size);
+    memcpy(tmp.data(), buffer, command1.size);
+    memmove(buffer, buffer + command1.size, command2.size);
+    memcpy(buffer + command2.size, tmp.data(), command1.size);
+}
+
+bool isBetween(int start, int value, int end)
+{
+    return value >= start && value < end;
+}
+
+bool isIntersect(const std::pair<int, int>& block1,
+    const std::pair<int, int>& block2)
+{
+    return isBetween(block1.first, block2.first, block1.first + block1.second)
+        || isBetween(block1.first, block2.first + block2.second, block1.first + block1.second);
+}
+
+int Z80Parser::optimizePreambula(
+    std::vector<uint8_t>& serializedData,
+    int startOffset,
+    std::vector<std::pair<int, int>>& lockedBlocks)
+{
+    static const uint8_t kDecSpCode = 0x3b;
+    static const uint8_t kLdSpHl = 0xf9;
+
+    uint8_t* ptr = serializedData.data() + startOffset;
+    uint8_t* end = serializedData.data() + serializedData.size();
+    if (ptr == end)
+        return 0;
+    z80Command command1 = parseCommand(ptr);
+    if (command1.size + ptr == end)
+        return 0;
+
+    z80Command command2 = parseCommand(ptr + command1.size);
+    bool isLocked = false;
+    const std::pair<int, int> newBlock = { startOffset, command1.size + command2.size };
+    for (const auto& lock: lockedBlocks)
+    {
+        if (isIntersect(lock, newBlock))
+            isLocked = true;
+    }
+
+    lockedBlocks.push_back(newBlock);
+    if (isLocked)
+        return 0;
+
+
+    if (command1.size > 1 || command2.size == 1)
+        return 0; //< Nothing to optimize.
+
+    /**
+     * Do not swap such commands.If it is first command for the second block (offscreen rastr)
+     * then SP can't get correct value from HL. Fortunately, this command is omitted by descriptor
+     * preambula. So, do not touch it.
+     */
+    if (command1.opCode == kLdSpHl)
+        return 0;
+
+    auto info1 = parseCode(ptr, command1.size);
+    auto info2 = parseCode(ptr + command1.size, command2.size);
+
+    if (info2.hasJump)
+        return 0;
+
+    auto mask1 = info1.regUsage.regUseMask | info1.regUsage.selfRegMask;
+    auto mask2 = info2.regUsage.regUseMask | info2.regUsage.selfRegMask;
+    if ((mask1 & mask2) == 0)
+        swapCommands(ptr, command1, command2);
+
+
+    return command1.size + command2.size;
 }

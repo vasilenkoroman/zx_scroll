@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <utility>
 #include <array>
 #include <map>
 #include <cassert>
@@ -41,7 +42,6 @@ static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
 static const int kRtMcContextSwitchDelay = 86 + 10; // context switch + ld hl in the end of the multicolor line
 static const int kTicksOnScreenPerByte = 4;
-static const int kJpIxCommandLen = 2;
 
 /**
  * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
@@ -1282,7 +1282,7 @@ struct DescriptorState
 
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
     Z80CodeInfo codeInfo;           //< Descriptor data info.
-    
+
     Z80CodeInfo startDataInfo;      //< Information about skipped start block (it's included directly to the descriptor preambula).
     std::vector<uint8_t> endBlock;  //< Information about replaced end block (JP IX command).
 
@@ -1482,6 +1482,20 @@ int serializeMainData(
     const int reachDescriptorsBase = codeOffset + serializedData.size();
 
     std::vector<uint16_t> reachDescriptorOffset;
+    std::vector<std::pair<int, int>> lockedBlocks; //< Skip locked blocks in optimization. Just in case.
+
+    for (int d = 0; d < imageHeight; ++d)
+    {
+        const int srcLine = d % imageHeight;
+
+        LineDescriptor descriptor;
+        int lineBank = srcLine % 8;
+        int lineInBank = srcLine / 8;
+        int lineNum = bankSize * lineBank + lineInBank;
+        const auto& dataLine = data.data[lineNum];
+        int relativeOffsetToStart = lineOffset[lineNum];
+        Z80Parser::optimizePreambula(serializedData, relativeOffsetToStart, lockedBlocks);
+    }
 
     for (int d = 0; d < imageHeight; ++d)
     {
@@ -1501,8 +1515,8 @@ int serializeMainData(
             lineEndInBank -= bankSize;
         int fullLineEndNum = lineEndInBank + lineBank * bankSize;
 
-
         int relativeOffsetToStart = lineOffset[lineNum];
+
         int relativeOffsetToEnd = fullLineEndNum < imageHeight
             ? lineOffset[fullLineEndNum]
             : serializedData.size();
@@ -1533,6 +1547,7 @@ int serializeMainData(
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
+        parser.optimizePreambula(serializedData, relativeOffsetToMid, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
@@ -1548,12 +1563,10 @@ int serializeMainData(
 
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
         descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
-        descriptor.rastrForMulticolor.setEndBlock(serializedData.data() + relativeOffsetToMid);
         descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset);
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
-        descriptor.rastrForOffscreen.setEndBlock(serializedData.data() + relativeOffsetToEnd);
         descriptor.rastrForOffscreen.startSpDelta = descriptor.rastrForMulticolor.codeInfo.spDelta;
         descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
@@ -1564,6 +1577,12 @@ int serializeMainData(
         descriptor.rastrForOffscreen.serialize(serializedDescriptors);
 
         descriptors.push_back(descriptor);
+    }
+
+    for (auto& descriptor: descriptors)
+    {
+        descriptor.rastrForMulticolor.setEndBlock(serializedData.data() + descriptor.rastrForMulticolor.lineEndPtr - codeOffset);
+        descriptor.rastrForOffscreen.setEndBlock(serializedData.data() + descriptor.rastrForOffscreen.lineEndPtr - codeOffset);
     }
 
     mainDataFile.write((const char*)serializedData.data(), serializedData.size());
@@ -1849,7 +1868,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1512;
+        static const int kZ80CodeDelay = 1361;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
@@ -1931,7 +1950,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters; // | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 

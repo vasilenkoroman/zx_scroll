@@ -17,7 +17,6 @@ color_code
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-        align	2
 rastr_descriptors
         INCBIN "resources/compressed_data.rastr.descriptors"
 mc_descriptors
@@ -139,7 +138,7 @@ prepare_interruption_table:
         im 2
         ret
 
-draw_colors
+        MACRO draw_colors
         ; hl - line number / 4
 
         ld de, color_descriptor
@@ -173,10 +172,20 @@ draw_colors
 
         ; total 140
 
-        jp draw_colors_end
+        ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?:
-                ld ix, $ + 7                                            ; 14
+                IF (N? == 0)
+                        ld ix, $ + 7     ; 14
+                ELSEIF (N? == 23 && low($+6) == low(OFF_RASTR_0+3))
+                        ; Align code duration. It uses two IX for 24 iteration.
+                        ld ix, $ + 7     ; 14
+                ELSEIF (low($+6) > 7)
+                        ld ixl, low($+6) ; 11
+                ELSE
+                        ld ix, $ + 7     ; 14
+                ENDIF                        
+
 OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 24
         ENDM                
@@ -326,10 +335,13 @@ common_bank
         ENDM
        
 
-    MACRO DRAW_RASTR_AND_MULTICOLOR_LINE N?:
-        DRAW_MULTICOLOR_LINE  N?
-        DRAW_RASTR_LINE N?
-        // total ticks: 70 (86 with ret)
+    MACRO DRAW_MULTICOLOR_LINE N?:
+                exx                                     ; 4
+                ld sp, color_addr + N? * 32 + 32        ; 10
+                ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
+                exx                                     ; 4
+                // total ticks: 36 (44 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
@@ -339,13 +351,10 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 34 (40 with ret)
     ENDM                
 
-    MACRO DRAW_MULTICOLOR_LINE N?:
-                exx                                     ; 4
-                ld sp, color_addr + N? * 32 + 32        ; 10
-                ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                exx                                     ; 4
-                // total ticks: 36 (44 with ret)
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
+        DRAW_MULTICOLOR_LINE  N?
+        DRAW_RASTR_LINE N?
+        // total ticks: 70 (86 with ret)
     ENDM                
 
         MACRO prepare_rastr_drawing
@@ -401,79 +410,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
         ENDM
 
 
-draw_rastr_and_multicolor_lines:
-
-        // calculate ceil(bc,8) / 2
-
-        ld hl, 7
-        add hl, bc
-
-        ld a, ~7
-        and l
-        srl h : rra
-        ld l, a
-
-        jp draw_colors
-draw_colors_end        
-
-        // calculate floor(bc,8) / 4
-
-        ld a, ~7
-        and c
-        srl b : rra
-        srl b : rra
-        ld c, a
-
-        // calculate address of the MC descriptors
-        // Draw from 0 to 23 is backward direction
-        ld hl, mc_descriptors + 23*2
-        // prepare in HL' multicolor address to execute
-        add hl, bc
-        ld e, (hl)
-        inc l
-        ld d, (hl)
-        ex de, hl
-        exx
-
-        scf     // aligned data uses ret nc. prevent these ret
-
-        ld a, 1                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
-
-        ; timing here on first frame: 91182
-        DRAW_RASTR_AND_MULTICOLOR_LINE 0
-        DRAW_RASTR_AND_MULTICOLOR_LINE 1
-        DRAW_RASTR_AND_MULTICOLOR_LINE 2
-        DRAW_RASTR_AND_MULTICOLOR_LINE 3
-        DRAW_RASTR_AND_MULTICOLOR_LINE 4
-        DRAW_RASTR_AND_MULTICOLOR_LINE 5
-        DRAW_RASTR_AND_MULTICOLOR_LINE 6
-        DRAW_RASTR_AND_MULTICOLOR_LINE 7
-        DRAW_RASTR_AND_MULTICOLOR_LINE 8
-        DRAW_RASTR_AND_MULTICOLOR_LINE 9
-        DRAW_RASTR_AND_MULTICOLOR_LINE 10
-        DRAW_RASTR_AND_MULTICOLOR_LINE 11
-        DRAW_RASTR_AND_MULTICOLOR_LINE 12
-        DRAW_RASTR_AND_MULTICOLOR_LINE 13
-        DRAW_RASTR_AND_MULTICOLOR_LINE 14
-        DRAW_RASTR_AND_MULTICOLOR_LINE 15
-
-        DRAW_RASTR_AND_MULTICOLOR_LINE 16
-        DRAW_RASTR_AND_MULTICOLOR_LINE 17
-        DRAW_RASTR_AND_MULTICOLOR_LINE 18
-        DRAW_RASTR_AND_MULTICOLOR_LINE 19
-        DRAW_RASTR_AND_MULTICOLOR_LINE 20
-        DRAW_RASTR_AND_MULTICOLOR_LINE 21
-        DRAW_RASTR_AND_MULTICOLOR_LINE 22
-        ; draw rastr23 later, after updating JP_IX table
-        DRAW_MULTICOLOR_LINE 23
-
-        ld a, 2                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
-
-        jp draw_rastr_and_multicolor_lines_done
-
-
+/*
 long_delay:
         push bc
         ld b, 2
@@ -482,7 +419,7 @@ rep:    ld hl, 65535
         djnz rep
         pop bc
         ret
-
+*/
 
 /*************** Main. ******************/
 main:
@@ -532,35 +469,97 @@ loop:
         exx
 
 loop1:
+        prepare_rastr_drawing
+        draw_offscreen_rastr
+
         ; delay
         ld hl, timings_data
         add hl, bc
         add hl, bc
         ld sp, hl
         pop hl
-
-        ld sp, stack_bottom + 4
+        ld sp, stack_top
         call delay
 
-        prepare_rastr_drawing
-        draw_offscreen_rastr
+        // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
+        ld (stack_bottom), bc
 
-        ld (stack_top-2), bc
-        jp draw_rastr_and_multicolor_lines
-draw_rastr_and_multicolor_lines_done
-        ld bc, (stack_top-2)
+        // calculate ceil(bc,8) / 2
 
-        ; do increment
+        ld hl, 7
+        add hl, bc
+
+        ld a, ~7
+        and l
+        srl h : rra
+        ld l, a
+
+        draw_colors
+
+        // calculate floor(bc,8) / 4
+
+        ld a, ~7
+        and c
+        srl b : rra
+        srl b : rra
+        ld c, a
+
+        // calculate address of the MC descriptors
+        // Draw from 0 to 23 is backward direction
+        ld hl, mc_descriptors + 23*2
+        // prepare in HL' multicolor address to execute
+        add hl, bc
+        ld sp, hl
+        pop hl
+        exx
+        
+        scf     // aligned data uses ret nc. prevent these ret
+
+        //ld a, 1                         ; 7 ticks
+        //out 0xfe,a                      ; 11 ticks
+
+        ; timing here on first frame: 91182
+        DRAW_MULTICOLOR_AND_RASTR_LINE 0
+        DRAW_MULTICOLOR_AND_RASTR_LINE 1
+        DRAW_MULTICOLOR_AND_RASTR_LINE 2
+        DRAW_MULTICOLOR_AND_RASTR_LINE 3
+        DRAW_MULTICOLOR_AND_RASTR_LINE 4
+        DRAW_MULTICOLOR_AND_RASTR_LINE 5
+        DRAW_MULTICOLOR_AND_RASTR_LINE 6
+        DRAW_MULTICOLOR_AND_RASTR_LINE 7
+        DRAW_MULTICOLOR_AND_RASTR_LINE 8
+        DRAW_MULTICOLOR_AND_RASTR_LINE 9
+        DRAW_MULTICOLOR_AND_RASTR_LINE 10
+        DRAW_MULTICOLOR_AND_RASTR_LINE 11
+        DRAW_MULTICOLOR_AND_RASTR_LINE 12
+        DRAW_MULTICOLOR_AND_RASTR_LINE 13
+        DRAW_MULTICOLOR_AND_RASTR_LINE 14
+        DRAW_MULTICOLOR_AND_RASTR_LINE 15
+
+        DRAW_MULTICOLOR_AND_RASTR_LINE 16
+        DRAW_MULTICOLOR_AND_RASTR_LINE 17
+        DRAW_MULTICOLOR_AND_RASTR_LINE 18
+        DRAW_MULTICOLOR_AND_RASTR_LINE 19
+        DRAW_MULTICOLOR_AND_RASTR_LINE 20
+        DRAW_MULTICOLOR_AND_RASTR_LINE 21
+        DRAW_MULTICOLOR_AND_RASTR_LINE 22
+        ; draw rastr23 later, after updating JP_IX table
+        DRAW_MULTICOLOR_LINE 23
+
+        //ld a, 2                         ; 7 ticks
+        //out 0xfe,a                      ; 11 ticks
+        ld bc, (stack_bottom)
+        // -------------------------- DRAW_MULTICOLOR_AND_RASTR_LINEs_done ------------------------------
+
         dec bc
+        ; compare to -1
         ld a, b
-        cp 0xff
-
-        ; compare to N
+        inc a
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
  
 /*************** Data segment ******************/
-STACK_SIZE: equ 16  ; in words
+STACK_SIZE: equ 1  ; in words
 stack_bottom:
         defs STACK_SIZE * 2, 0
 stack_top:

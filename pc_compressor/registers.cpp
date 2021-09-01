@@ -367,10 +367,15 @@ void Register16::loadFromReg16(CompressedLine& line, const Register16& reg) cons
     }
 
     if (h.name == 's' && (reg.h.name == 'h' || reg.h.name == 'i'))
+    {
         line.data.push_back(0xf9); //< LD SP, HL
+        line.regUsage.useReg(reg.h, reg.l);
+        line.drawTicks += 6;
+    }
     else
+    {
         assert(0);
-    line.drawTicks += 6;
+    }
 }
 
 void Register16::exxHl(CompressedLine& line)
