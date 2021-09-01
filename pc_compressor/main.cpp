@@ -1282,7 +1282,7 @@ struct DescriptorState
 
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
     Z80CodeInfo codeInfo;           //< Descriptor data info.
-    
+
     Z80CodeInfo startDataInfo;      //< Information about skipped start block (it's included directly to the descriptor preambula).
     std::vector<uint8_t> endBlock;  //< Information about replaced end block (JP IX command).
 
@@ -1950,7 +1950,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters; // | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
