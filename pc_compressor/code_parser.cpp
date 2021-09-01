@@ -276,11 +276,11 @@ Z80CodeInfo Z80Parser::parseCode(const std::vector<uint8_t>& serializedData)
     for (auto& reg: registers)
         reg.setValue(0); //< Make registers non-empty to correct update regUseMask
     return parseCodeToTick(
-        registers, 
-        serializedData, 
-        /*start*/ 0, 
-        /*end*/ serializedData.size(), 
-        /*code offset for JP command*/ 0, 
+        registers,
+        serializedData,
+        /*start*/ 0,
+        /*end*/ serializedData.size(),
+        /*code offset for JP command*/ 0,
         std::numeric_limits<int>::max());
 }
 
@@ -626,6 +626,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0xf6: a.orValue(info, ptr[1]);
                 break;
             case 0xf9: // LD SP, HL
+                info.useReg(h, l);
                 break;
             default:
                 // Unsopported command
@@ -715,7 +716,7 @@ bool isBetween(int start, int value, int end)
     return value >= start && value < end;
 }
 
-bool isIntersect(const std::pair<int, int>& block1, 
+bool isIntersect(const std::pair<int, int>& block1,
     const std::pair<int, int>& block2)
 {
     return isBetween(block1.first, block2.first, block1.first + block1.second)
@@ -728,7 +729,7 @@ int Z80Parser::optimizePreambula(
     std::vector<std::pair<int, int>>& lockedBlocks)
 {
     static const uint8_t kDecSpCode = 0x3b;
-    static const uint8_t kAddHlSp = 0x39;
+    static const uint8_t kLdSpHl = 0xf9;
 
     uint8_t* ptr = serializedData.data() + startOffset;
     uint8_t* end = serializedData.data() + serializedData.size();
@@ -755,20 +756,19 @@ int Z80Parser::optimizePreambula(
     if (command1.size > 1 || command2.size == 1)
         return 0; //< Nothing to optimize.
 
+    /**
+     * Do not swap such commands.If it is first command for the second block (offscreen rastr)
+     * then SP can't get correct value from HL. Fortunately, this command is omitted by descriptor
+     * preambula. So, do not touch it.
+     */
+    if (command1.opCode == kLdSpHl)
+        return 0;
 
     auto info1 = parseCode(ptr, command1.size);
     auto info2 = parseCode(ptr + command1.size, command2.size);
 
     if (info2.hasJump)
         return 0;
-
-#if 0
-    if (command1.opCode == kDecSpCode)
-    {
-        swapCommands(ptr, command1, command2);
-        return command1.size + command2.size;
-    }
-#endif
 
     auto mask1 = info1.regUsage.regUseMask | info1.regUsage.selfRegMask;
     auto mask2 = info2.regUsage.regUseMask | info2.regUsage.selfRegMask;
@@ -778,4 +778,3 @@ int Z80Parser::optimizePreambula(
 
     return command1.size + command2.size;
 }
-    

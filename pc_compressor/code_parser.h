@@ -47,7 +47,7 @@ public:
 
     /**
      * This function swap first two commands in the Z80 code if need.
-     * It allows to make preambula more short. For example: 
+     * It allows to make preambula more short. For example:
      * PUSH BC: LD HL,XX will generate 4 bytes preambula, but 3 bytes if swap commands.
      */
     static int optimizePreambula(
