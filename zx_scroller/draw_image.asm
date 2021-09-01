@@ -176,7 +176,17 @@ prepare_interruption_table:
         ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?:
-                ld ix, $ + 7                                            ; 14
+                IF (N? == 0)
+                        ld ix, $ + 7     ; 14
+                ELSEIF (N? == 23 && low($+6) == low(OFF_RASTR_0+3))
+                        ; Align code duration. It uses two IX for 24 iteration.
+                        ld ix, $ + 7     ; 14
+                ELSEIF (low($+6) > 7)
+                        ld ixl, low($+6) ; 11
+                ELSE
+                        ld ix, $ + 7     ; 14
+                ENDIF                        
+
 OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 24
         ENDM                
