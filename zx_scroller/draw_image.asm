@@ -6,6 +6,13 @@ color_addr:     equ 5800h
 screen_end:     equ 5b00h
 generated_code: equ 5e00h
 
+JPIX__REF_TABLE_START EQU screen_end
+JPIX__REF_TABLE_END EQU JPIX__REF_TABLE_START + 16
+
+STACK_SIZE:     equ 2  ; in words
+stack_bottom    equ JPIX__REF_TABLE_END
+stack_top       equ stack_bottom + STACK_SIZE * 2
+
 /*************** Image data. ******************/
 
     org generated_code
@@ -220,7 +227,6 @@ OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 exx
         ENDM
 
-JPIX_TABLE_REF EQU screen_end
 jp_ix_record_size       equ 8
 write_initial_jp_ix_table
                 ld sp, jpix_table
@@ -233,11 +239,11 @@ write_initial_jp_ix_table
                 add hl, sp
                 ld de, hl
 
-                ; fill JPIX_TABLE_REF
+                ; fill JPIX_REF_TABLE
                 ld a, 8
                 sub c
                 rla
-                ld h, high(JPIX_TABLE_REF)
+                ld h, high(JPIX__REF_TABLE_START)
                 ld l, a
                 ld (hl), e
                 inc l
@@ -355,7 +361,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
 
         ENDM
 
-
+/*
 long_delay:
         exx
         ld b, 5
@@ -365,6 +371,7 @@ rep:    ld hl, 65535
         djnz rep
         exx
         ret
+*/        
 
 /*************** Main. ******************/
 main:
@@ -468,7 +475,7 @@ loop:
                 ; hl = jpix_table_ref
                 and 7                                   ; 7
                 rla                                     ; 4
-                ld h, high(JPIX_TABLE_REF)              ; 7
+                ld h, high(JPIX__REF_TABLE_START)       ; 7
                 ld l, a                                 ; 4
                 ld sp, hl                               ; 6
                 ; put new pointer to jpix_table_ref, get old pointer to restore data in hl
@@ -496,8 +503,6 @@ loop1:
         ld sp, stack_top
         call delay
 
-        //call long_delay
-
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
         ld (stack_bottom), bc
 
@@ -512,8 +517,6 @@ loop1:
         ld l, a
 
         draw_colors
-
-        //call long_delay
 
         // calculate floor(bc,8) / 4
 
@@ -565,8 +568,6 @@ loop1:
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
-        //call long_delay
-
         //ld a, 2                         ; 7 ticks
         //out 0xfe,a                      ; 11 ticks
         ld bc, (stack_bottom)
@@ -579,15 +580,6 @@ loop1:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
  
-/*************** Data segment ******************/
-STACK_SIZE: equ 2  ; in words
-stack_bottom:
-        defs STACK_SIZE * 2, 0
-stack_top:
-
-        ; it need to update code. Currently it don't increment low part of the register.
-data_segment_end:
-
 /*************** Commands to SJ asm ******************/
 
     SAVESNA "build/draw_image.sna", main
