@@ -104,7 +104,6 @@ table   db      t14&255,t15&255,t16&255,t17&255
 
 /*************** Draw 8 lines of image.  ******************/
 
-
 copy_image:
         ld hl, src_data
         ld de, 16384
@@ -221,39 +220,32 @@ OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 exx
         ENDM
 
-        ; max A value here is 63
-        MACRO MUL_A value
-                IF value == 40
-                        ld h, 0
-                        rla        ; * 2
-                        rla        ; * 4
-                        ld l, a
-                        add hl, hl ; * 8
-                        ld de, hl
-                        add hl, hl ; * 16
-                        add hl, hl ; * 32
-                        add hl, de ; * 40
-                ELSEIF value == 64
-                        ld l, 0
-                        rra
-                        rr l
-                        rra
-                        rr l
-                        ld h, a
-                ELSE
-                    ASSERT 0
-                ENDIF
-        ENDM
-
+JPIX_TABLE_REF EQU screen_end
 jp_ix_record_size       equ 8
 write_initial_jp_ix_table
                 ld sp, jpix_table
                 ; skip several descriptors
-                ld de, JP_IX_CODE
-
                 ld c, 8
 .loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
-.rep:           pop hl                          ; address
+                ; read sp to de
+                
+                ld hl, 0
+                add hl, sp
+                ld de, hl
+
+                ; fill JPIX_TABLE_REF
+                ld a, 8
+                sub c
+                rla
+                ld h, high(JPIX_TABLE_REF)
+                ld l, a
+                ld (hl), e
+                inc l
+                ld (hl), d
+
+                ld de, JP_IX_CODE
+.rep:           
+                pop hl                          ; address
                 ld (hl), e
                 inc hl
                 ld (hl), d
@@ -287,53 +279,7 @@ write_initial_jp_ix_table
         ENDM
 
 jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
-        MACRO update_jp_ix_table
-                // bc - screen address to draw
-
-                ; a = bank number
-                ld a, 0x3f
-                and c
-
-                ; hl = bank offset
-                MUL_A jpix_bank_size
-
-                ; bc =  offset in bank (bc/8)
-                ld a, 0xc0
-                and c
-                ld d, b
-                rr d: rra
-                rr d: rra
-                rr d: rra
-                ld e, a
-                add hl, de
-
-                // 1. write new JP_IX
-                ld sp, jpix_table
-                add hl, sp
-                ld sp, hl
-
-                ld de, JP_IX_CODE
-                .5 write_jp_ix_data 1
-                write_jp_ix_data 0
-
-                // 2. restore data
-
-                cp (imageHeight/64 - 1) * 8
-                jr nz, eight_bank_correct
-                ld hl, jpix_bank_size * 7 + jp_ix_record_size*3 - 11*2
-                jr common_bank
-eight_bank_correct:
-                ld hl, jpix_bank_size * 8 + jp_ix_record_size - 11*2
-                jr z, common_bank ; align branch duration
-common_bank
-                add hl, sp
-                ld sp, hl
-
-                .6 restore_jp_ix
-
-                // total 712
-        ENDM
-       
+      
 
     MACRO DRAW_MULTICOLOR_LINE N?:
                 exx                                     ; 4
@@ -410,16 +356,15 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
         ENDM
 
 
-/*
 long_delay:
-        push bc
-        ld b, 2
+        exx
+        ld b, 5
 rep:    ld hl, 65535
         call delay
+        dec a
         djnz rep
-        pop bc
+        exx
         ret
-*/
 
 /*************** Main. ******************/
 main:
@@ -447,7 +392,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 32
-initial_delay           equ first_timing_in_interrupt + 32442 +  mc_preambula_delay
+initial_delay           equ first_timing_in_interrupt + 33118 +  mc_preambula_delay
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
 
@@ -461,8 +406,78 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
 loop:  
-        update_jp_ix_table
+        ; max A value here is 63
+        MACRO MUL_A value
+                IF value == 40
+                        ld h, 0
+                        rla        ; * 2
+                        rla        ; * 4
+                        ld l, a
+                        add hl, hl ; * 8
+                        ld de, hl
+                        add hl, hl ; * 16
+                        add hl, hl ; * 32
+                        add hl, de ; * 40
+                ELSEIF value == 64
+                        ld l, 0
+                        rra
+                        rr l
+                        rra
+                        rr l
+                        ld h, a
+                ELSE
+                    ASSERT 0
+                ENDIF
+        ENDM
 
+        // --------------------- update_jp_ix_table --------------------------------
+        //MACRO update_jp_ix_table
+                // bc - screen address to draw
+
+                ; a = bank number
+                ld a, 0x3f
+                and c
+
+                ; hl = bank offset
+                MUL_A jpix_bank_size
+
+                ; bc =  offset in bank (bc/8)
+                ld a, 0xc0
+                and c
+                ld d, b
+                rr d: rra
+                rr d: rra
+                rr d: rra
+                ld e, a
+                add hl, de
+
+                ; hl - pointer to new record in JPIX table
+                ld sp, jpix_table
+                add hl, sp
+
+                ld a, c                                 ; 4
+
+                // 1. write new JP_IX
+                ld sp, hl
+                exx
+                ld de, JP_IX_CODE
+                .5 write_jp_ix_data 1
+                write_jp_ix_data 0
+
+                // 2. restore data
+                ; hl = jpix_table_ref
+                and 7                                   ; 7
+                rla                                     ; 4
+                ld h, high(JPIX_TABLE_REF)              ; 7
+                ld l, a                                 ; 4
+                ld sp, hl                               ; 6
+                ; put new pointer to jpix_table_ref, get old pointer to restore data in hl
+                exx                                     ; 4
+                ex (sp), hl                             ; 19
+                ld sp, hl                               ; 6
+                .6 restore_jp_ix
+                // total 720
+        // ------------------------- update jpix table end
         exx
         scf
         DRAW_RASTR_LINE 23
@@ -481,6 +496,8 @@ loop1:
         ld sp, stack_top
         call delay
 
+        //call long_delay
+
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
         ld (stack_bottom), bc
 
@@ -495,6 +512,8 @@ loop1:
         ld l, a
 
         draw_colors
+
+        //call long_delay
 
         // calculate floor(bc,8) / 4
 
@@ -546,6 +565,8 @@ loop1:
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
+        //call long_delay
+
         //ld a, 2                         ; 7 ticks
         //out 0xfe,a                      ; 11 ticks
         ld bc, (stack_bottom)
@@ -559,7 +580,7 @@ loop1:
         jp loop                        ; 12 ticks
  
 /*************** Data segment ******************/
-STACK_SIZE: equ 1  ; in words
+STACK_SIZE: equ 2  ; in words
 stack_bottom:
         defs STACK_SIZE * 2, 0
 stack_top:

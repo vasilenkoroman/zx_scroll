@@ -1399,7 +1399,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const int colorsHeight = imageHeight / 8;
 
     // . Create delta for JP_IX when shift to 1 line
-    for (int i = 0; i < 64 + 8; ++i)
+    for (int i = 0; i < 64; ++i)
     {
         int line = i % 64;
 
@@ -1868,7 +1868,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1361;
+        static const int kZ80CodeDelay = 1373;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
