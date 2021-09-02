@@ -2,9 +2,13 @@
 
 #include <vector>
 #include <utility>
+#include <functional>
+
 #include "registers.h"
 
 static const int kJpIxCommandLen = 2;
+static const uint8_t kDecSpCode = 0x3b;
+static const uint8_t kLdSpHl = 0xf9;
 
 struct z80Command
 {
@@ -27,6 +31,8 @@ struct Z80CodeInfo
 
 class Z80Parser
 {
+    using BreakCondition = std::function<bool(const Z80CodeInfo&, const z80Command&)>;
+
 public:
     static z80Command parseCommand(const uint8_t* ptr);
 
@@ -38,12 +44,21 @@ public:
         const std::vector<uint8_t>& serializedData,
         int startOffset,
         int endOffset,
-        uint16_t codeOffset, int maxTicks);
+        uint16_t codeOffset, 
+        BreakCondition breakCondition = nullptr);
+
+    static Z80CodeInfo parseCodeToTick(
+        const std::vector<Register16>& inputRegisters,
+        const uint8_t* serializedData,
+        int startOffset,
+        int endOffset,
+        uint16_t codeOffset,
+        BreakCondition breakCondition = nullptr);
 
     // Return first bytes from the buffer. Round it up to op code size.
     static std::vector<uint8_t> getCode(const uint8_t* buffer, int requestedOpCodeSize);
 
-    static std::vector<uint8_t> genDelay(int ticks);
+    static std::vector<uint8_t> genDelay(int ticks, bool alowInacurateTicks = false);
 
     /**
      * This function swap first two commands in the Z80 code if need.

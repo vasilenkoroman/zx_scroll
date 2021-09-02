@@ -272,23 +272,20 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
 
 Z80CodeInfo Z80Parser::parseCode(const std::vector<uint8_t>& serializedData)
 {
-    std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-    for (auto& reg: registers)
-        reg.setValue(0); //< Make registers non-empty to correct update regUseMask
-    return parseCodeToTick(
-        registers,
-        serializedData,
-        /*start*/ 0,
-        /*end*/ serializedData.size(),
-        /*code offset for JP command*/ 0,
-        std::numeric_limits<int>::max());
+    return parseCode(serializedData.data(), serializedData.size());
 }
 
 Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
 {
-    std::vector<uint8_t> data(size);
-    memcpy(data.data(), buffer, size);
-    return parseCode(data);
+    std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    for (auto& reg : registers)
+        reg.setValue(0); //< Make registers non-empty to correct update regUseMask
+    return parseCodeToTick(
+        registers,
+        buffer,
+        /*start*/ 0,
+        /*end*/ size,
+        /*code offset for JP command*/ 0);
 }
 
 Z80CodeInfo Z80Parser::parseCodeToTick(
@@ -297,7 +294,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     int startOffset,
     int endOffset,
     uint16_t codeOffset,
-    int maxTicks)
+    BreakCondition breakCondition)
+{
+    return parseCodeToTick(inputRegisters, serializedData.data(), startOffset, endOffset, codeOffset, breakCondition);
+}
+
+
+Z80CodeInfo Z80Parser::parseCodeToTick(
+    const std::vector<Register16>& inputRegisters,
+    const uint8_t* serializedData,
+    int startOffset,
+    int endOffset,
+    uint16_t codeOffset,
+    BreakCondition breakCondition)
 {
     Z80CodeInfo result;
     RegUsageInfo info;
@@ -320,10 +329,10 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     Register8& a = af->h;
 
 
-    const uint8_t* bufferBegin = serializedData.data();
-    const uint8_t* bufferEnd = serializedData.data() + serializedData.size();
-    const uint8_t* ptr = serializedData.data() + startOffset;
-    const uint8_t* end = serializedData.data() + endOffset;
+    const uint8_t* bufferBegin = serializedData;
+    //const uint8_t* bufferEnd = serializedData + serializedData.size();
+    const uint8_t* ptr = serializedData + startOffset;
+    const uint8_t* end = serializedData + endOffset;
 
     auto push =
         [&](const Register16* reg)
@@ -332,13 +341,15 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             result.spDelta += 2;
     };
 
-    while (result.ticks < maxTicks && ptr != end)
+    while (ptr != end)
     {
-        if (ptr < bufferBegin || ptr >= bufferEnd)
+        //if (ptr < bufferBegin || ptr >= bufferEnd)
+        if (ptr < bufferBegin || ptr >= end)
             break;
 
         auto command = parseCommand(ptr);
-        if (result.ticks + command.ticks > maxTicks)
+        //if (result.ticks + command.ticks > maxTicks)
+        if (breakCondition && breakCondition(result, command))
             break;
         result.ticks += command.ticks;
 
@@ -599,7 +610,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 // jp **
                 uint16_t jumpTo = ptr[1] + ((uint16_t)ptr[2] << 8);
                 jumpTo -= codeOffset;
-                ptr = serializedData.data() + jumpTo;
+                ptr = serializedData + jumpTo;
                 result.hasJump = true;
                 continue;
             }
@@ -637,7 +648,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
     result.outputRegisters = registers;
     result.regUsage = info;
-    result.endOffset = ptr - serializedData.data();
+    result.endOffset = ptr - serializedData;
 
     return result;
 }
@@ -661,9 +672,12 @@ std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCo
     return result;
 }
 
-std::vector<uint8_t> Z80Parser::genDelay(int ticks)
+std::vector<uint8_t> Z80Parser::genDelay(int ticks, bool alowInacurateTicks)
 {
     std::vector<uint8_t> result;
+
+    if (ticks <= 0)
+        return result;
 
     while (ticks > 10)
     {
@@ -695,6 +709,8 @@ std::vector<uint8_t> Z80Parser::genDelay(int ticks)
         case 0:
             break;
         default:
+            if (alowInacurateTicks)
+                break;
             std::cerr << "Invalid ticks amount to align:" << ticks << std::endl;
             assert(0);
             abort();
@@ -728,9 +744,6 @@ int Z80Parser::optimizePreambula(
     int startOffset,
     std::vector<std::pair<int, int>>& lockedBlocks)
 {
-    static const uint8_t kDecSpCode = 0x3b;
-    static const uint8_t kLdSpHl = 0xf9;
-
     uint8_t* ptr = serializedData.data() + startOffset;
     uint8_t* end = serializedData.data() + serializedData.size();
     if (ptr == end)

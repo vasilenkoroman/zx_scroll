@@ -1004,7 +1004,7 @@ void finilizeLine(
     Register16 sp("sp");
     if (context.minX >= 5)
     {
-        hl.loadXX(result, -context.minX);
+        hl.loadXX(result, context.minX);
         hl.addSP(result);
         sp.loadFromReg16(result, hl);
     }
