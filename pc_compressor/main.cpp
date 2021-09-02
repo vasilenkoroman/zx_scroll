@@ -1029,7 +1029,9 @@ void finilizeLine(
     auto info = parser.parseCodeToTick(
         registers,
         pushLine.data.buffer(),
-        0, pushLine.data.size(),
+        pushLine.data.size(),
+        /* start offset*/ 0, 
+        /* end offset*/ pushLine.data.size(),
         /* codeOffset*/ 0,
         [](const Z80CodeInfo& info, const z80Command& command)
         {
@@ -1532,6 +1534,11 @@ int serializeMainData(
 
     for (int d = 0; d < imageHeight; ++d)
     {
+        if (d == 136)
+        {
+            int gg = 4;
+        }
+
         const int srcLine = d % imageHeight;
 
         LineDescriptor descriptor;
@@ -1614,6 +1621,8 @@ int serializeMainData(
         descriptor.rastrForOffscreen.serialize(serializedDescriptors);
 
         descriptors.push_back(descriptor);
+
+        std::cout << "size=" << serializedDescriptors.size() << " i=" << d << std::endl;
     }
 
     for (auto& descriptor: descriptors)

@@ -50,6 +50,7 @@ public:
     static Z80CodeInfo parseCodeToTick(
         const std::vector<Register16>& inputRegisters,
         const uint8_t* serializedData,
+        const int serializedDataSize,
         int startOffset,
         int endOffset,
         uint16_t codeOffset,

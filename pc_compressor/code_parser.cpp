@@ -283,8 +283,9 @@ Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
     return parseCodeToTick(
         registers,
         buffer,
-        /*start*/ 0,
-        /*end*/ size,
+        size,
+        /*parse start*/ 0,
+        /*parse end*/ size,
         /*code offset for JP command*/ 0);
 }
 
@@ -296,13 +297,16 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     uint16_t codeOffset,
     BreakCondition breakCondition)
 {
-    return parseCodeToTick(inputRegisters, serializedData.data(), startOffset, endOffset, codeOffset, breakCondition);
+    return parseCodeToTick(inputRegisters, 
+        serializedData.data(), serializedData.size(),
+        startOffset, endOffset, codeOffset, breakCondition);
 }
 
 
 Z80CodeInfo Z80Parser::parseCodeToTick(
     const std::vector<Register16>& inputRegisters,
     const uint8_t* serializedData,
+    const int serializedDataSize,
     int startOffset,
     int endOffset,
     uint16_t codeOffset,
@@ -330,7 +334,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
 
     const uint8_t* bufferBegin = serializedData;
-    //const uint8_t* bufferEnd = serializedData + serializedData.size();
+    const uint8_t* bufferEnd = serializedData + serializedDataSize;
     const uint8_t* ptr = serializedData + startOffset;
     const uint8_t* end = serializedData + endOffset;
 
@@ -343,8 +347,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
 
     while (ptr != end)
     {
-        //if (ptr < bufferBegin || ptr >= bufferEnd)
-        if (ptr < bufferBegin || ptr >= end)
+        if (ptr < bufferBegin || ptr >= bufferEnd)
             break;
 
         auto command = parseCommand(ptr);
