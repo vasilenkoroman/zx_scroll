@@ -1002,16 +1002,26 @@ void finilizeLine(
 {
     Register16 hl("hl");
     Register16 sp("sp");
-    if (context.minX >= 5)
-    {
-        hl.loadXX(result, -context.minX);
-        hl.addSP(result);
-        sp.loadFromReg16(result, hl);
-    }
-    else
-    {
-        sp.decValue(result, context.minX);
-    }
+
+    auto addSpCorrection =
+        [&](int value, bool canUseHl)
+        {
+            if (value >= 5 && canUseHl)
+            {
+                hl.loadXX(result, -value);
+                hl.addSP(result);
+                sp.loadFromReg16(result, hl);
+            }
+            else
+            {
+                sp.decValue(result, value);
+            }
+        };
+
+    // Left part is exists
+    if (context.minX < 16)
+        addSpCorrection(context.minX, true);
+
     result += loadLine;
     int preloadTicks = result.drawTicks;
 
@@ -1032,7 +1042,7 @@ void finilizeLine(
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
-        /* start offset*/ 0, 
+        /* start offset*/ 0,
         /* end offset*/ pushLine.data.size(),
         /* codeOffset*/ 0,
         [&](const Z80CodeInfo& info, const z80Command& command)
@@ -1051,16 +1061,20 @@ void finilizeLine(
         /* start offset*/ info.endOffset,
         /* end offset*/ pushLine.data.size(),
         /* codeOffset*/ 0);
-    
+
     result.append(pushLine.data.buffer(), info.endOffset);
     result.drawTicks += info.ticks;
 
     result.append(kLdSpIy);
     result.drawTicks += kStackMovingTimeForMc;
 
+    if (context.minX > 16)
+        addSpCorrection(context.minX-16, false);
+
     if (info2.spDeltaOnFirstPush)
     {
-        extraDelay = 128 - result.drawTicks - *info2.spDeltaOnFirstPush * kTicksOnScreenPerByte;
+        int initialOffset = std::max(0, context.minX - 16);
+        extraDelay = 128 - result.drawTicks - (*info2.spDeltaOnFirstPush + initialOffset) * kTicksOnScreenPerByte;
         if (extraDelay > 0)
         {
             const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
@@ -1235,6 +1249,8 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
             src++;
         }
     }
+
+    auto suffledPtr = shufledBuffer.data();
 
     struct Context context;
     context.scrollDelta = 1;
@@ -1608,7 +1624,7 @@ int serializeMainData(
             [ticksLimit](const Z80CodeInfo& info, const z80Command& command)
             {
                 return info.ticks + command.ticks > ticksLimit;
-            });  
+            });
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
