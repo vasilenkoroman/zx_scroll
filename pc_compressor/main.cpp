@@ -1041,15 +1041,31 @@ void finilizeLine(
         }
     );
     assert(info.spDelta <= context.borderPoint);
+
+    auto info2 = parser.parseCodeToTick(
+        registers,
+        pushLine.data.buffer(),
+        pushLine.data.size(),
+        /* start offset*/ info.endOffset,
+        /* end offset*/ pushLine.data.size(),
+        /* codeOffset*/ 0);
     
     result.append(pushLine.data.buffer(), info.endOffset);
-    result.append(kLdSpIy);
-    result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
+    result.drawTicks += info.ticks;
 
-    result.drawTicks += pushLine.drawTicks;
+    result.append(kLdSpIy);
     result.drawTicks += kStackMovingTimeForMc;
-    //result += pushLine;
-    //result.jpIx();
+
+    if (info2.spDeltaOnFirstPush)
+    {
+        extraDelay = 128 - result.drawTicks - *info2.spDeltaOnFirstPush * kTicksOnScreenPerByte;
+        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+        result.append(delay);
+        result.drawTicks += extraDelay;
+    }
+
+    result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
+    result.drawTicks += pushLine.drawTicks - info.ticks;
 }
 
 CompressedLine  compressMultiColorsLine(Context context)
@@ -1914,7 +1930,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1322;
+        static const int kZ80CodeDelay = 1322 + 36;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;

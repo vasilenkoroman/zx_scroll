@@ -23,6 +23,7 @@ struct Z80CodeInfo
     int endOffset = 0;
     int ticks = 0;
     int spDelta = 0;
+    std::optional<int> spDeltaOnFirstPush;
     std::vector<Register16> inputRegisters;
     std::vector<Register16> outputRegisters;
     RegUsageInfo regUsage;

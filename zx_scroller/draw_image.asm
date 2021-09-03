@@ -11,7 +11,7 @@ JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
 JPIX__BANKS_HELPER      EQU JPIX__REF_TABLE_END
 JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
 
-STACK_SIZE:     equ 2  ; in words
+STACK_SIZE:     equ 4  ; in words
 stack_bottom    equ JPIX__BANKS_HELPER_END
 stack_top       equ stack_bottom + STACK_SIZE * 2
 
@@ -396,7 +396,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
 
         ENDM
 
-/*
 long_delay:
         exx
         ld b, 5
@@ -406,7 +405,6 @@ rep:    ld hl, 65535
         djnz rep
         exx
         ret
-*/        
 
 /*************** Main. ******************/
 main:
@@ -543,8 +541,8 @@ loop1:
         pop hl
         exx
         
-        //ld a, 1                         ; 7 ticks
-        //out 0xfe,a                      ; 11 ticks
+        ld a, 1                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
 
         ; timing here on first frame: 91182
         scf     // aligned data uses ret nc. prevent these ret
@@ -575,8 +573,11 @@ loop1:
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
-        //ld a, 2                         ; 7 ticks
-        //out 0xfe,a                      ; 11 ticks
+        //ld sp, stack_top
+        //call long_delay
+
+        ld a, 2                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
         ld bc, (stack_bottom)
         // -------------------------- DRAW_MULTICOLOR_AND_RASTR_LINEs_done ------------------------------
 

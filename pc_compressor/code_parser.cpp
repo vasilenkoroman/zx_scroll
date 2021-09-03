@@ -341,6 +341,8 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     auto push =
         [&](const Register16* reg)
         {
+            if (!result.spDeltaOnFirstPush)
+                result.spDeltaOnFirstPush = result.spDelta;
             reg->push(info);
             result.spDelta += 2;
     };
