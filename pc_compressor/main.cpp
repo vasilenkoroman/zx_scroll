@@ -40,7 +40,7 @@ static const int forceToUseExistingRegisters = 32;
 static const int skipInvisibleColors = 32;
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 86 + 10; // context switch + ld hl in the end of the multicolor line
+static const int kRtMcContextSwitchDelay = 100 + 10; // context switch + ld hl in the end of the multicolor line
 static const int kTicksOnScreenPerByte = 4;
 static const int kStackMovingTimeForMc = 10;
 
@@ -1033,11 +1033,11 @@ void finilizeLine(
         /* start offset*/ 0, 
         /* end offset*/ pushLine.data.size(),
         /* codeOffset*/ 0,
-        [](const Z80CodeInfo& info, const z80Command& command)
+        [&](const Z80CodeInfo& info, const z80Command& command)
         {
             if (command.opCode == kLdSpHl)
                 return false; //< Wait for spdelta is to flush.
-            return info.spDelta >= 16;
+            return info.spDelta + context.minX >= 16;
         }
     );
     assert(info.spDelta <= context.borderPoint);

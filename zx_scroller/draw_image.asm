@@ -328,14 +328,14 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
                 exx                                     ; 4
-                // total ticks: 36 (44 with ret)
+                // total ticks: 50 (58 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256        ; 10
                 ld ix, $ + 7                                            ; 14
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
-                // total ticks: 34 (40 with ret)
+                // total ticks: 34 (42 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
