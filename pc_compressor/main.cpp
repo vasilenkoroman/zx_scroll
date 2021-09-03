@@ -1210,6 +1210,12 @@ CompressedLine  compressMultiColorsLine(Context context)
     context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
     CompressedLine pushLine;
     success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
+    if (!success)
+    {
+        std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
+            << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
+        abort();
+    }
 
     if (pushLine.drawTicks > t2)
     {
