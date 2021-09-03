@@ -323,7 +323,7 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
     MACRO DRAW_MULTICOLOR_LINE N?:
                 exx                                     ; 4
-                ld sp, color_addr + N? * 16 + 32        ; 10
+                ld sp, color_addr + N? * 32 + 16        ; 10
                 ld iy, color_addr + N? * 32 + 32        ; 14
                 ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
