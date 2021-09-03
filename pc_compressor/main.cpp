@@ -17,6 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
+#define LOG_DEBUG
 
 #define TEMP_FOR_TEST_COLORS 1
 
@@ -453,7 +454,7 @@ bool compressLine(
         const int index = context.y * 32 + x;
         int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
-        if (!(context.flags & oddVerticalCompression) || x > context.lastOddRepPosition)
+        if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
             verticalRepCount &= ~1;
 
         uint16_t* buffer16 = (uint16_t*) (context.buffer + index);
@@ -468,7 +469,7 @@ bool compressLine(
             if (x == context.borderPoint - 1 && !verticalRepCount)
                 return false;
             verticalRepCount = std::min(verticalRepCount, context.borderPoint - x);
-            if (!(context.flags & oddVerticalCompression) || x > context.lastOddRepPosition)
+            if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
                 verticalRepCount &= ~1;
         }
 
@@ -1157,7 +1158,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         const int index = context.y * 32 + x;
         int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
-        if (x > context.lastOddRepPosition)
+        if (x >= context.lastOddRepPosition)
             verticalRepCount &= ~1;
         if (verticalRepCount)
         {
@@ -1303,8 +1304,18 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     // Align duration for multicolors
 
     int maxTicks = 0;
-    for (const auto& line : compressedData.data)
-        maxTicks = std::max(maxTicks, line.drawTicks);
+    int regularTicks = 0;
+    int maxTicksLine = 0;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        const auto& line = compressedData.data[i];
+        if (line.drawTicks > maxTicks)
+        {
+            maxTicks = line.drawTicks;
+            maxTicksLine = i;
+        }
+        regularTicks += line.drawTicks;
+    }
 
     // TODO: consider to avoid +4 here. In case some line need be aligned to [1..3] ticks it is possible
     // to modify line commands itself.
@@ -1316,6 +1327,17 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
             break;
         }
     }
+
+    int maxLosedTick = 0;
+    for (const auto& line : compressedData.data)
+        maxLosedTick = std::max(maxLosedTick, maxTicks - line.drawTicks);
+
+#ifdef LOG_INFO
+    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine  << std::endl;
+
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks*24 - regularTicks 
+        << " max losed ticks at line=" << maxLosedTick << std::endl;
+#endif
 
     for (auto& line: compressedData.data)
     {
@@ -1980,7 +2002,7 @@ int serializeTimingData(
         }
         else
         {
-            #ifdef LOG_INFO
+            #ifdef LOG_DEBUG
                 std::cout << "INFO: ticks rest at line #" << line << ". ticks=" << freeTicks << std::endl;
             #endif
         }
