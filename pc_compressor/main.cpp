@@ -1115,8 +1115,14 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
-    compressLineMain(context, line1, registers);
-
+    bool success = compressLineMain(context, line1, registers);
+    if (!success)
+    {
+        context.flags &= ~oddVerticalCompression;
+        line1 = CompressedLine();
+        registers = { Register16("bc"), Register16("de"), Register16("hl") };
+        success = compressLineMain(context, line1, registers);
+    }
 
     //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
 
@@ -1203,7 +1209,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     std::array<Register16, 6> registers6 = { regMain[0], regMain[1], regMain[2], regAlt[0], regAlt[1], regAlt[2] };
     context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
     CompressedLine pushLine;
-    bool success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
+    success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
 
     if (pushLine.drawTicks > t2)
     {
