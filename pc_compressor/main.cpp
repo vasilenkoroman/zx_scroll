@@ -1017,11 +1017,13 @@ void finilizeLine(
 
     // TODO: optimize drawOffset ticks here. Current version is the most simple, but slower solution
     int extraDelay = result.drawOffsetTicks - preloadTicks;
-    
-    // It may be not enough [1..3] ticks to start drawing. Just shift global phase to 3 ticks to avoid it.
-    const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
-    result.push_front(delay);
-    result.drawTicks += extraDelay;
+    if (extraDelay > 0)
+    {
+        // It may be not enough [1..3] ticks to start drawing. Just shift global phase to 3 ticks to avoid it.
+        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+        result.push_front(delay);
+        result.drawTicks += extraDelay;
+    }
 
     // parse pushLine to find point for LD SP, IY
     Z80Parser parser;
@@ -1059,9 +1061,12 @@ void finilizeLine(
     if (info2.spDeltaOnFirstPush)
     {
         extraDelay = 128 - result.drawTicks - *info2.spDeltaOnFirstPush * kTicksOnScreenPerByte;
-        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
-        result.append(delay);
-        result.drawTicks += extraDelay;
+        if (extraDelay > 0)
+        {
+            const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+            result.push_front(delay);
+            result.drawTicks += extraDelay;
+        }
     }
 
     result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
