@@ -530,10 +530,6 @@ bool compressLine(
 
         return true;
     }
-    if (result.isAltReg)
-        result.exx();
-    if (result.isAltAf)
-        result.exAf();
 
     if (context.flags & oddVerticalCompression)
         result.lastOddRepPosition = context.maxX;
@@ -1658,8 +1654,6 @@ int serializeMainData(
         descriptor.rastrForOffscreen.serialize(serializedDescriptors);
 
         descriptors.push_back(descriptor);
-
-        std::cout << "size=" << serializedDescriptors.size() << " i=" << d << std::endl;
     }
 
     for (auto& descriptor: descriptors)
