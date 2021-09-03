@@ -16,6 +16,8 @@
 #include "registers.h"
 #include "code_parser.h"
 
+#define LOG_INFO
+
 #define TEMP_FOR_TEST_COLORS 1
 
 static const int totalTicksPerFrame = 71680;
@@ -1094,11 +1096,6 @@ CompressedLine  compressMultiColorsLine(Context context)
     CompressedLine result;
     static const int kBorderTime = kLineDurationInTicks - 128;
 
-    if (context.y == 11)
-    {
-        int gg = 4;
-    }
-
     uint8_t* line = context.buffer + context.y * 32;
     int nextLineNum = (context.y + context.scrollDelta) % context.imageHeight;
     uint8_t* nextLine = context.buffer + nextLineNum * 32;
@@ -1595,11 +1592,6 @@ int serializeMainData(
 
     for (int d = 0; d < imageHeight; ++d)
     {
-        if (d == 136)
-        {
-            int gg = 4;
-        }
-
         const int srcLine = d % imageHeight;
 
         LineDescriptor descriptor;
@@ -1973,7 +1965,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1353;
+        static const int kZ80CodeDelay = 1351;
         ticks += kZ80CodeDelay;
 
         uint16_t freeTicks = totalTicksPerFrame - ticks;
@@ -1985,6 +1977,12 @@ int serializeTimingData(
         {
             std::cout << "ERROR: not enough ticks at line. " << line << ". ticks=" << ticks << std::endl;
             abort();
+        }
+        else
+        {
+            #ifdef LOG_INFO
+                std::cout << "INFO: ticks rest at line #" << line << ". ticks=" << freeTicks << std::endl;
+            #endif
         }
 
         timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
