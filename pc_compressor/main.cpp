@@ -325,11 +325,17 @@ bool compressLineMain(
     auto registers2 = registers;
 
     line1.flags = context.flags;
-    bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX);
+    bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX & ~1);
     Context context2 = context;
     context2.flags |= oddVerticalCompression;
     line2.flags = context2.flags;
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
+
+    if (!success1)
+    {
+        std::cerr << "Cant compress line " << context.y << " because of oddRep position. It should not be!";
+        abort();
+    }
 
     bool useSecondLine = success2 && line2.drawTicks < line1.drawTicks;
     if (useSecondLine)
@@ -523,8 +529,8 @@ bool compressLine(
             return false;
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
-        if (context.flags & oddVerticalCompression)
-            result.lastOddRepPosition = x;
+        //if (context.flags & oddVerticalCompression)
+        //    result.lastOddRepPosition = x;
         result.lastOddRepPosition = choisedLine.lastOddRepPosition;
         registers = chosedRegisters;
 
@@ -1088,6 +1094,11 @@ CompressedLine  compressMultiColorsLine(Context context)
     CompressedLine result;
     static const int kBorderTime = kLineDurationInTicks - 128;
 
+    if (context.y == 11)
+    {
+        int gg = 4;
+    }
+
     uint8_t* line = context.buffer + context.y * 32;
     int nextLineNum = (context.y + context.scrollDelta) % context.imageHeight;
     uint8_t* nextLine = context.buffer + nextLineNum * 32;
@@ -1118,11 +1129,12 @@ CompressedLine  compressMultiColorsLine(Context context)
     bool success = compressLineMain(context, line1, registers);
     if (!success)
     {
-        context.flags &= ~oddVerticalCompression;
-        line1 = CompressedLine();
-        registers = { Register16("bc"), Register16("de"), Register16("hl") };
-        success = compressLineMain(context, line1, registers);
+        std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
+        abort();
     }
+
+    if (!(context.flags & oddVerticalCompression))
+        context.minX &= ~1;
 
     //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
 
@@ -1139,6 +1151,8 @@ CompressedLine  compressMultiColorsLine(Context context)
     std::set<uint16_t> uniqueWords;
 
     context.lastOddRepPosition = line1.lastOddRepPosition;
+    context.flags = line1.flags;
+
     int x = context.minX;
     int exxPos = -1;
     while (x <= context.maxX)
@@ -1207,14 +1221,16 @@ CompressedLine  compressMultiColorsLine(Context context)
     // 2.4 start compressor with prepared register values
 
     std::array<Register16, 6> registers6 = { regMain[0], regMain[1], regMain[2], regAlt[0], regAlt[1], regAlt[2] };
-    context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
+    //context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
+    context.flags |= forceToUseExistingRegisters;
+
     CompressedLine pushLine;
     success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
     if (!success)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
             << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
-        abort();
+        //abort();
     }
 
     if (pushLine.drawTicks > t2)
