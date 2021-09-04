@@ -448,14 +448,21 @@ bool compressLine(
     std::array<Register16, N>& registers,
     int x)
 {
-
     while (x <= context.maxX)
     {
+        if (x == context.borderPoint)
+            result.splitPosHint = result.data.size();
+
         const int index = context.y * 32 + x;
         int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
-        if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
-            verticalRepCount &= ~1;
+        if (verticalRepCount)
+        {
+            if (x + verticalRepCount == 31)
+                --verticalRepCount;
+            else if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
+                verticalRepCount &= ~1;
+        }
 
         uint16_t* buffer16 = (uint16_t*) (context.buffer + index);
         uint16_t word = *buffer16;
@@ -468,9 +475,11 @@ bool compressLine(
         {
             if (x == context.borderPoint - 1 && !verticalRepCount)
                 return false;
-            verticalRepCount = std::min(verticalRepCount, context.borderPoint - x);
-            if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
-                verticalRepCount &= ~1;
+            if (x + verticalRepCount >= context.borderPoint)
+            {
+                x = context.borderPoint;
+                continue;
+            }
         }
 
         // Decrement stack if line has same value from previous step (vertical compression)
@@ -489,18 +498,19 @@ bool compressLine(
             }
         }
 
-        // push existing 16 bit value.
-        if (x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
-        {
-            x += 2;
-            continue;
-        }
 
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)
         {
             sp.decValue(result, verticalRepCount);
             x += verticalRepCount;
+            continue;
+        }
+
+        // push existing 16 bit value.
+        if (x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
+        {
+            x += 2;
             continue;
         }
 
@@ -535,6 +545,8 @@ bool compressLine(
         //if (context.flags & oddVerticalCompression)
         //    result.lastOddRepPosition = x;
         result.lastOddRepPosition = choisedLine.lastOddRepPosition;
+        if (choisedLine.splitPosHint >= 0)
+            result.splitPosHint = choisedLine.splitPosHint;
         registers = chosedRegisters;
 
         return true;
@@ -1043,19 +1055,16 @@ void finilizeLine(
     // parse pushLine to find point for LD SP, IY
     Z80Parser parser;
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+
+    assert(pushLine.splitPosHint >= 0);
+
     auto info = parser.parseCodeToTick(
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
         /* start offset*/ 0,
-        /* end offset*/ pushLine.data.size(),
-        /* codeOffset*/ 0,
-        [&](const Z80CodeInfo& info, const z80Command& command)
-        {
-            if (command.opCode == kLdSpHl)
-                return false; //< Wait for spdelta is to flush.
-            return info.spDelta + context.minX >= 16;
-        }
+        /* end offset*/ pushLine.splitPosHint,
+        /* codeOffset*/ 0
     );
     assert(info.spDelta <= context.borderPoint);
 
@@ -1228,7 +1237,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
             << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
-        //abort();
+        abort();
     }
 
     if (pushLine.drawTicks > t2)
@@ -1304,8 +1313,10 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     // Align duration for multicolors
 
     int maxTicks = 0;
+    int minTicks = std::numeric_limits<int>::max();
     int regularTicks = 0;
     int maxTicksLine = 0;
+    int minTicksLine = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
         const auto& line = compressedData.data[i];
@@ -1313,6 +1324,11 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         {
             maxTicks = line.drawTicks;
             maxTicksLine = i;
+        }
+        if (line.drawTicks < minTicks)
+        {
+            minTicks = line.drawTicks;
+            minTicksLine = i;
         }
         regularTicks += line.drawTicks;
     }
@@ -1328,15 +1344,10 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         }
     }
 
-    int maxLosedTick = 0;
-    for (const auto& line : compressedData.data)
-        maxLosedTick = std::max(maxLosedTick, maxTicks - line.drawTicks);
-
 #ifdef LOG_INFO
-    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine  << std::endl;
+    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine << ", min ticks " << minTicks << " at line " << minTicksLine << std::endl;
 
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks*24 - regularTicks 
-        << " max losed ticks at line=" << maxLosedTick << std::endl;
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks*24 - regularTicks << std::endl;
 #endif
 
     for (auto& line: compressedData.data)
