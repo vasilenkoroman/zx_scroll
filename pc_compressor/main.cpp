@@ -446,11 +446,6 @@ bool compressLine(
     std::array<Register16, N>& registers,
     int x)
 {
-    if (context.y == 19)
-    {
-        int gg = 4;
-    }
-
     while (x <= context.maxX)
     {
         const int index = context.y * 32 + x;
@@ -1070,6 +1065,8 @@ void finilizeLine(
                 hl.loadXX(result, -value);
                 hl.addSP(result);
                 sp.loadFromReg16(result, hl);
+                if (value < 0)
+                    result.scf(); //< Keep flag 'c' on during multicolors
             }
             else
             {
@@ -1089,24 +1086,20 @@ void finilizeLine(
         uint16_t delta = context.minX < 16 ? context.minX : 16 - (context.minX - 16);
         doAddSP(delta);
     }
+    if (pushLine.splitPosHint >= 0 && pushLine.extraIyDelta)
+    {
+        if (pushLine.extraIyDelta)
+            doAddIY(pushLine.extraIyDelta);
+    }
 
     result += loadLine;
     int preloadTicks = result.drawTicks;
+    result.maxMcDrawShift = -(preloadTicks - 64 - pushLine.freeTicks);
 
-#if 0
-    int extraDelay = result.drawOffsetTicks - preloadTicks;
-    if (extraDelay > 0)
-    {
-        // It may be not enough [1..3] ticks to start drawing. Just shift global phase to 3 ticks to avoid it.
-        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
-        result.push_front(delay);
-        result.drawTicks += extraDelay;
-    }
-#endif
-
-    // parse pushLine to find point for LD SP, IY
     Z80Parser parser;
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+
+    // parse pushLine to find point for LD SP, IY
 
     auto info = parser.parseCodeToTick(
         registers,
@@ -1132,28 +1125,50 @@ void finilizeLine(
     {
         result.append(kLdSpIy);
         result.drawTicks += kStackMovingTimeForMc;
-        if (pushLine.extraIyDelta)
-            doAddIY(pushLine.extraIyDelta);
-    }
-    else
-    {
-        // Left drawing part jump over LD SP, IY by its own stack correction
     }
 
 
     result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
     result.drawTicks += pushLine.drawTicks;
+
+    // Calculate extra delay for begin of the line if it draw too fast
+
+    int extraDelay = 0;
+    auto timingInfo = parser.parseCodeToTick(
+        registers,
+        result.data.buffer(),
+        result.data.size(),
+        /* start offset*/ 0,
+        /* end offset*/ result.data.size(),
+        /* codeOffset*/ 0,
+        [&](const Z80CodeInfo& info, const z80Command& command)
+        {
+            const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
+            if (!inputReg)
+                return false;
+
+            int rightBorder = 32 - pushLine.extraIyDelta;
+            int rayTicks = info.spDelta < 16
+                ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
+                : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
+            if (info.ticks < rayTicks)
+            {
+                int delay = rayTicks - info.ticks;
+                extraDelay = std::max(extraDelay, delay);
+            }
+
+            return false;
+        });
+
+    const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+    result.push_front(delay);
+    result.drawTicks += extraDelay;
 }
 
 CompressedLine  compressMultiColorsLine(Context context)
 {
     CompressedLine result;
     static const int kBorderTime = kLineDurationInTicks - 128;
-
-    if (context.y == 5)
-    {
-        int gg = 4;
-    }
 
     uint8_t* line = context.buffer + context.y * 32;
     int nextLineNum = (context.y + context.scrollDelta) % context.imageHeight;
@@ -1182,11 +1197,6 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
-
-    if (context.y == 19)
-    {
-        int gg = 4;
-    }
 
     bool success = compressLineMain(context, line1, registers);
     if (!success)
@@ -1245,10 +1255,18 @@ CompressedLine  compressMultiColorsLine(Context context)
                     if (registers6[i].isEmpty())
                     {
                         auto& line = i < 3 ? loadLineMain : loadLineAlt;
-                        auto prevRegs = i < 3 
-                            ? std::array<Register16, 3> { registers6[0], registers6[1], registers6[2] }
-                            : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
-                        registers6[i].updateToValue(line, inputReg->value16(), prevRegs);
+                        if (context.minX == 0)
+                        {
+                            // It takes 64 ticks to load 6 registers, dont compress here because it needs 64 ticks for ray
+                            registers6[i].loadXX(line, inputReg->value16());
+                        }
+                        else
+                        {
+                            auto prevRegs =  i < 3 
+                                ? std::array<Register16, 3> { registers6[0], registers6[1], registers6[2] }
+                                : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
+                            registers6[i].updateToValue(line, inputReg->value16(), prevRegs);
+                        }
                         break;
                     }
                 }
@@ -1303,10 +1321,8 @@ CompressedLine  compressMultiColorsLine(Context context)
         abort();
     }
 
-    result.drawOffsetTicks = (16 - context.minX) * kTicksOnScreenPerByte;
+    pushLine.freeTicks = t2 - pushLine.drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
-    return result;
-
     return result;
 }
 

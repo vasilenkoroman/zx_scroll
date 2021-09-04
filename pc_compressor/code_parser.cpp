@@ -319,16 +319,21 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     result.outputRegisters = result.inputRegisters;
     result.startOffset = startOffset;
 
+    Register16 ix{ "ix" };
+    Register16 iy{ "iy" };
+
     Register16* bc = findRegister(result.outputRegisters, "bc");
     Register16* de = findRegister(result.outputRegisters, "de");
+
     Register16* hl = findRegister(result.outputRegisters, "hl");
+    Register8& h = hl->h;
+    Register8& l = hl->l;
 
     Register8& b = bc->h;
     Register8& c = bc->l;
     Register8& d = de->h;
     Register8& e = de->l;
-    Register8& h = hl->h;
-    Register8& l = hl->l;
+    
 
     Register16 af{"af"};
     Register8& a = af.h;
@@ -341,11 +346,13 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     auto push =
         [&](const Register16* reg)
         {
-            if (!result.spDeltaOnFirstPush)
-                result.spDeltaOnFirstPush = result.spDelta;
+            //if (!result.spDeltaOnFirstPush)
+            //    result.spDeltaOnFirstPush = result.spDelta;
             reg->push(info);
             result.spDelta += 2;
     };
+
+    bool isIndexReg = false;
 
     while (ptr != end)
     {
@@ -406,7 +413,9 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             case 0x26: h.loadX(info, ptr[1]);
                 break;
-            case 0x2b: hl->decValue(info);
+            case 0x2b: 
+                if (!isIndexReg)
+                    hl->decValue(info);
                 break;
             case 0x2c: l.incValue(info);
                 break;
@@ -642,12 +651,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0xf6: a.orValue(info, ptr[1]);
                 break;
             case 0xf9: // LD SP, HL
-                info.useReg(h, l);
+                if (!isIndexReg)
+                    info.useReg(h, l);
                 break;
+            case 0xdd: // IX
+            case 0xfd: // IY
+                isIndexReg = true;
+                ptr += command.size;
+                continue;
             default:
                 // Unsopported command
                 assert(0);
         }
+        isIndexReg = false;
         ptr += command.size;
     }
 
