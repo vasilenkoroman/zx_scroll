@@ -315,14 +315,13 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     Z80CodeInfo result;
     RegUsageInfo info;
 
-    auto registers = inputRegisters;
     result.inputRegisters = inputRegisters;
+    result.outputRegisters = result.inputRegisters;
     result.startOffset = startOffset;
 
-    Register16* bc = findRegister(registers, "bc");
-    Register16* de = findRegister(registers, "de");
-    Register16* hl = findRegister(registers, "hl");
-    Register16* af = findRegister(registers, "af");
+    Register16* bc = findRegister(result.outputRegisters, "bc");
+    Register16* de = findRegister(result.outputRegisters, "de");
+    Register16* hl = findRegister(result.outputRegisters, "hl");
 
     Register8& b = bc->h;
     Register8& c = bc->l;
@@ -330,8 +329,9 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     Register8& e = de->l;
     Register8& h = hl->h;
     Register8& l = hl->l;
-    Register8& a = af->h;
 
+    Register16 af{"af"};
+    Register8& a = af.h;
 
     const uint8_t* bufferBegin = serializedData;
     const uint8_t* bufferEnd = serializedData + serializedDataSize;
@@ -629,7 +629,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 push(hl);
                 break;
             case 0xf5: // push af
-                push(af);
+                push(&af);
                 break;
             case 0xc6: a.addValue(info, ptr[1]);
                 break;
@@ -651,7 +651,6 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
         ptr += command.size;
     }
 
-    result.outputRegisters = registers;
     result.regUsage = info;
     result.endOffset = ptr - serializedData;
 
@@ -795,4 +794,17 @@ int Z80Parser::optimizePreambula(
 
 
     return command1.size + command2.size;
+}
+
+const Register16* Z80Parser::findRegByItsPushOpCode(
+    const std::vector<Register16>& registers, uint8_t pushOpCode)
+{
+    if (pushOpCode == 0xc5)
+        return findRegister(registers, "bc");
+    else if (pushOpCode == 0xd5)
+        return findRegister(registers, "de");
+    else if (pushOpCode == 0xe5)
+        return findRegister(registers, "hl");
+
+    return nullptr;
 }

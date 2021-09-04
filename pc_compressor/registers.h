@@ -223,6 +223,18 @@ public:
         return value == data;
     }
 
+    inline bool hasValue16(uint16_t word, bool canAvoidFirst, bool canAvoidSecond) const
+    {
+        if (canAvoidFirst && canAvoidSecond)
+            return true;
+        else if (canAvoidFirst)
+            return l.hasValue((uint8_t)word);
+        else if (canAvoidSecond)
+            return h.hasValue(word >> 8);
+        else
+            return hasValue16(word);
+    }
+
     inline uint16_t value16() const
     {
         return *h.value * 256 + *l.value;
@@ -434,6 +446,17 @@ template <typename T>
 Register16* findRegister(T& registers, const std::string& name)
 {
     for (auto& reg: registers)
+    {
+        if (reg.name() == name)
+            return &reg;
+    }
+    return nullptr;
+}
+
+template <typename T>
+const Register16* findRegister(const T& registers, const std::string& name)
+{
+    for (auto& reg : registers)
     {
         if (reg.name() == name)
             return &reg;

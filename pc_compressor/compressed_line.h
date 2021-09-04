@@ -156,4 +156,5 @@ public:
     int flags = 0;
     int lastOddRepPosition = 0;
     int splitPosHint = -1;
+    int extraIyDelta = 0;
 };

@@ -62,6 +62,8 @@ public:
 
     static std::vector<uint8_t> genDelay(int ticks, bool alowInacurateTicks = false);
 
+    static const Register16* findRegByItsPushOpCode(const std::vector<Register16>& registers, uint8_t pushOpCode);
+
     /**
      * This function swap first two commands in the Z80 code if need.
      * It allows to make preambula more short. For example:
