@@ -2044,7 +2044,27 @@ int serializeRastrDescriptors(
     }
 }
 
-int getTicksChainFor64Line(
+struct OffscreenTicks
+{
+    int preambulaTicks = 0;
+    int payloadTicks = 0;
+    int enterExitTicks = 0;
+
+    int ticks() const
+    {
+        return preambulaTicks + payloadTicks + enterExitTicks;
+    }
+
+    OffscreenTicks& operator+=(const OffscreenTicks& other)
+    {
+        preambulaTicks += other.preambulaTicks;
+        payloadTicks += other.payloadTicks;
+        enterExitTicks += other.enterExitTicks;
+        return *this;
+    }
+};
+
+OffscreenTicks getTicksChainFor64Line(
     const std::vector<LineDescriptor>& descriptors,
     int screenLineNum)
 {
@@ -2052,27 +2072,25 @@ int getTicksChainFor64Line(
     static const int k8LinesFuncDelay = 66;
     static const int kCorrectSpDelay = 27;
 
-    int result = 0;
     const int imageHeight = descriptors.size();
     screenLineNum = screenLineNum % imageHeight;
 
     const int bankSize = imageHeight / 8;
+
+    OffscreenTicks result;
 
     for (int b = 0; b < 8; ++b)
     {
         int lineNumber = (screenLineNum + b) % imageHeight;
         const auto& d = descriptors[lineNumber];
 
-        int sum = 0;
+        //int sum = 0;
         auto info = Z80Parser::parseCode(d.rastrForOffscreen.preambula);
-        sum += info.ticks;
-        sum -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
-        sum += d.rastrForOffscreen.codeInfo.ticks;
-        sum += kReturnDelay;
-        sum += k8LinesFuncDelay;
-
-        result += sum;
-
+        result.preambulaTicks += info.ticks;
+        result.payloadTicks -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
+        result.payloadTicks += d.rastrForOffscreen.codeInfo.ticks;
+        result.enterExitTicks += kReturnDelay;
+        result.enterExitTicks += k8LinesFuncDelay;
     }
     return result;
 }
@@ -2103,8 +2121,6 @@ int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
 {
-    static const int kOffscreenRastrFuncDelay = 92;
-
     using namespace std;
 
     const int imageHeight = data.data.size();
@@ -2120,12 +2136,15 @@ int serializeTimingData(
     for (int line = 0; line < imageHeight; ++line)
     {
         // offscreen rastr
-        int ticks = kOffscreenRastrFuncDelay;
+        OffscreenTicks offscreenTicks;
         for (int i = 0; i < 3; ++i)
-            ticks += getTicksChainFor64Line(descriptors, line + i * 64);
+            offscreenTicks += getTicksChainFor64Line(descriptors, line + i * 64);
 
         // colors
-        ticks += getColorTicksForWholeFrame(color, (line+7)/ 8);
+        int ticks = 0;
+        ticks += offscreenTicks.ticks();
+        int colorTicks = getColorTicksForWholeFrame(color, (line + 7) / 8);
+        ticks += colorTicks;
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
         if (line % 8 == 0)
@@ -2138,18 +2157,17 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1351;
+        static const int kZ80CodeDelay = 1443;
         ticks += kZ80CodeDelay;
 
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)
         {
-            std::cout << "WARNING: Low free ticks at line. " << line << ". ticks=" << freeTicks << std::endl;
-        }
-        else if (freeTicks < 0)
-        {
-            std::cout << "ERROR: not enough ticks at line. " << line << ". ticks=" << freeTicks << std::endl;
-            //abort();
+            std::cout << "WARNING: Low free ticks. line #" << line << ". frees=" << freeTicks 
+                << " color=" << colorTicks 
+                << ". preambula=" << offscreenTicks.preambulaTicks 
+                << ". off rastr=" << offscreenTicks.payloadTicks
+                << std::endl;
         }
         else
         {
