@@ -37,7 +37,6 @@ static const int verticalCompressionL = 2; //< Skip drawing data if it exists on
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
-static const int forceToUseExistingRegisters = 32;
 
 
 static const int skipInvisibleColors = 32;
@@ -1228,8 +1227,6 @@ CompressedLine  compressMultiColorsLine(Context context)
     // 2.4 start compressor with prepared register values
 
     std::array<Register16, 6> registers6 = { regMain[0], regMain[1], regMain[2], regAlt[0], regAlt[1], regAlt[2] };
-    //context.flags |= oddVerticalCompression | forceToUseExistingRegisters;
-    context.flags |= forceToUseExistingRegisters;
 
     CompressedLine pushLine;
     success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
@@ -1337,7 +1334,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     // to modify line commands itself.
     for (auto& line : compressedData.data)
     {
-        if (maxTicks - line.drawTicks < 4)
+        if (maxTicks != line.drawTicks && maxTicks - line.drawTicks < 4)
         {
             maxTicks += 4;
             break;
