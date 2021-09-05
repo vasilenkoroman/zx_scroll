@@ -1853,9 +1853,13 @@ int serializeMainData(
             serializedData,
             relativeOffsetToMid, relativeOffsetToEnd,
             codeOffset);
-
-        assert(descriptor.rastrForMulticolor.codeInfo.spDelta
-            + descriptor.rastrForOffscreen.codeInfo.spDelta == 256);
+        if (descriptor.rastrForMulticolor.codeInfo.spDelta
+            + descriptor.rastrForOffscreen.codeInfo.spDelta != 256)
+        {
+            std::cerr << "Invalid SP delta sum " << descriptor.rastrForMulticolor.codeInfo.spDelta + descriptor.rastrForOffscreen.codeInfo.spDelta
+                << " at line #" << d << ". It is bug!" << std::endl;
+            abort();
+        }
 
         // align timing for RastrForMulticolor part
         ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
