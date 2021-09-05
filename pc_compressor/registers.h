@@ -443,22 +443,22 @@ Register8* findRegister8(T& registers, const char& name)
 }
 
 template <typename T>
-Register16* findRegister(T& registers, const std::string& name)
+Register16* findRegister(T& registers, const std::string& name, std::optional<bool> isAlt = std::nullopt)
 {
     for (auto& reg: registers)
     {
-        if (reg.name() == name)
+        if (reg.name() == name && (!isAlt || reg.isAlt == *isAlt))
             return &reg;
     }
     return nullptr;
 }
 
 template <typename T>
-const Register16* findRegister(const T& registers, const std::string& name)
+const Register16* findRegister(const T& registers, const std::string& name, std::optional<bool> isAlt = std::nullopt)
 {
     for (auto& reg : registers)
     {
-        if (reg.name() == name)
+        if (reg.name() == name && (!isAlt || reg.isAlt == *isAlt))
             return &reg;
     }
     return nullptr;

@@ -487,7 +487,7 @@ bool compressLine(
                 x = context.borderPoint;
                 if (verticalRepCount > 3)
                 {
-                    if (auto hl = findRegister(registers, "hl"))
+                    if (auto hl = findRegister(registers, "hl", result.isAltReg))
                     {
                         hl->updateToValue(result, 32 - prevX - verticalRepCount, registers);
                         hl->addSP(result);
@@ -506,12 +506,8 @@ bool compressLine(
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4)
         {
-            if (context.y == 11)
-            {
-                int gg = 4;
-            }
 
-            if (auto hl = findRegister(registers, "hl"))
+            if (auto hl = findRegister(registers, "hl", result.isAltReg))
             {
                 hl->updateToValue(result, -verticalRepCount, registers);
                 hl->addSP(result);
