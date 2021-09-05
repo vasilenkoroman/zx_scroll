@@ -37,10 +37,9 @@ static const int verticalCompressionL = 2; //< Skip drawing data if it exists on
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
 static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
-static const int hurryUpViaIY = 32;      //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
-
-
 static const int skipInvisibleColors = 32;
+static const int hurryUpViaIY = 64;      //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
+
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
 static const int kRtMcContextSwitchDelay = 100 + 10; // context switch + ld hl in the end of the multicolor line
