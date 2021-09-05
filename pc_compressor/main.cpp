@@ -95,6 +95,7 @@ struct CompressedData
 {
     std::vector<CompressedLine> data;
     Register16 af{"af"};
+    int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
 
 public:
 
@@ -1372,9 +1373,8 @@ void alignMulticolorTimings(CompressedData& compressedData)
 
     const int imageHeight = compressedData.data.size();
 
-    int mcDrawPhase = 0;    //< Negative value means draw before ray start line.
     for (const auto& line : compressedData.data)
-        mcDrawPhase = std::min(mcDrawPhase, line.maxMcDrawShift);
+        compressedData.mcDrawPhase = std::min(compressedData.mcDrawPhase, line.maxMcDrawShift);
 
     // Put extra delay to the start if drawing ahead of ray
     for (auto& line : compressedData.data)
@@ -1399,7 +1399,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
                 int rayTicks = info.spDelta < 16
                     ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
                     : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
-                rayTicks -= mcDrawPhase;
+                rayTicks -= compressedData.mcDrawPhase;
                 if (info.ticks < rayTicks)
                 {
                     int delay = rayTicks - info.ticks;
@@ -1460,6 +1460,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
         line.append(delayCode);
         line.drawTicks += endLineDelay;
     }
+
 }
 
 CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
@@ -1981,6 +1982,18 @@ int serializeMultiColorData(
         std::cerr << "Can not write color file" << std::endl;
         return -1;
     }
+
+    ofstream phaseFile;
+    std::string phaseFileName = inputFileName + ".asm";
+    phaseFile.open(phaseFileName);
+    if (!phaseFile.is_open())
+    {
+        std::cerr << "Can not write asm file" << std::endl;
+        return -1;
+    }
+
+    phaseFile << "MULTICOLOR_DRAW_PHASE    EQU    " << data.mcDrawPhase << std::endl;
+
 
     int colorImageHeight = data.data.size();
 

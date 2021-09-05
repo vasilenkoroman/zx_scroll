@@ -15,6 +15,8 @@ STACK_SIZE:     equ 4  ; in words
 stack_bottom    equ JPIX__BANKS_HELPER_END
 stack_top       equ stack_bottom + STACK_SIZE * 2
 
+        INCLUDE "resources/compressed_data.asm"
+
 /*************** Image data. ******************/
 
     org generated_code
@@ -426,7 +428,8 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-initial_delay           equ first_timing_in_interrupt + 46210 +  mc_preambula_delay
+fixed_startup_delay     equ 46210
+initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
 
