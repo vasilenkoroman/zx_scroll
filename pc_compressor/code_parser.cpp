@@ -342,6 +342,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     const uint8_t* bufferEnd = serializedData + serializedDataSize;
     const uint8_t* ptr = serializedData + startOffset;
     const uint8_t* end = serializedData + endOffset;
+    int iySpDelta = 16;
 
     auto push =
         [&](const Register16* reg)
@@ -430,12 +431,19 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0x39:
             {
                 // ADD HL, SP. The current value is not known after this
-                result.spDelta -= (int16_t)hl->value16();
+                int16_t delta = (int16_t) hl->value16();
+                if (delta > 0)
+                    delta = 32 - delta;
+                result.spDelta -= delta;
                 info.useReg(h, l);
                 hl->reset();
                 break;
             }
-            case 0x3b: result.spDelta++;
+            case 0x3b: 
+                if (isIndexReg)
+                    iySpDelta++;
+                else
+                    result.spDelta++;  // DEC SP
                 break;
             case 0x3c: a.incValue(info);
                 break;
@@ -651,7 +659,9 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0xf6: a.orValue(info, ptr[1]);
                 break;
             case 0xf9: // LD SP, HL
-                if (!isIndexReg)
+                if (isIndexReg)
+                    result.spDelta = iySpDelta;
+                else
                     info.useReg(h, l);
                 break;
             case 0xdd: // IX

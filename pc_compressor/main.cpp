@@ -1395,7 +1395,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
                 if (!inputReg)
                     return false;
 
-                int rightBorder = 32 - line.extraIyDelta;
+                int rightBorder = 32;
                 int rayTicks = info.spDelta < 16
                     ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
                     : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
