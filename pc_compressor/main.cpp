@@ -2205,8 +2205,8 @@ int serializeTimingData(
                 std::cout << "INFO: ticks rest at line #" << line << ". ticks=" << freeTicks << std::endl;
             #endif
         }
-
-        timingDataFile.write((const char*)&freeTicks, sizeof(freeTicks));
+        const uint16_t freeTicks16 = (uint16_t) freeTicks;
+        timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
     }
 
     return 0;
