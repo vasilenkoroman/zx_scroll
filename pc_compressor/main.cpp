@@ -1247,11 +1247,6 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     // 2.4 start compressor with prepared register values
 
-    if (context.y == 19)
-    {
-        int gg = 4;
-    }
-
     CompressedLine pushLine;
     auto regCopy = registers6;
     success = compressLine(context, pushLine, regCopy,  /*x*/ context.minX);
@@ -1377,11 +1372,18 @@ void alignMulticolorTimings(CompressedData& compressedData)
         compressedData.mcDrawPhase = std::min(compressedData.mcDrawPhase, line.maxMcDrawShift);
 
     // Put extra delay to the start if drawing ahead of ray
+    int i = 0;
     for (auto& line : compressedData.data)
     {
         std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
         int extraDelay = 0;
         Z80Parser parser;
+
+        if (i == 19)
+        {
+            int gg = 4;
+        }
+
         auto timingInfo = parser.parseCodeToTick(
             registers,
             line.data.buffer(),
@@ -1396,9 +1398,8 @@ void alignMulticolorTimings(CompressedData& compressedData)
                     return false;
 
                 int rightBorder = 32;
-                int rayTicks = info.spDelta < 16
-                    ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
-                    : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
+                static const int kInitialSpOffset = 16;
+                int rayTicks = (kInitialSpOffset + info.spOffset) * kTicksOnScreenPerByte;
                 rayTicks -= compressedData.mcDrawPhase;
                 if (info.ticks < rayTicks)
                 {
@@ -1412,6 +1413,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
         const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
         line.push_front(delay);
         line.drawTicks += extraDelay;
+        ++i;
     }
 
     int maxTicks = 0;
@@ -1849,10 +1851,10 @@ int serializeMainData(
             serializedData,
             relativeOffsetToMid, relativeOffsetToEnd,
             codeOffset);
-        if (descriptor.rastrForMulticolor.codeInfo.spDelta
-            + descriptor.rastrForOffscreen.codeInfo.spDelta != 256)
+        if (descriptor.rastrForMulticolor.codeInfo.spOffset
+            + descriptor.rastrForOffscreen.codeInfo.spOffset != -256)
         {
-            std::cerr << "Invalid SP delta sum " << descriptor.rastrForMulticolor.codeInfo.spDelta + descriptor.rastrForOffscreen.codeInfo.spDelta
+            std::cerr << "Invalid SP delta sum " << descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset
                 << " at line #" << d << ". It is bug!" << std::endl;
             abort();
         }
@@ -1867,7 +1869,7 @@ int serializeMainData(
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
-        descriptor.rastrForOffscreen.startSpDelta = descriptor.rastrForMulticolor.codeInfo.spDelta;
+        descriptor.rastrForOffscreen.startSpDelta = -descriptor.rastrForMulticolor.codeInfo.spOffset;
         descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();

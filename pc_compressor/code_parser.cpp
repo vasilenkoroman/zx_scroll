@@ -342,15 +342,13 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     const uint8_t* bufferEnd = serializedData + serializedDataSize;
     const uint8_t* ptr = serializedData + startOffset;
     const uint8_t* end = serializedData + endOffset;
-    int iySpDelta = 16;
+    int iySpOffset = 16; //< delta IY offset to initial offset
 
     auto push =
         [&](const Register16* reg)
         {
-            //if (!result.spDeltaOnFirstPush)
-            //    result.spDeltaOnFirstPush = result.spDelta;
             reg->push(info);
-            result.spDelta += 2;
+            result.spOffset -= 2;
     };
 
     bool isIndexReg = false;
@@ -424,7 +422,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             case 0x2e: l.loadX(info, ptr[1]);
                 break;
-            case 0x33: result.spDelta--;    // incSP
+            case 0x33: result.spOffset++;    // incSP
                 break;
             case 0x34: hl->incValue(info);
                 break;
@@ -432,18 +430,16 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             {
                 // ADD HL, SP. The current value is not known after this
                 int16_t delta = (int16_t) hl->value16();
-                if (delta > 0)
-                    delta = 32 - delta;
-                result.spDelta -= delta;
+                result.spOffset += delta;
                 info.useReg(h, l);
                 hl->reset();
                 break;
             }
             case 0x3b: 
                 if (isIndexReg)
-                    iySpDelta++;
+                    iySpOffset--;
                 else
-                    result.spDelta++;  // DEC SP
+                    result.spOffset--;  // DEC SP
                 break;
             case 0x3c: a.incValue(info);
                 break;
@@ -660,7 +656,7 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             case 0xf9: // LD SP, HL
                 if (isIndexReg)
-                    result.spDelta = iySpDelta;
+                    result.spOffset = iySpOffset;
                 else
                     info.useReg(h, l);
                 break;
