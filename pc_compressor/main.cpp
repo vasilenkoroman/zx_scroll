@@ -2097,10 +2097,6 @@ OffscreenTicks getTicksChainFor64Line(
     const std::vector<LineDescriptor>& descriptors,
     int screenLineNum)
 {
-    static const int kReturnDelay = 8;
-    static const int k8LinesFuncDelay = 66;
-    static const int kCorrectSpDelay = 27;
-
     const int imageHeight = descriptors.size();
     screenLineNum = screenLineNum % imageHeight;
 
@@ -2118,8 +2114,6 @@ OffscreenTicks getTicksChainFor64Line(
         result.preambulaTicks += info.ticks;
         result.payloadTicks -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         result.payloadTicks += d.rastrForOffscreen.codeInfo.ticks;
-        result.enterExitTicks += kReturnDelay;
-        result.enterExitTicks += k8LinesFuncDelay;
     }
     return result;
 }
@@ -2186,7 +2180,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 1443;
+        static const int kZ80CodeDelay = 3223;
         ticks += kZ80CodeDelay;
 
         int freeTicks = totalTicksPerFrame - ticks;

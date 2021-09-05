@@ -425,8 +425,8 @@ ticks_per_line                  equ  224
 
         call write_initial_jp_ix_table
 
-mc_preambula_delay      equ 32
-initial_delay           equ first_timing_in_interrupt + 46226 +  mc_preambula_delay
+mc_preambula_delay      equ 46
+initial_delay           equ first_timing_in_interrupt + 46210 +  mc_preambula_delay
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
 
@@ -544,7 +544,7 @@ loop1:
         ld a, 1                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        ; timing here on first frame: 91182-14=91168
+        ; timing here on first frame: 91168
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
@@ -554,6 +554,7 @@ loop1:
         DRAW_MULTICOLOR_AND_RASTR_LINE 5
         DRAW_MULTICOLOR_AND_RASTR_LINE 6
         DRAW_MULTICOLOR_AND_RASTR_LINE 7
+        
         DRAW_MULTICOLOR_AND_RASTR_LINE 8
         DRAW_MULTICOLOR_AND_RASTR_LINE 9
         DRAW_MULTICOLOR_AND_RASTR_LINE 10
@@ -561,6 +562,7 @@ loop1:
         DRAW_MULTICOLOR_AND_RASTR_LINE 12
         DRAW_MULTICOLOR_AND_RASTR_LINE 13
         DRAW_MULTICOLOR_AND_RASTR_LINE 14
+
         DRAW_MULTICOLOR_AND_RASTR_LINE 15
         DRAW_MULTICOLOR_AND_RASTR_LINE 16
         DRAW_MULTICOLOR_AND_RASTR_LINE 17
@@ -571,6 +573,7 @@ loop1:
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
+
 
         //ld sp, stack_top
         //call long_delay
