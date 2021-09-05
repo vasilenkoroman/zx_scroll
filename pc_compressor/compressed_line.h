@@ -81,6 +81,12 @@ struct CompressedLine
         drawTicks += 4;
     }
 
+    void scf()
+    {
+        data.push_back(0x37);
+        drawTicks += 4;
+    }
+
     void jp(uint16_t address)
     {
         data.push_back(0xc3);
@@ -149,7 +155,8 @@ public:
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
-    int drawOffsetTicks = 0;
+    int freeTicks = 0;
+    int maxMcDrawShift = 0;
 
     RegUsageInfo regUsage;
 

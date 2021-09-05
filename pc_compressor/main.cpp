@@ -496,6 +496,7 @@ bool compressLine(
                             f->value.reset();
                         sp.loadFromReg16(result, *hl);
                         x += verticalRepCount;
+                        result.scf();
                     }
                 }
                 continue;
@@ -1129,40 +1130,9 @@ void finilizeLine(
 
 
     result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
+    result.extraIyDelta = pushLine.extraIyDelta;
     result.drawTicks += pushLine.drawTicks;
 
-    // Calculate extra delay for begin of the line if it draw too fast
-
-    int extraDelay = 0;
-    auto timingInfo = parser.parseCodeToTick(
-        registers,
-        result.data.buffer(),
-        result.data.size(),
-        /* start offset*/ 0,
-        /* end offset*/ result.data.size(),
-        /* codeOffset*/ 0,
-        [&](const Z80CodeInfo& info, const z80Command& command)
-        {
-            const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
-            if (!inputReg)
-                return false;
-
-            int rightBorder = 32 - pushLine.extraIyDelta;
-            int rayTicks = info.spDelta < 16
-                ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
-                : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
-            if (info.ticks < rayTicks)
-            {
-                int delay = rayTicks - info.ticks;
-                extraDelay = std::max(extraDelay, delay);
-            }
-
-            return false;
-        });
-
-    const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
-    result.push_front(delay);
-    result.drawTicks += extraDelay;
 }
 
 CompressedLine  compressMultiColorsLine(Context context)
@@ -1282,7 +1252,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     // 2.4 start compressor with prepared register values
 
-    if (context.y == 5)
+    if (context.y == 19)
     {
         int gg = 4;
     }
@@ -1399,6 +1369,105 @@ Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>
     return af;
 }
 
+void alignMulticolorTimings(CompressedData& compressedData)
+{
+    // Align duration for multicolors
+
+
+     // 1. Calculate extra delay for begin of the line if it draw too fast
+
+    const int imageHeight = compressedData.data.size();
+
+    int mcDrawPhase = 0;    //< Negative value means draw before ray start line.
+    for (const auto& line : compressedData.data)
+        mcDrawPhase = std::min(mcDrawPhase, line.maxMcDrawShift);
+
+    // Put extra delay to the start if drawing ahead of ray
+    for (auto& line : compressedData.data)
+    {
+        std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+        int extraDelay = 0;
+        Z80Parser parser;
+        auto timingInfo = parser.parseCodeToTick(
+            registers,
+            line.data.buffer(),
+            line.data.size(),
+            /* start offset*/ 0,
+            /* end offset*/ line.data.size(),
+            /* codeOffset*/ 0,
+            [&](const Z80CodeInfo& info, const z80Command& command)
+            {
+                const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
+                if (!inputReg)
+                    return false;
+
+                int rightBorder = 32 - line.extraIyDelta;
+                int rayTicks = info.spDelta < 16
+                    ? (16 - info.spDelta) * kTicksOnScreenPerByte       //< Left half.
+                    : (rightBorder - (info.spDelta - 16)) * kTicksOnScreenPerByte;  //< Right half.
+                rayTicks -= mcDrawPhase;
+                if (info.ticks < rayTicks)
+                {
+                    int delay = rayTicks - info.ticks;
+                    extraDelay = std::max(extraDelay, delay);
+                }
+
+                return false;
+            });
+
+        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+        line.push_front(delay);
+        line.drawTicks += extraDelay;
+    }
+
+    int maxTicks = 0;
+    int minTicks = std::numeric_limits<int>::max();
+    int regularTicks = 0;
+    int maxTicksLine = 0;
+    int minTicksLine = 0;
+    int maxPhase = 0;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        const auto& line = compressedData.data[i];
+        if (line.drawTicks > maxTicks)
+        {
+            maxTicks = line.drawTicks;
+            maxTicksLine = i;
+        }
+        if (line.drawTicks < minTicks)
+        {
+            minTicks = line.drawTicks;
+            minTicksLine = i;
+        }
+        regularTicks += line.drawTicks;
+    }
+
+    // 2. Add delay to the end of lines to make them equal duration
+
+    for (auto& line : compressedData.data)
+    {
+        if (maxTicks != line.drawTicks && maxTicks - line.drawTicks < 4)
+        {
+            maxTicks += 4;
+            break;
+        }
+    }
+
+#ifdef LOG_INFO
+    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine << ", min ticks " << minTicks << " at line " << minTicksLine << std::endl;
+
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks * 24 - regularTicks << std::endl;
+#endif
+
+    for (auto& line : compressedData.data)
+    {
+        const int endLineDelay = maxTicks - line.drawTicks;
+        const auto delayCode = Z80Parser::genDelay(endLineDelay);
+        line.append(delayCode);
+        line.drawTicks += endLineDelay;
+    }
+}
+
 CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 {
     // Shuffle source data according to the multicolor drawing:
@@ -1437,16 +1506,8 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.sameBytesCount = &sameBytesCount;
     context.borderPoint = 16;
 
-
-#if 0
-    int count1, count2;
-    Register16 af1 = findBestWord(suffledPtr, imageHeight, sameBytesCount, oddVerticalCompression, &count1);
-    Register16 af2 = findBestWord(suffledPtr, imageHeight, sameBytesCount, 0, &count2);
-    context.af = count1 < count2 ? af1 : af2;
-#else
     int count1;
     context.af = findBestByte(suffledPtr, imageHeight, sameBytesCount, &count1);
-#endif
 
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
@@ -1466,53 +1527,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         compressedData.data.push_back(line);
     }
 
-    // Align duration for multicolors
-
-    int maxTicks = 0;
-    int minTicks = std::numeric_limits<int>::max();
-    int regularTicks = 0;
-    int maxTicksLine = 0;
-    int minTicksLine = 0;
-    for (int i = 0; i < imageHeight; ++i)
-    {
-        const auto& line = compressedData.data[i];
-        if (line.drawTicks > maxTicks)
-        {
-            maxTicks = line.drawTicks;
-            maxTicksLine = i;
-        }
-        if (line.drawTicks < minTicks)
-        {
-            minTicks = line.drawTicks;
-            minTicksLine = i;
-        }
-        regularTicks += line.drawTicks;
-    }
-
-    // TODO: consider to avoid +4 here. In case some line need be aligned to [1..3] ticks it is possible
-    // to modify line commands itself.
-    for (auto& line : compressedData.data)
-    {
-        if (maxTicks != line.drawTicks && maxTicks - line.drawTicks < 4)
-        {
-            maxTicks += 4;
-            break;
-        }
-    }
-
-#ifdef LOG_INFO
-    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine << ", min ticks " << minTicks << " at line " << minTicksLine << std::endl;
-
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks*24 - regularTicks << std::endl;
-#endif
-
-    for (auto& line: compressedData.data)
-    {
-        const int endLineDelay = maxTicks - line.drawTicks;
-        const auto delayCode = Z80Parser::genDelay(endLineDelay);
-        line.append(delayCode);
-        line.drawTicks += endLineDelay;
-    }
+    alignMulticolorTimings(compressedData);
 
     return compressedData;
 }
