@@ -413,7 +413,9 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
             case 0x26: h.loadX(info, ptr[1]);
                 break;
             case 0x2b: 
-                if (!isIndexReg)
+                if (isIndexReg)
+                    iySpOffset--;
+                else
                     hl->decValue(info);
                 break;
             case 0x2c: l.incValue(info);
@@ -436,9 +438,6 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
                 break;
             }
             case 0x3b: 
-                if (isIndexReg)
-                    iySpOffset--;
-                else
                     result.spOffset--;  // DEC SP
                 break;
             case 0x3c: a.incValue(info);

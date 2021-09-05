@@ -570,13 +570,15 @@ bool compressLine(
 
         if (choisedLine.data.empty())
             return false;
+
+        if (choisedLine.splitPosHint >= 0)
+            result.splitPosHint = result.data.size() + choisedLine.splitPosHint;
+
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
         //if (context.flags & oddVerticalCompression)
         //    result.lastOddRepPosition = x;
         result.lastOddRepPosition = choisedLine.lastOddRepPosition;
-        if (choisedLine.splitPosHint >= 0)
-            result.splitPosHint = choisedLine.splitPosHint;
         if (choisedLine.extraIyDelta > 0)
             result.extraIyDelta = choisedLine.extraIyDelta;
         registers = chosedRegisters;
@@ -1090,7 +1092,8 @@ void finilizeLine(
 
     result += loadLine;
     int preloadTicks = result.drawTicks;
-    result.maxMcDrawShift = -(preloadTicks - 64 - pushLine.freeTicks);
+
+    result.maxMcDrawShift = (64 - preloadTicks) + pushLine.maxDrawDelayTicks;
 
     Z80Parser parser;
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
@@ -1154,9 +1157,6 @@ CompressedLine  compressMultiColorsLine(Context context)
         else
             break;
     }
-
-    //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
-    int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
@@ -1256,10 +1256,16 @@ CompressedLine  compressMultiColorsLine(Context context)
             << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
         abort();
     }
-    if (pushLine.splitPosHint >= 0)
-        t2 -= kStackMovingTimeForMc;
 
-    if (pushLine.drawTicks > t2 && pushLine.splitPosHint >= 0)
+
+    //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
+    int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
+    t2 += (31 - context.maxX) * kTicksOnScreenPerByte;
+    int drawTicks = pushLine.drawTicks;
+    if (pushLine.splitPosHint >= 0)
+        drawTicks += kStackMovingTimeForMc;
+
+    if (drawTicks > t2 && pushLine.splitPosHint >= 0)
     {
         context.flags |= hurryUpViaIY;
         pushLine = CompressedLine();
@@ -1281,7 +1287,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         abort();
     }
 
-    pushLine.freeTicks = t2 - pushLine.drawTicks;
+    pushLine.maxDrawDelayTicks = t2 - drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
     return result;
 }

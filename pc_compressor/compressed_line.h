@@ -155,7 +155,7 @@ public:
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
-    int freeTicks = 0;
+    int maxDrawDelayTicks = 0;
     int maxMcDrawShift = 0;
 
     RegUsageInfo regUsage;
