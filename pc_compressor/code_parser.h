@@ -28,6 +28,7 @@ struct Z80CodeInfo
     std::vector<Register16> outputRegisters;
     RegUsageInfo regUsage;
     bool hasJump = false;
+    std::vector<z80Command> commands;
 };
 
 class Z80Parser

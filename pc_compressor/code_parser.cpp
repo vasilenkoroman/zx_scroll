@@ -363,6 +363,7 @@ Z80CodeInfo Z80Parser::parseCode(
         if (breakCondition && breakCondition(result, command))
             break;
         result.ticks += command.ticks;
+        result.commands.push_back(command);
 
         switch (*ptr)
         {
