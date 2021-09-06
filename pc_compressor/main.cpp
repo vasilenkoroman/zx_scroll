@@ -1403,6 +1403,7 @@ struct DescriptorState
             codeInfo.ticks -= 6;
             codeInfo.commands.erase(codeInfo.commands.begin());
             ++removedBytes;
+            codeInfo.startOffset++;
         }
 
         if (codeInfo.commands.size() >= 2 && codeInfo.commands[0].opCode == kAddHlSpCode && codeInfo.commands[1].opCode == kLdSpHlCode)
@@ -1414,16 +1415,57 @@ struct DescriptorState
             startSpDelta += spDelta;
             lineStartPtr += 2;
             codeInfo.ticks -= 17;
+            codeInfo.startOffset+=2;
             codeInfo.commands.erase(codeInfo.commands.begin(), codeInfo.commands.begin()+1);
             removedBytes += 2;
         }
         else if (codeInfo.commands.size() >= 1 && codeInfo.commands[0].opCode == kLdSpHlCode)
         {
-            lineStartPtr += 1;
+            lineStartPtr++;
+            codeInfo.startOffset++;
             codeInfo.ticks -= 6;
             codeInfo.commands.erase(codeInfo.commands.begin());
             removedBytes++;
         }
+        return removedBytes;
+    }
+
+    int removeTrailingStackMoving(int maxCommandToRemove)
+    {
+        int removedBytes = 0;
+        if (maxCommandToRemove == 0)
+            return removedBytes;
+
+        while (!codeInfo.commands.empty() && codeInfo.commands.rbegin()->opCode == kDecSpCode)
+        {
+            --codeInfo.spOffset;
+            --lineEndPtr;
+            codeInfo.ticks -= 6;
+            codeInfo.commands.pop_back();
+            ++removedBytes;
+            codeInfo.endOffset--;
+            if (--maxCommandToRemove == 0)
+                return removedBytes;
+        }
+
+        if (int index = codeInfo.commands.size() - 2; 
+            codeInfo.commands.size() >= 2 && codeInfo.commands[index].opCode == kAddHlSpCode && codeInfo.commands[index+1].opCode == kLdSpHlCode)
+        {
+            auto hl = findRegister(codeInfo.outputRegisters, "hl");
+            int16_t spDelta = -(int16_t)hl->value16();
+            hl->reset();
+
+            codeInfo.spOffset -= spDelta;
+            lineEndPtr -= 2;
+            codeInfo.ticks -= 17;
+            codeInfo.endOffset -= 2;
+            codeInfo.commands.pop_back();
+            codeInfo.commands.pop_back();
+            removedBytes += 2;
+            if (--maxCommandToRemove == 0)
+                return removedBytes;
+        }
+
         return removedBytes;
     }
 
@@ -1669,25 +1711,34 @@ int serializeMainData(
 
         Z80Parser parser;
         int ticksLimit = ticksRest - linePreambulaTicks;
+        int extraCommandsIncluded = 0;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset,
-            [ticksLimit](const Z80CodeInfo& info, const z80Command& command)
+            [ticksLimit, &extraCommandsIncluded](const Z80CodeInfo& info, const z80Command& command)
             {
                 int sum = info.ticks + command.ticks;
                 bool success = sum == ticksLimit || sum < ticksLimit - 3;
+                if (!success)
+                {
+                    if (command.opCode == kDecSpCode || command.opCode == kAddHlSpCode || command.opCode == kLdSpHlCode)
+                    {
+                        ++extraCommandsIncluded;
+                        return false; //< Continue
+                    }
+                }
                 return !success;
             });
 
-        int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
+        //int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
-        parser.swap2CommandIfNeed(serializedData, relativeOffsetToMid, lockedBlocks);
+        parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
-            relativeOffsetToMid, relativeOffsetToEnd,
+            descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             codeOffset);
         if (descriptor.rastrForMulticolor.codeInfo.spOffset
             + descriptor.rastrForOffscreen.codeInfo.spOffset != -256)
@@ -1697,17 +1748,19 @@ int serializeMainData(
             abort();
         }
 
-        // align timing for RastrForMulticolor part
-        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
-        descriptor.rastrForMulticolor.extraDelay = ticksRest;
-
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
-        descriptor.rastrForMulticolor.lineEndPtr = relativeOffsetToMid + codeOffset;
-        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset);
+        descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + codeOffset;
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
         descriptor.rastrForOffscreen.startSpDelta = -descriptor.rastrForMulticolor.codeInfo.spOffset;
+
+        descriptor.rastrForMulticolor.removeTrailingStackMoving(extraCommandsIncluded);
+        // align timing for RastrForMulticolor part
+        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
+        descriptor.rastrForMulticolor.extraDelay = ticksRest;
+
+        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset);
         descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
