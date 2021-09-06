@@ -828,223 +828,6 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     return result;
 }
 
-#if 0
-CompressedLine  compressMultiColorsLine(uint16_t* buffer, uint16_t* nextLine, uint16_t generatedCodeMemAddress, bool* success, bool useSlowMode)
-{
-    /*
-     *      Screen in words [0..15]
-     *       0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
-     *      -------------------------------------------------
-     *      |1 |1 |1 |2 |2 |2 |2 |2 |2 |2 |2 |3 |3 |3 |3 |3 |
-     *      -------------------------------------------------
-     *      Drawing step (1..3): 3, 8, 5 words
-     *
-     *      Input params: SP should point to the lineStart + 6 (3 word)
-     */
-
-    *success = true;
-
-    CompressedLine line;
-
-
-    std::vector<Register16> registers = {Register16("bc"), Register16("de"), Register16("hl")};
-    std::vector<Register16> registers1 = {Register16("bc'"), Register16("de'"), Register16("hl'")};
-
-    Register16& bc(registers[0]);
-    Register16& de(registers[1]);
-    Register16& hl(registers[2]);
-    Register16& bc1(registers1[0]);
-    Register16& de1(registers1[1]);
-    Register16& hl1(registers1[2]);
-
-    Register8& l(hl.l);
-    Register8 a('a');
-
-
-    Register16 sp("sp", 0);
-    int trailingDecSp = 0;
-
-    int updateSpAddress1 = 0;
-    int updateSpAddress2 = 0;
-    if (useSlowMode)
-    {
-        hl.loadFromReg16(line, sp);
-        l.setBit(line, 4); //< l = l + 16 (8 words).
-        hl.poke(line, generatedCodeMemAddress); //< Need to update value later, after exact address will be discovered
-        updateSpAddress1 = line.data.size() - 2;
-
-        a.loadX(line, 10); //< 5 words
-        a.add(line, l);
-        l.loadFromReg(line, a);
-        hl.poke(line, generatedCodeMemAddress); //< Need to update value later, after exact address will be discovered
-        updateSpAddress2 = line.data.size() - 2;
-        hl.reset();
-    }
-
-    auto pushIfNeed =
-        [&](auto* reg)
-        {
-            if (!reg)
-            {
-                sp.dec(line, 2);
-                trailingDecSp += 2;
-            }
-            else
-            {
-                reg->push(line);
-                trailingDecSp = 0;
-            }
-        };
-
-    auto choiseRegister =
-        [&](Register16& reg, int number, std::vector<Register16>& registers) -> Register16*
-        {
-            if (nextLine && buffer[number] == nextLine[number])
-                return nullptr;
-            const auto word = buffer[number];
-            for (auto& reg16: registers)
-            {
-                if (reg16.hasValue16(word))
-                    return &reg16;
-            }
-
-            reg.updateToValue(line, buffer[number], registers);
-            trailingDecSp = 0;
-            return &reg;
-        };
-
-    auto removeTrailingDecSp = [&]()
-    {
-        for (int i = 0; i < trailingDecSp; ++i)
-        {
-            assert(line.data.last() == DEC_SP_CODE);
-            line.data.pop_back();
-            line.drawTicks -= 6;
-        }
-        trailingDecSp = 0;
-    };
-
-
-    // Step 0 (before drawing).
-
-    auto selBc = choiseRegister(bc, 6, registers);
-    auto selDe = choiseRegister(de, 7, registers);
-    auto selHl = choiseRegister(hl, 8, registers);
-    line.exx();
-    auto selDe1 = choiseRegister(de1, 4, registers1);
-    auto selBc1 = choiseRegister(bc1, 5, registers1);
-
-    auto selHl1 = choiseRegister(hl1, 0, registers1);
-
-    // Done preparing data in 64 ticks
-
-    // <--------------- Step 1: Start drawing here.
-    // Wait 3 words before start pusing data (24 ticks).
-
-    // Push 3 slow words (63 ticks).
-    int startDrawingTick = line.drawTicks;
-
-    // This function should be started to execute on prelineTicks ticks before current drawing line.
-    line.prelineTicks = startDrawingTick - 24;
-
-    pushIfNeed(selHl1);
-    selHl1 = choiseRegister(hl1, 1, registers1);
-
-    pushIfNeed(selHl1);
-    selHl1 = choiseRegister(hl1, 2, registers1);
-
-    pushIfNeed(selHl1);
-
-    const int trailingCopy = trailingDecSp;
-    removeTrailingDecSp();
-
-    if (useSlowMode)
-    {
-        sp.loadXX(line, 0);
-        // Replace command offset to real value here. 'LD (xx), HL' generated above is replacing constant for 'LD SP,XX' in previous line.
-        line.replaceWord(updateSpAddress1, generatedCodeMemAddress + line.data.size() - 2);
-    }
-    else
-    {
-        // Move stack to 3 + 8 == 11 words in 27 ticks.
-        hl1.loadXX(line, (3 + 8) * 2 - trailingCopy);
-        hl1.addSP(line);
-        sp.loadFromReg16(line,hl1);
-    }
-
-    selHl1 = choiseRegister(hl1, 3, registers1);
-
-
-    while (line.drawTicks - startDrawingTick < 64)
-        line.nop(); //< Wait to 8 more words is free for drawing
-
-    // Done drawing in: 63 + 27 = 90 ticks
-    // Ray on tick: 24 + 90 = 114, 11 more words is free to draw. Need 8 words. Extra ticks to compress is 26 before this line.
-    // Step 2. Draw 8 more words
-    pushIfNeed(selHl1);
-    pushIfNeed(selDe1);
-    pushIfNeed(selBc1);
-
-    line.exx();
-    trailingDecSp = 0;
-
-    pushIfNeed(selBc);
-    pushIfNeed(selDe);
-    pushIfNeed(selHl);
-
-    selBc = choiseRegister(bc, 9, registers);
-    pushIfNeed(selBc);
-    selBc = choiseRegister(bc, 10, registers);
-    pushIfNeed(selBc);
-
-    // Move stack to 8 + 5 == 13 words
-    const int16_t spDelta = (8 + 5) * 2 - trailingDecSp;
-    removeTrailingDecSp();
-
-    // Done drawing 8 more words in: 112 ticks
-    // Ray on tick: 114 + 112 = 226. Ticks rest: -2 (line rest)  + 11 * 8(drawn ticks) = 86
-
-    if (useSlowMode)
-    {
-        // Replace command offset to real value here. 'LD (xx), HL' generated above is replacing constant for 'LD SP,XX' in previous line.
-        sp.loadXX(line, 0);
-        line.replaceWord(updateSpAddress2, generatedCodeMemAddress + line.data.size() - 2);
-    }
-    else
-    {
-        // Have enough ticks here to update SP in the regular way
-        hl.loadXX(line, spDelta);
-        hl.addSP(line);
-        sp.loadFromReg16(line, hl);
-    }
-    // Ticks spend on changing Sp = 10 + 11 + 6 = 27. spend ticks=253.  Ticks rest = 59
-
-    int ticksSpend = line.drawTicks - startDrawingTick;
-    int ticksAllowed = 207;
-    if (useSlowMode)
-        ticksAllowed += 17 * 2;
-    if (ticksSpend > ticksAllowed)
-    {
-        *success = false;
-        return line;
-    }
-
-    // Step 3. Draw rest 5 words.
-    for (int i = 11; i < 16; ++i)
-    {
-        selBc = choiseRegister(bc, i, registers);
-        pushIfNeed(selBc);
-    }
-    // Done drawing 5 more words in: 105 ticks
-
-    // Done drawing line. Total ticks: 305 (drawing) + 64 (prepare data) = 364 ticks
-
-    removeTrailingDecSp();
-
-    return line;
-}
-#endif
-
 void finilizeLine(
     const Context& context,
     CompressedLine& result,
@@ -1100,7 +883,7 @@ void finilizeLine(
 
     // parse pushLine to find point for LD SP, IY
 
-    auto info = parser.parseCodeToTick(
+    auto info = parser.parseCode(
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
@@ -1109,7 +892,7 @@ void finilizeLine(
         /* codeOffset*/ 0
     );
 
-    auto info2 = parser.parseCodeToTick(
+    auto info2 = parser.parseCode(
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
@@ -1135,6 +918,20 @@ void finilizeLine(
 
 CompressedLine  compressMultiColorsLine(Context context)
 {
+    /*
+     *      Screen in words [0..15]
+     *       0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
+     *      -------------------------------------------------
+     *      |1 |1 |1 |1 |1 |1 |1 |1 |2 |2 |2 |2 |2 |2 |2 |2 |
+     *      -------------------------------------------------
+     *      Drawing step (1..2): 8, 8 words
+     *
+     *      Input params: SP should point to the lineStart + 16 (8 word),
+     *      IY point to the line end. 
+     *      For the most complicated lines it need 3 interval (0..8, 8..13, 13..16)
+     *      but it take more time in general for preparation.
+     */
+
     CompressedLine result;
     static const int kBorderTime = kLineDurationInTicks - 128;
 
@@ -1200,7 +997,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     CompressedLine loadLineAlt;
     CompressedLine loadLineMain;
     Z80Parser parser;
-    auto info = parser.parseCodeToTick(
+    auto info = parser.parseCode(
         *line1.inputRegisters,
         line1.data.buffer(),
         line1.data.size(),
@@ -1385,12 +1182,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
         int extraDelay = 0;
         Z80Parser parser;
 
-        if (i == 19)
-        {
-            int gg = 4;
-        }
-
-        auto timingInfo = parser.parseCodeToTick(
+        auto timingInfo = parser.parseCode(
             registers,
             line.data.buffer(),
             line.data.size(),
@@ -1839,7 +1631,7 @@ int serializeMainData(
 
         Z80Parser parser;
         int ticksLimit = ticksRest - linePreambulaTicks - 4; //< Reserver 4 more ticks because delay<4 is not possible
-        descriptor.rastrForMulticolor.codeInfo = parser.parseCodeToTick(
+        descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
@@ -1852,7 +1644,7 @@ int serializeMainData(
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
         parser.optimizePreambula(serializedData, relativeOffsetToMid, lockedBlocks);
-        descriptor.rastrForOffscreen.codeInfo = parser.parseCodeToTick(
+        descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
             relativeOffsetToMid, relativeOffsetToEnd,

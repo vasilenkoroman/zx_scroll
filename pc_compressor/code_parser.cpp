@@ -280,7 +280,7 @@ Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     for (auto& reg : registers)
         reg.setValue(0); //< Make registers non-empty to correct update regUseMask
-    return parseCodeToTick(
+    return parseCode(
         registers,
         buffer,
         size,
@@ -289,7 +289,7 @@ Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
         /*code offset for JP command*/ 0);
 }
 
-Z80CodeInfo Z80Parser::parseCodeToTick(
+Z80CodeInfo Z80Parser::parseCode(
     const std::vector<Register16>& inputRegisters,
     const std::vector<uint8_t>& serializedData,
     int startOffset,
@@ -297,13 +297,13 @@ Z80CodeInfo Z80Parser::parseCodeToTick(
     uint16_t codeOffset,
     BreakCondition breakCondition)
 {
-    return parseCodeToTick(inputRegisters, 
+    return parseCode(inputRegisters, 
         serializedData.data(), serializedData.size(),
         startOffset, endOffset, codeOffset, breakCondition);
 }
 
 
-Z80CodeInfo Z80Parser::parseCodeToTick(
+Z80CodeInfo Z80Parser::parseCode(
     const std::vector<Register16>& inputRegisters,
     const uint8_t* serializedData,
     const int serializedDataSize,
