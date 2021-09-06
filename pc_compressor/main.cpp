@@ -1586,7 +1586,7 @@ int serializeMainData(
         int lineNum = bankSize * lineBank + lineInBank;
         const auto& dataLine = data.data[lineNum];
         int relativeOffsetToStart = lineOffset[lineNum];
-        Z80Parser::optimizePreambula(serializedData, relativeOffsetToStart, lockedBlocks);
+        Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
@@ -1643,7 +1643,7 @@ int serializeMainData(
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
-        parser.optimizePreambula(serializedData, relativeOffsetToMid, lockedBlocks);
+        parser.swap2CommandIfNeed(serializedData, relativeOffsetToMid, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
@@ -1999,7 +1999,7 @@ int serializeTimingData(
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)
         {
-            std::cout << "WARNING: Low free ticks. line #" << line << ". frees=" << freeTicks 
+            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks 
                 << " color=" << colorTicks 
                 << ". preambula=" << offscreenTicks.preambulaTicks 
                 << ". off rastr=" << offscreenTicks.payloadTicks
@@ -2008,8 +2008,12 @@ int serializeTimingData(
         else
         {
             #ifdef LOG_DEBUG
-                std::cout << "INFO: ticks rest at line #" << line << ". ticks=" << freeTicks << std::endl;
-            #endif
+            std::cout << "INFO: Ticks rest at line #" << line << ". free=" << freeTicks
+                << " color=" << colorTicks
+                << ". preambula=" << offscreenTicks.preambulaTicks
+                << ". off rastr=" << offscreenTicks.payloadTicks
+                << std::endl;
+#endif
         }
         const uint16_t freeTicks16 = (uint16_t) freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));

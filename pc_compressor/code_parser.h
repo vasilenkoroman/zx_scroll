@@ -70,7 +70,7 @@ public:
      * It allows to make preambula more short. For example:
      * PUSH BC: LD HL,XX will generate 4 bytes preambula, but 3 bytes if swap commands.
      */
-    static int optimizePreambula(
+    static int swap2CommandIfNeed(
         std::vector<uint8_t>& serializedData,
         int startOffset,
         std::vector<std::pair<int, int>>& lockedBlocks);

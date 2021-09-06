@@ -765,7 +765,7 @@ bool isIntersect(const std::pair<int, int>& block1,
         || isBetween(block1.first, block2.first + block2.second, block1.first + block1.second);
 }
 
-int Z80Parser::optimizePreambula(
+int Z80Parser::swap2CommandIfNeed(
     std::vector<uint8_t>& serializedData,
     int startOffset,
     std::vector<std::pair<int, int>>& lockedBlocks)
