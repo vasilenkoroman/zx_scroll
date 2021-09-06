@@ -1393,24 +1393,45 @@ struct DescriptorState
         return codeInfo.ticks + regs.drawTicks;
     }
 
+    int removeStartStackMoving()
+    {
+        int removedBytes = 0;
+        while (!codeInfo.commands.empty() && codeInfo.commands[0].opCode == kDecSpCode)
+        {
+            ++startSpDelta;
+            ++lineStartPtr;
+            codeInfo.ticks -= 6;
+            codeInfo.commands.erase(codeInfo.commands.begin());
+            ++removedBytes;
+        }
+
+        if (codeInfo.commands.size() >= 2 && codeInfo.commands[0].opCode == kAddHlSpCode && codeInfo.commands[1].opCode == kLdSpHlCode)
+        {
+            auto hl = findRegister(codeInfo.inputRegisters, "hl");
+            int16_t spDelta = -(int16_t)hl->value16();
+            hl->reset();
+
+            startSpDelta += spDelta;
+            lineStartPtr += 2;
+            codeInfo.ticks -= 17;
+            codeInfo.commands.erase(codeInfo.commands.begin(), codeInfo.commands.begin()+1);
+            removedBytes += 2;
+        }
+        else if (codeInfo.commands.size() >= 1 && codeInfo.commands[0].opCode == kLdSpHlCode)
+        {
+            lineStartPtr += 1;
+            codeInfo.ticks -= 6;
+            codeInfo.commands.erase(codeInfo.commands.begin());
+            removedBytes++;
+        }
+        return removedBytes;
+    }
+
     void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset)
     {
+        int ommitedBytesAtBegin = 0;
         if (startSpDelta > 0)
-        {
-            for (int i = 0; i < codeInfo.commands.size(); ++i)
-            {
-                if (codeInfo.commands[i].opCode == kDecSpCode)
-                {
-                    ++startSpDelta;
-                    ++lineStartPtr;
-                    codeInfo.ticks -= 6;
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
+            ommitedBytesAtBegin = removeStartStackMoving();
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -1428,7 +1449,7 @@ struct DescriptorState
         auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
         regs.serialize(preambula);
 
-        const auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
+        const auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - ommitedBytesAtBegin);
         addToPreambule(firstCommands);
         startDataInfo = Z80Parser::parseCode(firstCommands);
         if (!startDataInfo.hasJump)

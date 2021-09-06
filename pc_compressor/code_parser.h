@@ -8,7 +8,8 @@
 
 static const int kJpIxCommandLen = 2;
 static const uint8_t kDecSpCode = 0x3b;
-static const uint8_t kLdSpHl = 0xf9;
+static const uint8_t kAddHlSpCode = 0x39;
+static const uint8_t kLdSpHlCode = 0xf9;
 
 struct z80Command
 {

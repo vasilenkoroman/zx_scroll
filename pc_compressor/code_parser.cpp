@@ -683,6 +683,9 @@ Z80CodeInfo Z80Parser::parseCode(
 std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCodeSize)
 {
     std::vector<uint8_t> result;
+    if (requestedOpCodeSize <= 0)
+        return result;
+
     const uint8_t* ptr = buffer;
     while (result.size() < requestedOpCodeSize)
     {
@@ -800,7 +803,7 @@ int Z80Parser::swap2CommandIfNeed(
      * then SP can't get correct value from HL. Fortunately, this command is omitted by descriptor
      * preambula. So, do not touch it.
      */
-    if (command1.opCode == kLdSpHl)
+    if (command1.opCode == kLdSpHlCode)
         return 0;
 
     auto info1 = parseCode(ptr, command1.size);
