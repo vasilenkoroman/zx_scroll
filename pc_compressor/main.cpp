@@ -1395,6 +1395,23 @@ struct DescriptorState
 
     void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset)
     {
+        if (startSpDelta > 0)
+        {
+            for (int i = 0; i < codeInfo.commands.size(); ++i)
+            {
+                if (codeInfo.commands[i].opCode == kDecSpCode)
+                {
+                    ++startSpDelta;
+                    ++lineStartPtr;
+                    codeInfo.ticks -= 6;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
          * So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
