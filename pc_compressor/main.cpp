@@ -1647,7 +1647,7 @@ int serializeMainData(
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
         Z80Parser parser;
-        int ticksLimit = ticksRest - linePreambulaTicks - 4; //< Reserver 4 more ticks because delay<4 is not possible
+        int ticksLimit = ticksRest - linePreambulaTicks;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             *dataLine.inputRegisters,
             serializedData,
@@ -1655,7 +1655,9 @@ int serializeMainData(
             codeOffset,
             [ticksLimit](const Z80CodeInfo& info, const z80Command& command)
             {
-                return info.ticks + command.ticks > ticksLimit;
+                int sum = info.ticks + command.ticks;
+                bool success = sum == ticksLimit || sum < ticksLimit - 3;
+                return !success;
             });
 
         int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
