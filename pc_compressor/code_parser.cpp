@@ -708,6 +708,29 @@ std::vector<uint8_t> Z80Parser::genDelay(int ticks, bool alowInacurateTicks)
     if (ticks <= 0)
         return result;
 
+    if (ticks >= 32)
+    {
+        int count = (ticks - 6) / 13;
+        result.push_back(0x06); // LD B,*
+        result.push_back(count);
+        result.push_back(0x10); // DJNZ
+        result.push_back((int8_t) -2); // DJNZ
+        ticks -= 7 + (count-1) * 13 + 8;
+    }
+
+    bool hasAddHl = false;
+    while (ticks > 18)
+    {
+        ticks -= 11;
+        result.push_back(0x29); // ADD HL, HL
+        hasAddHl = true;
+    }
+    if (hasAddHl)
+    {
+        ticks -= 4;
+        result.push_back(0x37); // SCF
+    }
+
     while (ticks > 10)
     {
         ticks -= 7;
