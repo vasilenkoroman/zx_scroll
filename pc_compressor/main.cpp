@@ -671,8 +671,10 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                     line.minX = ctx.minX;
                     line.maxX = ctx.minX - info.spOffset;
 
+                    line.stackMovingAtStart = line.minX;
                     if (!prevLine.data.empty())
-                        parser.serializeAddSpToFront(line, line.minX + (32 - prevLine.maxX));
+                        line.stackMovingAtStart += 32 - prevLine.maxX;
+                    parser.serializeAddSpToFront(line, line.stackMovingAtStart);
                 }
 
                 result.push_back(line);
@@ -1442,13 +1444,26 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset)
+    void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset, const CompressedLine* line = nullptr)
     {
         int ommitedBytesAtBegin = 0;
-#if 0
-        if (startSpDelta > 0)
-            ommitedBytesAtBegin = removeStartStackMoving();
-#endif
+        Register16* updatedHl = nullptr;
+
+        if (line && line->stackMovingAtStart != line->minX)
+        {
+            bool hasAddHlSp = line->stackMovingAtStart > 4;
+            if (hasAddHlSp)
+            {
+                updatedHl = findRegister(codeInfo.inputRegisters, "hl");
+                updatedHl->setValue(-line->minX);
+            }
+            else
+            {
+                ommitedBytesAtBegin = line->stackMovingAtStart - line->minX;
+                codeInfo.ticks -= ommitedBytesAtBegin * 6;
+            }
+            lineStartPtr += ommitedBytesAtBegin;
+        }
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -1466,9 +1481,14 @@ struct DescriptorState
         auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
         regs.serialize(preambula);
 
-        const auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - ommitedBytesAtBegin);
-        addToPreambule(firstCommands);
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - ommitedBytesAtBegin);
         startDataInfo = Z80Parser::parseCode(firstCommands);
+        if (updatedHl)
+        {
+            firstCommands[1] = *updatedHl->l.value;
+            firstCommands[2] = *updatedHl->h.value;
+        }
+        addToPreambule(firstCommands);
         if (!startDataInfo.hasJump)
             addJpIx(lineStartPtr + firstCommands.size());
     }
@@ -1737,7 +1757,7 @@ int serializeMainData(
         ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
-        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset);
+        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset, &dataLine);
         descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
@@ -1838,6 +1858,28 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
     return size;
 }
 
+void serializeAsmFile(
+    const std::string& inputFileName,
+    const CompressedData& multicolorData,
+    int rastrFlags)
+{
+    using namespace std;
+
+    ofstream phaseFile;
+    std::string phaseFileName = inputFileName + ".asm";
+    phaseFile.open(phaseFileName);
+    if (!phaseFile.is_open())
+    {
+        std::cerr << "Can not write asm file" << std::endl;
+        return;
+    }
+
+    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
+    phaseFile << "UNSTABLE_STACK_POS        EQU    " 
+        << ((rastrFlags & kOptimizeLineEdge) ? 1 : 0)
+        << std::endl;
+}
+
 int serializeMultiColorData(
     const CompressedData& data,
     const std::string& inputFileName, uint16_t codeOffset)
@@ -1852,18 +1894,6 @@ int serializeMultiColorData(
         std::cerr << "Can not write color file" << std::endl;
         return -1;
     }
-
-    ofstream phaseFile;
-    std::string phaseFileName = inputFileName + ".asm";
-    phaseFile.open(phaseFileName);
-    if (!phaseFile.is_open())
-    {
-        std::cerr << "Can not write asm file" << std::endl;
-        return -1;
-    }
-
-    phaseFile << "MULTICOLOR_DRAW_PHASE    EQU    " << data.mcDrawPhase << std::endl;
-
 
     int colorImageHeight = data.data.size();
 
@@ -2166,7 +2196,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | kOptimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors;// | kOptimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
@@ -2216,7 +2246,6 @@ int main(int argc, char** argv)
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     serializeTimingData(descriptors, data, colorData, outputFileName);
-
-
+    serializeAsmFile(outputFileName, multicolorData, flags);
     return 0;
 }

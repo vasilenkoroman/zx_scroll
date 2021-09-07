@@ -206,51 +206,20 @@ copy_colors:
         ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?:
+                IF (UNSTABLE_STACK_POS == 1)
+                        ld sp, screen_addr + 6144 - N? * 256      ; 10
+                ENDIF
                 IF (N? == 0)
                         ld ix, $ + 7     ; 14
-                ELSEIF (N? == 23 && low($+6) == low(OFF_RASTR_0+3))
-                        ; Align code duration. It uses two IX for 24 iteration.
-                        ld ix, $ + 7     ; 14
-                ELSEIF (low($+6) > 7)
+                ELSEIF (low($+6) > 10)
                         ld ixl, low($+6) ; 11
                 ELSE
                         ld ix, $ + 7     ; 14
                 ENDIF                        
-
 OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 24
         ENDM                
 
-
-        MACRO draw_offscreen_rastr
-                ld sp, 16384 + 1024 * 6
-                exx
-                DRAW_OFFSCREEN_LINES 0
-                DRAW_OFFSCREEN_LINES 1
-                DRAW_OFFSCREEN_LINES 2
-                DRAW_OFFSCREEN_LINES 3
-                DRAW_OFFSCREEN_LINES 4
-                DRAW_OFFSCREEN_LINES 5
-                DRAW_OFFSCREEN_LINES 6
-                DRAW_OFFSCREEN_LINES 7
-                DRAW_OFFSCREEN_LINES 8
-                DRAW_OFFSCREEN_LINES 9
-                DRAW_OFFSCREEN_LINES 10
-                DRAW_OFFSCREEN_LINES 11
-                DRAW_OFFSCREEN_LINES 12
-                DRAW_OFFSCREEN_LINES 13
-                DRAW_OFFSCREEN_LINES 14
-                DRAW_OFFSCREEN_LINES 15
-                DRAW_OFFSCREEN_LINES 16
-                DRAW_OFFSCREEN_LINES 17
-                DRAW_OFFSCREEN_LINES 18
-                DRAW_OFFSCREEN_LINES 19
-                DRAW_OFFSCREEN_LINES 20
-                DRAW_OFFSCREEN_LINES 21
-                DRAW_OFFSCREEN_LINES 22
-                DRAW_OFFSCREEN_LINES 23
-                exx
-        ENDM
 
 jp_ix_record_size       equ 8
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
@@ -501,7 +470,40 @@ loop:
 
 loop1:
         prepare_rastr_drawing
-        draw_offscreen_rastr
+        
+        //MACRO draw_offscreen_rastr
+                IF (UNSTABLE_STACK_POS == 0)        
+                        ld sp, screen_addr + 6144
+                ENDIF                        
+                exx
+                DRAW_OFFSCREEN_LINES 0
+                DRAW_OFFSCREEN_LINES 1
+                DRAW_OFFSCREEN_LINES 2
+                DRAW_OFFSCREEN_LINES 3
+                DRAW_OFFSCREEN_LINES 4
+                DRAW_OFFSCREEN_LINES 5
+                DRAW_OFFSCREEN_LINES 6
+                DRAW_OFFSCREEN_LINES 7
+                DRAW_OFFSCREEN_LINES 8
+                DRAW_OFFSCREEN_LINES 9
+                DRAW_OFFSCREEN_LINES 10
+                DRAW_OFFSCREEN_LINES 11
+                DRAW_OFFSCREEN_LINES 12
+                DRAW_OFFSCREEN_LINES 13
+                DRAW_OFFSCREEN_LINES 14
+                DRAW_OFFSCREEN_LINES 15
+                DRAW_OFFSCREEN_LINES 16
+                DRAW_OFFSCREEN_LINES 17
+                DRAW_OFFSCREEN_LINES 18
+                DRAW_OFFSCREEN_LINES 19
+                DRAW_OFFSCREEN_LINES 20
+                DRAW_OFFSCREEN_LINES 21
+                DRAW_OFFSCREEN_LINES 22
+                DRAW_OFFSCREEN_LINES 23
+                exx
+        //ENDM
+
+        halt
 
         ; delay
         ld hl, timings_data
@@ -576,7 +578,6 @@ loop1:
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
-
 
         //ld sp, stack_top
         //call long_delay
