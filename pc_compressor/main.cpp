@@ -596,9 +596,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     return std::async(
         [context, lines]()
         {
-            //std::array<Register16, 2> registers = { Register16("bc"), Register16("de")};
             std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-            //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
             std::vector<CompressedLine> result;
 
             for (const auto line : lines)
@@ -614,6 +612,63 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                     registers = registers1;
             }
             updateTransitiveRegUsage(result);
+
+            for (int i = 0; i < lines.size() - 1; ++i)
+            {
+                auto& prevLine = result[i];
+                auto& nextLine = result[i+1];
+
+                Z80Parser parser;
+                auto infoPrev = parser.parseCode(
+                    *prevLine.inputRegisters,
+                    prevLine.data.buffer(), prevLine.data.size(),
+                    0, prevLine.data.size(), 0);
+
+                auto infoNext = parser.parseCode(
+                    *nextLine.inputRegisters,
+                    nextLine.data.buffer(), nextLine.data.size(),
+                    0, nextLine.data.size(), 0);
+
+                int prevSpDelta = infoPrev.spOffset;
+                int nextSpDelta = infoNext.spOffset;
+
+                int prevTicksDelta = infoPrev.ticks;
+                int nextTicksDelta = infoNext.ticks;
+
+                int prevBytesRemoved = parser.removeTrailingStackMoving(infoPrev);
+                int nextBytesRemoved = parser.removeTrailingStackMoving(infoNext);
+
+                prevSpDelta = infoPrev.spOffset - prevSpDelta;
+                nextSpDelta = infoNext.spOffset - nextSpDelta;
+
+                prevTicksDelta = prevTicksDelta - infoPrev.ticks;
+                nextTicksDelta = nextTicksDelta - infoNext.ticks;
+
+                if (prevSpDelta + nextSpDelta > 4 && prevSpDelta > 0)
+                {
+                    for (int i = 0; i < prevBytesRemoved; ++i)
+                        prevLine.data.pop_back();
+                    prevLine.drawTicks -= prevTicksDelta;
+
+                    for (int i = 0; i < nextBytesRemoved; ++i)
+                        nextLine.data.pop_front();
+                    nextLine.drawTicks -= nextTicksDelta;
+
+                    uint16_t delta = -(prevSpDelta + nextSpDelta);
+                    std::vector<uint8_t> data;
+                    data.push_back(0x21); // LD HL, **
+                    data.push_back((uint8_t)delta);
+                    data.push_back(delta >> 8);
+
+                    data.push_back(kAddHlSpCode);
+                    data.push_back(kLdSpHlCode);
+
+                    nextLine.push_front(data);
+                    nextLine.drawTicks += 27;
+                }
+            }
+
+
             return result;
         }
     );
@@ -1393,87 +1448,29 @@ struct DescriptorState
         return codeInfo.ticks + regs.drawTicks;
     }
 
+#if 0
     int removeStartStackMoving()
     {
-        int removedBytes = 0;
-        while (!codeInfo.commands.empty() && codeInfo.commands[0].opCode == kDecSpCode)
-        {
-            ++startSpDelta;
-            ++lineStartPtr;
-            codeInfo.ticks -= 6;
-            codeInfo.commands.erase(codeInfo.commands.begin());
-            ++removedBytes;
-            codeInfo.startOffset++;
-        }
-
-        if (codeInfo.commands.size() >= 2 && codeInfo.commands[0].opCode == kAddHlSpCode && codeInfo.commands[1].opCode == kLdSpHlCode)
-        {
-            auto hl = findRegister(codeInfo.inputRegisters, "hl");
-            int16_t spDelta = -(int16_t)hl->value16();
-            hl->reset();
-
-            startSpDelta += spDelta;
-            lineStartPtr += 2;
-            codeInfo.ticks -= 17;
-            codeInfo.startOffset+=2;
-            codeInfo.commands.erase(codeInfo.commands.begin(), codeInfo.commands.begin()+1);
-            removedBytes += 2;
-        }
-        else if (codeInfo.commands.size() >= 1 && codeInfo.commands[0].opCode == kLdSpHlCode)
-        {
-            lineStartPtr++;
-            codeInfo.startOffset++;
-            codeInfo.ticks -= 6;
-            codeInfo.commands.erase(codeInfo.commands.begin());
-            removedBytes++;
-        }
+        int oldSpOffset = codeInfo.spOffset;
+        int removedBytes = Z80Parser::removeStartStackMoving(codeInfo);
+        lineStartPtr += removedBytes;
+        startSpDelta += codeInfo.spOffset - oldSpOffset;
         return removedBytes;
     }
+#endif
 
-    int removeTrailingStackMoving(int maxCommandToRemove)
+    void removeTrailingStackMoving(int maxCommandToRemove)
     {
-        int removedBytes = 0;
-        if (maxCommandToRemove == 0)
-            return removedBytes;
-
-        while (!codeInfo.commands.empty() && codeInfo.commands.rbegin()->opCode == kDecSpCode)
-        {
-            --codeInfo.spOffset;
-            --lineEndPtr;
-            codeInfo.ticks -= 6;
-            codeInfo.commands.pop_back();
-            ++removedBytes;
-            codeInfo.endOffset--;
-            if (--maxCommandToRemove == 0)
-                return removedBytes;
-        }
-
-        if (int index = codeInfo.commands.size() - 2; 
-            codeInfo.commands.size() >= 2 && codeInfo.commands[index].opCode == kAddHlSpCode && codeInfo.commands[index+1].opCode == kLdSpHlCode)
-        {
-            auto hl = findRegister(codeInfo.outputRegisters, "hl");
-            int16_t spDelta = -(int16_t)hl->value16();
-            hl->reset();
-
-            codeInfo.spOffset -= spDelta;
-            lineEndPtr -= 2;
-            codeInfo.ticks -= 17;
-            codeInfo.endOffset -= 2;
-            codeInfo.commands.pop_back();
-            codeInfo.commands.pop_back();
-            removedBytes += 2;
-            if (--maxCommandToRemove == 0)
-                return removedBytes;
-        }
-
-        return removedBytes;
+        lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
     void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset)
     {
         int ommitedBytesAtBegin = 0;
+#if 0
         if (startSpDelta > 0)
             ommitedBytesAtBegin = removeStartStackMoving();
+#endif
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -1740,6 +1737,7 @@ int serializeMainData(
             serializedData,
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             codeOffset);
+#if 0
         if (descriptor.rastrForMulticolor.codeInfo.spOffset
             + descriptor.rastrForOffscreen.codeInfo.spOffset != -256)
         {
@@ -1747,6 +1745,7 @@ int serializeMainData(
                 << " at line #" << d << ". It is bug!" << std::endl;
             abort();
         }
+#endif
 
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
         descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + codeOffset;

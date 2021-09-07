@@ -75,5 +75,8 @@ public:
         std::vector<uint8_t>& serializedData,
         int startOffset,
         std::vector<std::pair<int, int>>& lockedBlocks);
+
+    static int removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandToRemove = std::numeric_limits<int>::max());
+    static int removeStartStackMoving(Z80CodeInfo& codeInfo);
 };
 

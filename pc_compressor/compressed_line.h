@@ -57,6 +57,13 @@ public:
         --m_size;
     }
 
+    inline void pop_front()
+    {
+        assert(m_size < sizeof(m_buffer));
+        memmove(m_buffer, m_buffer + 1, m_size - 1);
+        m_size--;
+    }
+
     inline int size() const { return m_size; }
     inline const uint8_t* data() const { return m_buffer; }
 

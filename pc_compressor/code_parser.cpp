@@ -856,3 +856,75 @@ const Register16* Z80Parser::findRegByItsPushOpCode(
 
     return nullptr;
 }
+
+int Z80Parser::removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandToRemove)
+{
+    int removedBytes = 0;
+    if (maxCommandToRemove == 0)
+        return removedBytes;
+
+    while (!codeInfo.commands.empty() && codeInfo.commands.rbegin()->opCode == kDecSpCode)
+    {
+        ++codeInfo.spOffset;
+        codeInfo.ticks -= 6;
+        codeInfo.commands.pop_back();
+        ++removedBytes;
+        codeInfo.endOffset--;
+        if (--maxCommandToRemove == 0)
+            return removedBytes;
+    }
+
+    if (int index = codeInfo.commands.size() - 2;
+        codeInfo.commands.size() >= 2 && codeInfo.commands[index].opCode == kAddHlSpCode && codeInfo.commands[index + 1].opCode == kLdSpHlCode)
+    {
+        auto hl = findRegister(codeInfo.outputRegisters, "hl");
+        int16_t spDelta = -(int16_t)hl->value16();
+        hl->reset();
+
+        codeInfo.spOffset += spDelta;
+        codeInfo.ticks -= 17;
+        codeInfo.endOffset -= 2;
+        codeInfo.commands.pop_back();
+        codeInfo.commands.pop_back();
+        removedBytes += 2;
+        if (--maxCommandToRemove == 0)
+            return removedBytes;
+    }
+
+    return removedBytes;
+}
+
+int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
+{
+    int removedBytes = 0;
+    while (!codeInfo.commands.empty() && codeInfo.commands[0].opCode == kDecSpCode)
+    {
+        ++codeInfo.spOffset;
+        codeInfo.ticks -= 6;
+        codeInfo.commands.erase(codeInfo.commands.begin());
+        ++removedBytes;
+        codeInfo.startOffset++;
+    }
+
+    if (codeInfo.commands.size() >= 2 && codeInfo.commands[0].opCode == kAddHlSpCode && codeInfo.commands[1].opCode == kLdSpHlCode)
+    {
+        auto hl = findRegister(codeInfo.inputRegisters, "hl");
+        int16_t spDelta = -(int16_t)hl->value16();
+        codeInfo.spOffset += spDelta;
+        hl->reset();
+
+        codeInfo.ticks -= 17;
+        codeInfo.startOffset += 2;
+        codeInfo.commands.erase(codeInfo.commands.begin(), codeInfo.commands.begin() + 1);
+        removedBytes += 2;
+    }
+    else if (codeInfo.commands.size() >= 1 && codeInfo.commands[0].opCode == kLdSpHlCode)
+    {
+        ++codeInfo.spOffset;
+        codeInfo.startOffset++;
+        codeInfo.ticks -= 6;
+        codeInfo.commands.erase(codeInfo.commands.begin());
+        removedBytes++;
+    }
+    return removedBytes;
+}
