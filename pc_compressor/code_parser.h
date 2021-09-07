@@ -47,7 +47,7 @@ public:
         const std::vector<uint8_t>& serializedData,
         int startOffset,
         int endOffset,
-        uint16_t codeOffset, 
+        uint16_t codeOffset,
         BreakCondition breakCondition = nullptr);
 
     static Z80CodeInfo parseCode(
@@ -78,5 +78,7 @@ public:
 
     static int removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandToRemove = std::numeric_limits<int>::max());
     static int removeStartStackMoving(Z80CodeInfo& codeInfo);
+
+    static void serializeAddSpToFront(CompressedLine& line, int value);
 };
 

@@ -297,7 +297,7 @@ Z80CodeInfo Z80Parser::parseCode(
     uint16_t codeOffset,
     BreakCondition breakCondition)
 {
-    return parseCode(inputRegisters, 
+    return parseCode(inputRegisters,
         serializedData.data(), serializedData.size(),
         startOffset, endOffset, codeOffset, breakCondition);
 }
@@ -333,7 +333,7 @@ Z80CodeInfo Z80Parser::parseCode(
     Register8& c = bc->l;
     Register8& d = de->h;
     Register8& e = de->l;
-    
+
 
     Register16 af{"af"};
     Register8& a = af.h;
@@ -413,7 +413,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x26: h.loadX(info, ptr[1]);
                 break;
-            case 0x2b: 
+            case 0x2b:
                 if (isIndexReg)
                     iySpOffset--;
                 else
@@ -438,7 +438,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 hl->reset();
                 break;
             }
-            case 0x3b: 
+            case 0x3b:
                     result.spOffset--;  // DEC SP
                 break;
             case 0x3c: a.incValue(info);
@@ -928,3 +928,24 @@ int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
     }
     return removedBytes;
 }
+
+void Z80Parser::serializeAddSpToFront(CompressedLine& line, int value)
+{
+    CompressedLine temp;
+    static Register16 sp("sp");
+    static Register16 hl("hl");
+    if (value >= 5)
+    {
+        hl.loadXX(temp, -value);
+        hl.addSP(temp);
+        sp.loadFromReg16(temp, hl);
+        if (value < 0)
+            temp.scf(); //< Keep flag 'c' on during multicolors
+    }
+    else
+    {
+        sp.decValue(temp, value);
+    }
+    line.push_front(temp.data);
+    line.drawTicks += temp.drawTicks;
+};

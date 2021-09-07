@@ -32,6 +32,7 @@ static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 
 // flags
+
 static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
 static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
 static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
@@ -39,6 +40,9 @@ static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
 static const int inverseColors = 16;
 static const int skipInvisibleColors = 32;
 static const int hurryUpViaIY = 64;      //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
+static const int kOptimizeLineEdge = 128;
+
+
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
@@ -68,6 +72,29 @@ struct Context
     int lastOddRepPosition = 32;
     int borderPoint = 0;
     Register16 af{"af"};
+
+    void removeEdge()
+    {
+        uint8_t* line = buffer + y * 32;
+        int nextLineNum = (y + scrollDelta) % imageHeight;
+        uint8_t* nextLine = buffer + nextLineNum * 32;
+
+        // remove left and rigt edge
+        for (int x = 0; x < 32; ++x)
+        {
+            if (line[x] == nextLine[x])
+                ++minX;
+            else
+                break;
+        }
+        for (int x = 31; x >= 0; --x)
+        {
+            if (line[x] == nextLine[x])
+                --maxX;
+            else
+                break;
+        }
+    }
 };
 
 void serialize(std::vector<uint8_t>& data, uint16_t value)
@@ -298,8 +325,8 @@ void updateTransitiveRegUsage(T& data)
     int size = data.size();
     for (int lineNum = 0; lineNum < data.size(); ++lineNum)
     {
-
         CompressedLine& line = data[lineNum];
+
         uint8_t selfRegMask = line.regUsage.selfRegMask;
         auto before = line.regUsage.regUseMask;
         for (int j = 1; j <= 8; ++j)
@@ -320,7 +347,7 @@ void updateTransitiveRegUsage(T& data)
 
 template <int N>
 bool compressLineMain(
-    const Context& context,
+    Context& context,
     CompressedLine& line,
     std::array<Register16, N>& registers)
 {
@@ -341,11 +368,16 @@ bool compressLineMain(
         abort();
     }
 
-    bool useSecondLine = success2 && line2.drawTicks < line1.drawTicks;
+    bool useSecondLine = success2 && line2.drawTicks <= line1.drawTicks;
     if (useSecondLine)
+    {
         line = line2;
+    }
     else
+    {
+        context.minX &= ~1;
         line = line1;
+    }
 
     line.inputRegisters = std::make_shared<std::vector<Register16>>();
     for (const auto& reg16 : registers)
@@ -598,75 +630,57 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
         {
             std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
-
-            for (const auto line : lines)
+            CompressedLine prevLine;
+            for (const auto line: lines)
             {
                 Context ctx = context;
                 ctx.y = line;
 
+                if (ctx.flags & kOptimizeLineEdge)
+                    ctx.removeEdge();
+
                 CompressedLine line;
                 auto registers1 = registers;
+
+                if (ctx.flags & kOptimizeLineEdge)
+                {
+                    if (!prevLine.data.empty())
+                    {
+                        int expectedDelta = context.minX + (32 - prevLine.maxX);
+                        if (expectedDelta > 4)
+                        {
+                            auto hl = findRegister(registers1, "hl");
+                            hl->reset();
+                        }
+                    }
+                }
+
                 compressLineMain(ctx, line, registers1);
-                result.push_back(line);
                 if (context.flags & interlineRegisters)
                     registers = registers1;
-            }
-            updateTransitiveRegUsage(result);
 
-            for (int i = 0; i < lines.size() - 1; ++i)
-            {
-                auto& prevLine = result[i];
-                auto& nextLine = result[i+1];
 
-                Z80Parser parser;
-                auto infoPrev = parser.parseCode(
-                    *prevLine.inputRegisters,
-                    prevLine.data.buffer(), prevLine.data.size(),
-                    0, prevLine.data.size(), 0);
-
-                auto infoNext = parser.parseCode(
-                    *nextLine.inputRegisters,
-                    nextLine.data.buffer(), nextLine.data.size(),
-                    0, nextLine.data.size(), 0);
-
-                int prevSpDelta = infoPrev.spOffset;
-                int nextSpDelta = infoNext.spOffset;
-
-                int prevTicksDelta = infoPrev.ticks;
-                int nextTicksDelta = infoNext.ticks;
-
-                int prevBytesRemoved = parser.removeTrailingStackMoving(infoPrev);
-                int nextBytesRemoved = parser.removeTrailingStackMoving(infoNext);
-
-                prevSpDelta = infoPrev.spOffset - prevSpDelta;
-                nextSpDelta = infoNext.spOffset - nextSpDelta;
-
-                prevTicksDelta = prevTicksDelta - infoPrev.ticks;
-                nextTicksDelta = nextTicksDelta - infoNext.ticks;
-
-                if (prevSpDelta + nextSpDelta > 4 && prevSpDelta > 0)
+                if (ctx.flags & kOptimizeLineEdge)
                 {
-                    for (int i = 0; i < prevBytesRemoved; ++i)
-                        prevLine.data.pop_back();
-                    prevLine.drawTicks -= prevTicksDelta;
+                    Z80Parser parser;
+                    auto info = parser.parseCode(
+                        *line.inputRegisters,
+                        line.data.buffer(), line.data.size(),
+                        0, line.data.size(), 0);
 
-                    for (int i = 0; i < nextBytesRemoved; ++i)
-                        nextLine.data.pop_front();
-                    nextLine.drawTicks -= nextTicksDelta;
+                    line.minX = ctx.minX;
+                    line.maxX = ctx.minX - info.spOffset;
 
-                    uint16_t delta = -(prevSpDelta + nextSpDelta);
-                    std::vector<uint8_t> data;
-                    data.push_back(0x21); // LD HL, **
-                    data.push_back((uint8_t)delta);
-                    data.push_back(delta >> 8);
-
-                    data.push_back(kAddHlSpCode);
-                    data.push_back(kLdSpHlCode);
-
-                    nextLine.push_front(data);
-                    nextLine.drawTicks += 27;
+                    if (!prevLine.data.empty())
+                        parser.serializeAddSpToFront(line, line.minX + (32 - prevLine.maxX));
                 }
+
+                result.push_back(line);
+                prevLine = line;
             }
+
+
+            updateTransitiveRegUsage(result, lines[13] == 109);
 
 
             return result;
@@ -889,26 +903,9 @@ void finilizeLine(
     const CompressedLine& loadLine,
     const CompressedLine& pushLine)
 {
-    Register16 hl("hl");
     Register16 sp("sp");
     Register16 iy("iy");
 
-    auto doAddSP =
-        [&](int value)
-        {
-            if (value >= 5)
-            {
-                hl.loadXX(result, -value);
-                hl.addSP(result);
-                sp.loadFromReg16(result, hl);
-                if (value < 0)
-                    result.scf(); //< Keep flag 'c' on during multicolors
-            }
-            else
-            {
-                sp.decValue(result, value);
-            }
-        };
     auto doAddIY =
         [&](int value)
         {
@@ -920,7 +917,7 @@ void finilizeLine(
     if (context.minX > 0)
     {
         uint16_t delta = context.minX < 16 ? context.minX : 16 - (context.minX - 16);
-        doAddSP(delta);
+        Z80Parser::serializeAddSpToFront(result, delta);
     }
     if (pushLine.splitPosHint >= 0 && pushLine.extraIyDelta)
     {
@@ -982,33 +979,13 @@ CompressedLine  compressMultiColorsLine(Context context)
      *      Drawing step (1..2): 8, 8 words
      *
      *      Input params: SP should point to the lineStart + 16 (8 word),
-     *      IY point to the line end. 
+     *      IY point to the line end.
      *      For the most complicated lines it need 3 interval (0..8, 8..13, 13..16)
      *      but it take more time in general for preparation.
      */
 
     CompressedLine result;
-    static const int kBorderTime = kLineDurationInTicks - 128;
-
-    uint8_t* line = context.buffer + context.y * 32;
-    int nextLineNum = (context.y + context.scrollDelta) % context.imageHeight;
-    uint8_t* nextLine = context.buffer + nextLineNum * 32;
-
-    // remove left and rigt edge
-    for (int x = 0; x < 32; ++x)
-    {
-        if (line[x] == nextLine[x])
-            ++context.minX;
-        else
-            break;
-    }
-    for (int x = 31; x >= 0; --x)
-    {
-        if (line[x] == nextLine[x])
-            --context.maxX;
-        else
-            break;
-    }
+    context.removeEdge(); //< Fill minX, maxX
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
@@ -1079,7 +1056,7 @@ CompressedLine  compressMultiColorsLine(Context context)
                         }
                         else
                         {
-                            auto prevRegs =  i < 3 
+                            auto prevRegs =  i < 3
                                 ? std::array<Register16, 3> { registers6[0], registers6[1], registers6[2] }
                                 : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
                             registers6[i].updateToValue(line, inputReg->value16(), prevRegs);
@@ -1110,6 +1087,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     }
 
 
+    //static const int kBorderTime = kLineDurationInTicks - 128;
     //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
     int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
     t2 += (31 - context.maxX) * kTicksOnScreenPerByte;
@@ -2091,9 +2069,9 @@ int serializeTimingData(
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)
         {
-            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks 
-                << " color=" << colorTicks 
-                << ". preambula=" << offscreenTicks.preambulaTicks 
+            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks
+                << " color=" << colorTicks
+                << ". preambula=" << offscreenTicks.preambulaTicks
                 << ". off rastr=" << offscreenTicks.payloadTicks
                 << std::endl;
         }
@@ -2186,7 +2164,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors; // | kOptimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 

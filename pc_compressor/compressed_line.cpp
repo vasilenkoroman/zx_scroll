@@ -94,6 +94,12 @@ void CompressedLine::push_front(const std::vector<uint8_t>& v)
         data.push_front(*itr);
 }
 
+void CompressedLine::push_front(const ZxData& buffer)
+{
+    for (int i = buffer.size() - 1; i >= 0; --i)
+        data.push_front(buffer.data()[i]);
+}
+
 std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const
 {
     return Z80Parser::getCode(data.buffer(), size);

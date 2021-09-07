@@ -149,6 +149,7 @@ struct CompressedLine
     void append(const uint8_t* buffer, int size);
     void append(const std::vector<uint8_t>& data);
     void push_front(const std::vector<uint8_t>& data);
+    void push_front(const ZxData& buffer);
 
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters() const;
@@ -171,4 +172,7 @@ public:
     int lastOddRepPosition = 0;
     int splitPosHint = -1;
     int extraIyDelta = 0;
+
+    int16_t minX = 0;
+    int16_t maxX = 0;
 };
