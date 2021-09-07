@@ -17,7 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
-#define LOG_DEBUG
+//#define LOG_DEBUG
 
 #define TEMP_FOR_TEST_COLORS 1
 
@@ -680,7 +680,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
             }
 
 
-            updateTransitiveRegUsage(result, lines[13] == 109);
+            updateTransitiveRegUsage(result);
 
 
             return result;
@@ -2038,7 +2038,7 @@ int serializeTimingData(
         std::cerr << "Can not write timing file" << std::endl;
         return -1;
     }
-
+    int worseLineTicks = std::numeric_limits<int>::max();
     for (int line = 0; line < imageHeight; ++line)
     {
         // offscreen rastr
@@ -2083,11 +2083,13 @@ int serializeTimingData(
                 << ". preambula=" << offscreenTicks.preambulaTicks
                 << ". off rastr=" << offscreenTicks.payloadTicks
                 << std::endl;
-#endif
+            #endif
         }
+        worseLineTicks = std::min(worseLineTicks, freeTicks);
         const uint16_t freeTicks16 = (uint16_t) freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
     }
+    std::cout << "worse line free ticks=" << worseLineTicks << std::endl;
 
     return 0;
 }
