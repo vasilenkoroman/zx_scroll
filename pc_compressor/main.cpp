@@ -1428,17 +1428,6 @@ struct DescriptorState
         return codeInfo.ticks + regs.drawTicks;
     }
 
-#if 0
-    int removeStartStackMoving()
-    {
-        int oldSpOffset = codeInfo.spOffset;
-        int removedBytes = Z80Parser::removeStartStackMoving(codeInfo);
-        lineStartPtr += removedBytes;
-        startSpDelta += codeInfo.spOffset - oldSpOffset;
-        return removedBytes;
-    }
-#endif
-
     void removeTrailingStackMoving(int maxCommandToRemove)
     {
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
@@ -1661,7 +1650,10 @@ int serializeMainData(
         int lineNum = bankSize * lineBank + lineInBank;
         const auto& dataLine = data.data[lineNum];
         int relativeOffsetToStart = lineOffset[lineNum];
-        Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
+
+        // Do not swap DEC SP, LD REG, XX at this mode
+        if (!(flags & kOptimizeLineEdge))
+            Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
@@ -1729,7 +1721,8 @@ int serializeMainData(
 
         //int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
-        parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
+        if (!(flags & kOptimizeLineEdge))
+            parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
@@ -1751,6 +1744,7 @@ int serializeMainData(
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
         descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
         descriptor.rastrForOffscreen.startSpDelta = -descriptor.rastrForMulticolor.codeInfo.spOffset;
+        descriptor.rastrForOffscreen.startSpDelta -= dataLine.stackMovingAtStart - dataLine.minX;
 
         descriptor.rastrForMulticolor.removeTrailingStackMoving(extraCommandsIncluded);
         // align timing for RastrForMulticolor part
@@ -2196,7 +2190,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors;// | kOptimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | kOptimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
