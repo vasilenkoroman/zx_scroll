@@ -503,15 +503,6 @@ loop1:
                 exx
         //ENDM
 
-        ; delay
-        ld hl, timings_data
-        add hl, bc
-        add hl, bc
-        ld sp, hl
-        pop hl
-        ld sp, stack_top
-        call delay
-
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
         ld (stack_bottom), bc
 
@@ -526,6 +517,15 @@ loop1:
         ld l, a
 
         draw_colors
+
+        ; delay
+        ld hl, timings_data
+        add hl, bc
+        add hl, bc
+        ld sp, hl
+        pop hl
+        ld sp, stack_top
+        call delay
 
         // calculate floor(bc,8) / 4
 
