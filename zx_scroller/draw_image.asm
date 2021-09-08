@@ -152,6 +152,7 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t22&255,t23&255,t24&255,t25&255
         db      t26&255,t27&255,t28&255,t29&255
 
+filler  db      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
 /*************** Draw 8 lines of image.  ******************/
 
@@ -297,22 +298,26 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
                 exx                                     ; 4
                 ld sp, color_addr + N? * 32 + 16        ; 10
                 ld iy, color_addr + N? * 32 + 32        ; 14
-                ld ix, $ + 5                            ; 14
+MC_LINE_N?      ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
                 exx                                     ; 4
                 // total ticks: 50 (58 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256        ; 10
-                ld ix, $ + 7                                            ; 14
-RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld ix, $ + 7                                           ; 14
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 // total ticks: 34 (42 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
-        DRAW_MULTICOLOR_LINE  N?
-        DRAW_RASTR_LINE N?
+                DRAW_MULTICOLOR_LINE  N?
+        
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256        ; 10
+                ASSERT(high($+6) == high(MC_LINE_N? + 5))
+                ld ixl, low($ + 6)                                      ; 11
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
         // total ticks: 70 (86 with ret)
     ENDM                
 

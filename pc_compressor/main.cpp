@@ -46,7 +46,7 @@ static const int kOptimizeLineEdge = 128;
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 100 + 10; // context switch + ld hl in the end of the multicolor line
+static const int kRtMcContextSwitchDelay = 97 + 10; // context switch + ld hl in the end of the multicolor line
 static const int kTicksOnScreenPerByte = 4;
 static const int kStackMovingTimeForMc = 10;
 
@@ -2117,7 +2117,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3226;
+        static const int kZ80CodeDelay = 3229;
         ticks += kZ80CodeDelay;
         if (flags & kOptimizeLineEdge)
             ticks += 10 * 23 - 8; // LD SP, XX in each line
