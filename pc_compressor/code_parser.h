@@ -80,5 +80,6 @@ public:
     static int removeStartStackMoving(Z80CodeInfo& codeInfo);
 
     static void serializeAddSpToFront(CompressedLine& line, int value);
+    static void serializeAddSpToBack(CompressedLine& line, int value);
 };
 

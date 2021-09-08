@@ -630,7 +630,6 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
         {
             std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
             std::vector<CompressedLine> result;
-            CompressedLine prevLine;
             for (const auto line: lines)
             {
                 Context ctx = context;
@@ -643,8 +642,9 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 auto registers1 = registers;
 
                 int stackMovingAtStart = 0;
-                if ((ctx.flags & kOptimizeLineEdge) && !prevLine.data.empty())
+                if ((ctx.flags & kOptimizeLineEdge) && !result.empty())
                 {
+                    auto& prevLine = *result.rbegin();
                     stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
                     if (stackMovingAtStart >= 5)
                     {
@@ -668,20 +668,41 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
 
                     line.minX = ctx.minX;
                     line.maxX = ctx.minX - info.spOffset;
-                    line.stackMovingAtStart = stackMovingAtStart;
 
-                    parser.serializeAddSpToFront(line, line.stackMovingAtStart);
+                    if (stackMovingAtStart >= 5)
+                    {
+                        Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
+                        line.stackMovingAtStart = stackMovingAtStart;
+                    }
+                    else if (stackMovingAtStart > 0)
+                    {
+                        auto& prevLine = *result.rbegin();
+                        Z80Parser::serializeAddSpToFront(line, line.minX);
+                        Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
+                        line.stackMovingAtStart = line.minX;
+                    }
                 }
 
                 result.push_back(line);
-                prevLine = line;
             }
 
             if (context.flags & kOptimizeLineEdge)
             {
                 auto& line = result[0];
-                line.stackMovingAtStart = line.minX + (32 - prevLine.maxX);
-                Z80Parser::serializeAddSpToFront(line, line.stackMovingAtStart);
+                auto& prevLine = *result.rbegin();
+
+                int stackMovingAtStart = line.minX + (32 - prevLine.maxX);
+                if (stackMovingAtStart >= 5)
+                {
+                    Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
+                    line.stackMovingAtStart = stackMovingAtStart;
+                }
+                else if (stackMovingAtStart > 0)
+                {
+                    Z80Parser::serializeAddSpToFront(line, line.minX);
+                    Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
+                    line.stackMovingAtStart = line.minX;
+                }
             }
 
 
@@ -1431,14 +1452,13 @@ struct DescriptorState
         return codeInfo.ticks + regs.drawTicks;
     }
 
-    void removeTrailingStackMoving(int maxCommandToRemove)
+    void removeTrailingStackMoving(int maxCommandToRemove = std::numeric_limits<int>::max())
     {
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
     void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset, const CompressedLine* line = nullptr)
     {
-        int ommitedBytesAtBegin = 0;
         Register16* updatedHl = nullptr;
 
         if (line && line->stackMovingAtStart != line->minX)
@@ -1449,12 +1469,6 @@ struct DescriptorState
                 updatedHl = findRegister(codeInfo.inputRegisters, "hl");
                 updatedHl->setValue(-line->minX);
             }
-            else
-            {
-                ommitedBytesAtBegin = line->stackMovingAtStart - line->minX;
-                codeInfo.ticks -= ommitedBytesAtBegin * 6;
-            }
-            lineStartPtr += ommitedBytesAtBegin;
         }
 
         /*
@@ -1473,7 +1487,7 @@ struct DescriptorState
         auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
         regs.serialize(preambula);
 
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - ommitedBytesAtBegin);
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
         startDataInfo = Z80Parser::parseCode(firstCommands);
         if (updatedHl)
         {
@@ -1754,6 +1768,9 @@ int serializeMainData(
         ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
+        if (flags & kOptimizeLineEdge)
+            descriptor.rastrForOffscreen.removeTrailingStackMoving();
+
         descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset, &dataLine);
         descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
 
@@ -1872,7 +1889,7 @@ void serializeAsmFile(
     }
 
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
-    phaseFile << "UNSTABLE_STACK_POS        EQU    " 
+    phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & kOptimizeLineEdge) ? 1 : 0)
         << std::endl;
 }
@@ -2094,7 +2111,7 @@ int serializeTimingData(
         static const int kZ80CodeDelay = 3226;
         ticks += kZ80CodeDelay;
         if (flags & kOptimizeLineEdge)
-            ticks += 10 * 23; // LD SP, XX in each line
+            ticks += 10 * 23 - 8; // LD SP, XX in each line
 
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)

@@ -929,23 +929,35 @@ int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
     return removedBytes;
 }
 
-void Z80Parser::serializeAddSpToFront(CompressedLine& line, int value)
+CompressedLine serializeAdHlSp(int value)
 {
-    CompressedLine temp;
+    CompressedLine line;
     static Register16 sp("sp");
     static Register16 hl("hl");
     if (value >= 5)
     {
-        hl.loadXX(temp, -value);
-        hl.addSP(temp);
-        sp.loadFromReg16(temp, hl);
+        hl.loadXX(line, -value);
+        hl.addSP(line);
+        sp.loadFromReg16(line, hl);
         if (value < 0)
-            temp.scf(); //< Keep flag 'c' on during multicolors
+            line.scf(); //< Keep flag 'c' on during multicolors
     }
     else
     {
-        sp.decValue(temp, value);
+        sp.decValue(line, value);
     }
+    return line;
+}
+
+void Z80Parser::serializeAddSpToFront(CompressedLine& line, int value)
+{
+    auto temp = serializeAdHlSp(value);
     line.push_front(temp.data);
     line.drawTicks += temp.drawTicks;
+};
+
+void Z80Parser::serializeAddSpToBack(CompressedLine& line, int value)
+{
+    auto temp = serializeAdHlSp(value);
+    line += temp;
 };
