@@ -205,13 +205,14 @@ copy_colors:
 
         ENDM
 
-        MACRO DRAW_OFFSCREEN_LINES N?:
+        MACRO DRAW_OFFSCREEN_LINES N?, Prev?
                 IF (UNSTABLE_STACK_POS == 1)
                         ld sp, screen_addr + 6144 - N? * 256      ; 10
                 ENDIF
+OFF_BASE_N?                
                 IF (N? == 0)
                         ld ix, $ + 7     ; 14
-                ELSEIF (low($+6) > 10)
+                ELSEIF (high(OFF_BASE_N? + 7) == high(OFF_BASE_Prev? + 7))
                         ld ixl, low($+6) ; 11
                 ELSE
                         ld ix, $ + 7     ; 14
@@ -476,30 +477,30 @@ loop1:
                         ld sp, screen_addr + 6144
                 ENDIF                        
                 exx
-                DRAW_OFFSCREEN_LINES 0
-                DRAW_OFFSCREEN_LINES 1
-                DRAW_OFFSCREEN_LINES 2
-                DRAW_OFFSCREEN_LINES 3
-                DRAW_OFFSCREEN_LINES 4
-                DRAW_OFFSCREEN_LINES 5
-                DRAW_OFFSCREEN_LINES 6
-                DRAW_OFFSCREEN_LINES 7
-                DRAW_OFFSCREEN_LINES 8
-                DRAW_OFFSCREEN_LINES 9
-                DRAW_OFFSCREEN_LINES 10
-                DRAW_OFFSCREEN_LINES 11
-                DRAW_OFFSCREEN_LINES 12
-                DRAW_OFFSCREEN_LINES 13
-                DRAW_OFFSCREEN_LINES 14
-                DRAW_OFFSCREEN_LINES 15
-                DRAW_OFFSCREEN_LINES 16
-                DRAW_OFFSCREEN_LINES 17
-                DRAW_OFFSCREEN_LINES 18
-                DRAW_OFFSCREEN_LINES 19
-                DRAW_OFFSCREEN_LINES 20
-                DRAW_OFFSCREEN_LINES 21
-                DRAW_OFFSCREEN_LINES 22
-                DRAW_OFFSCREEN_LINES 23
+                DRAW_OFFSCREEN_LINES 0,0
+                DRAW_OFFSCREEN_LINES 1,0
+                DRAW_OFFSCREEN_LINES 2,1
+                DRAW_OFFSCREEN_LINES 3,2
+                DRAW_OFFSCREEN_LINES 4,3
+                DRAW_OFFSCREEN_LINES 5,4
+                DRAW_OFFSCREEN_LINES 6,5
+                DRAW_OFFSCREEN_LINES 7,6
+                DRAW_OFFSCREEN_LINES 8,7
+                DRAW_OFFSCREEN_LINES 9,8
+                DRAW_OFFSCREEN_LINES 10,9
+                DRAW_OFFSCREEN_LINES 11,10
+                DRAW_OFFSCREEN_LINES 12,11
+                DRAW_OFFSCREEN_LINES 13,12
+                DRAW_OFFSCREEN_LINES 14,13
+                DRAW_OFFSCREEN_LINES 15,14
+                DRAW_OFFSCREEN_LINES 16,15
+                DRAW_OFFSCREEN_LINES 17,16
+                DRAW_OFFSCREEN_LINES 18,17
+                DRAW_OFFSCREEN_LINES 19,18
+                DRAW_OFFSCREEN_LINES 20,19
+                DRAW_OFFSCREEN_LINES 21,20
+                DRAW_OFFSCREEN_LINES 22,21
+                DRAW_OFFSCREEN_LINES 23,22
                 exx
         //ENDM
 
