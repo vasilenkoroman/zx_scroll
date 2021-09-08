@@ -642,16 +642,17 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 CompressedLine line;
                 auto registers1 = registers;
 
+                int stackMovingAtStart = 0;
                 if (ctx.flags & kOptimizeLineEdge)
                 {
+                    stackMovingAtStart = ctx.minX;
                     if (!prevLine.data.empty())
+                        stackMovingAtStart += 32 - prevLine.maxX;
+
+                    if (stackMovingAtStart >= 5)
                     {
-                        int expectedDelta = context.minX + (32 - prevLine.maxX);
-                        if (expectedDelta > 4)
-                        {
-                            auto hl = findRegister(registers1, "hl");
-                            hl->reset();
-                        }
+                        auto hl = findRegister(registers1, "hl");
+                        hl->reset();
                     }
                 }
 
@@ -670,10 +671,8 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
 
                     line.minX = ctx.minX;
                     line.maxX = ctx.minX - info.spOffset;
+                    line.stackMovingAtStart = stackMovingAtStart;
 
-                    line.stackMovingAtStart = line.minX;
-                    if (!prevLine.data.empty())
-                        line.stackMovingAtStart += 32 - prevLine.maxX;
                     parser.serializeAddSpToFront(line, line.stackMovingAtStart);
                 }
 
@@ -2049,7 +2048,8 @@ int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
 
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
-    const CompressedData& data, const CompressedData& color, const std::string& inputFileName)
+    const CompressedData& data, const CompressedData& color, const std::string& inputFileName,
+    int flags)
 {
     using namespace std;
 
@@ -2087,8 +2087,10 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3223;
+        static const int kZ80CodeDelay = 3226;
         ticks += kZ80CodeDelay;
+        if (flags & kOptimizeLineEdge)
+            ticks += 10 * 23; // LD SP, XX in each line
 
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)
@@ -2239,7 +2241,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    serializeTimingData(descriptors, data, colorData, outputFileName);
+    serializeTimingData(descriptors, data, colorData, outputFileName, flags);
     serializeAsmFile(outputFileName, multicolorData, flags);
     return 0;
 }

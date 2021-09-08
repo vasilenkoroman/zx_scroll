@@ -175,4 +175,5 @@ public:
 
     int16_t minX = 0;
     int16_t maxX = 0;
+    int16_t stackMovingAtStart = 0;
 };

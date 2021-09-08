@@ -503,8 +503,6 @@ loop1:
                 exx
         //ENDM
 
-        halt
-
         ; delay
         ld hl, timings_data
         add hl, bc
