@@ -4,7 +4,7 @@
 screen_addr:    equ 16384
 color_addr:     equ 5800h
 screen_end:     equ 5b00h
-generated_code: equ 5e00h
+start:          equ 5e00h
 
 JPIX__REF_TABLE_START   EQU screen_end
 JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
@@ -17,41 +17,7 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
 
         INCLUDE "resources/compressed_data.asm"
 
-/*************** Image data. ******************/
-
-    org generated_code
-
-        INCBIN "resources/compressed_data.main"
-        INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
-color_code
-        INCBIN "resources/compressed_data.color"
-multicolor_code
-        INCBIN "resources/compressed_data.multicolor"
-
-rastr_descriptors
-        INCBIN "resources/compressed_data.rastr.descriptors"
-mc_descriptors
-        INCBIN "resources/compressed_data.mc_descriptors"
-
-color_descriptor
-        INCBIN "resources/compressed_data.color_descriptor"
-
-jpix_table
-        INCBIN "resources/compressed_data.jpix"
-
-timings_data
-        INCBIN "resources/compressed_data.timings"
-timings_data_end
-
-src_data
-        INCBIN "resources/samanasuke.bin", 0, 6144
-color_data:
-        INCBIN "resources/samanasuke.bin", 6144, 768
-data_end:
-
-imageHeight     equ (timings_data_end - timings_data) / 2
-
-/*************** Ennd image data. ******************/
+    org start
 
 JP_HL_CODE      equ 0e9h
 JP_IX_CODE      equ #e9dd
@@ -151,24 +117,6 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t18&255,t19&255,t20&255,t21&255
         db      t22&255,t23&255,t24&255,t25&255
         db      t26&255,t27&255,t28&255,t29&255
-
-filler  db      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-
-/*************** Draw 8 lines of image.  ******************/
-
-copy_image:
-        ld hl, src_data
-        ld de, 16384
-        ld bc, 6144
-        ldir
-        ret
-
-copy_colors:
-        ld hl, color_data
-        ld de, 16384 + 6144
-        ld bc, 768
-        ldir
-        ret
 
         MACRO draw_colors
         ; hl - line number / 4
@@ -372,16 +320,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         pop hl:                         pop hl: ld (OFF_RASTR_23+1), hl
 
         ENDM
-
-long_delay:
-        exx
-        ld b, 5
-rep:    ld hl, 65535
-        call delay
-        dec a
-        djnz rep
-        exx
-        ret
 
 /*************** Main. ******************/
 main:
@@ -597,7 +535,68 @@ loop1:
         inc a
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
- 
+
+/*********************** routines *************/
+copy_image:
+        ld hl, src_data
+        ld de, 16384
+        ld bc, 6144
+        ldir
+        ret
+
+copy_colors:
+        ld hl, color_data
+        ld de, 16384 + 6144
+        ld bc, 768
+        ldir
+        ret
+
+long_delay:
+        exx
+        ld b, 5
+rep:    ld hl, 65535
+        call delay
+        dec a
+        djnz rep
+        exx
+        ret
+
+/*************** Image data. ******************/
+generated_code:
+
+        INCBIN "resources/compressed_data.main"
+        INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
+color_code
+        INCBIN "resources/compressed_data.color"
+multicolor_code
+        INCBIN "resources/compressed_data.multicolor"
+
+rastr_descriptors
+        INCBIN "resources/compressed_data.rastr.descriptors"
+mc_descriptors
+        INCBIN "resources/compressed_data.mc_descriptors"
+
+color_descriptor
+        INCBIN "resources/compressed_data.color_descriptor"
+
+jpix_table
+        INCBIN "resources/compressed_data.jpix"
+
+timings_data
+        INCBIN "resources/compressed_data.timings"
+timings_data_end
+
+src_data
+        INCBIN "resources/samanasuke.bin", 0, 6144
+color_data:
+        INCBIN "resources/samanasuke.bin", 6144, 768
+data_end:
+
+imageHeight     equ (timings_data_end - timings_data) / 2
+
+/*************** Ennd image data. ******************/
+
+
 /*************** Commands to SJ asm ******************/
 
     SAVESNA "build/draw_image.sna", main

@@ -22,7 +22,6 @@
 #define TEMP_FOR_TEST_COLORS 1
 
 static const int totalTicksPerFrame = 71680;
-static const int kCodeOffset = 0x5e00;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
 static const uint8_t LD_BC_CODE = 1;
@@ -2117,10 +2116,10 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3229;
+        static const int kZ80CodeDelay = 3226;
         ticks += kZ80CodeDelay;
         if (flags & kOptimizeLineEdge)
-            ticks += 10 * 23 - 8; // LD SP, XX in each line
+            ticks += 10 * 23 - 5; // LD SP, XX in each line
 
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < 100)
@@ -2176,19 +2175,62 @@ int serializeJpIxDescriptors(
     return 0;
 }
 
+std::vector<std::string> parsedSldLIne(const std::string& line)
+{
+    size_t prevPos = 0;
+    size_t pos = 0;
+    std::vector<std::string> result;
+    std::string delimiter = "|";
+    while ((pos = line.find(delimiter, prevPos)) != std::string::npos)
+    {
+        std::string token = line.substr(prevPos, pos - prevPos);
+        result.push_back(token);
+        prevPos = pos + delimiter.length();
+    }
+    if (prevPos < line.size())
+        result.push_back(line.substr(prevPos));
+    return result;
+}
+
+int parseSldFile(const std::string& sldFileName)
+{
+    using namespace std;
+    ifstream file;
+    file.open(sldFileName);
+    if (!file.is_open())
+    {
+        std::cerr << "Can not read sld file " << sldFileName << std::endl;
+        return -1;
+    }
+    string line;
+    while (getline(file, line))
+    {
+        auto params = parsedSldLIne(line);
+        for (int i = 0; i < params.size(); ++i)
+        {
+            if (params[i] == "generated_code" && i >= 2)
+            {
+                int result = std::stoi(params[i - 2]);
+                return result;
+            }
+        }
+    }
+    return -1;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
 
     ifstream fileIn;
 
-    if (argc < 3)
+    if (argc < 4)
     {
-        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name>";
+        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name> <.sld file name>";
         return -1;
     }
 
-    int fileCount = argc - 2;
+    int fileCount = argc - 3;
     int imageHeight = 192 * fileCount;
 
     std::vector<uint8_t> buffer(fileCount * 6144);
@@ -2214,7 +2256,10 @@ int main(int argc, char** argv)
         fileIn.close();
     }
 
-    const std::string outputFileName = argv[argc - 1];
+    const std::string outputFileName = argv[argc - 2];
+    const std::string sldFileName = argv[argc - 1];
+
+    int codeOffset = parseSldFile(sldFileName);
 
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
@@ -2255,18 +2300,18 @@ int main(int argc, char** argv)
         int bankSize = imageHeight / 8;
         int line = bank * bankSize + bankSize - 1;
         int firstLineOffset = data.size(0, bank * bankSize);
-        data.data[line].jp(firstLineOffset + kCodeOffset);
+        data.data[line].jp(firstLineOffset + codeOffset);
     }
 
     std::vector<LineDescriptor> descriptors;
 
     int multicolorTicks = multicolorData.data[0].drawTicks;
-    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, kCodeOffset, flags, multicolorTicks);
+    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, multicolorTicks);
 
     // put JP to the latest line of colors
-    colorData.data[colorData.data.size() - 1].jp(kCodeOffset + mainDataSize);
-    int colorDataSize = serializeColorData(colorData, outputFileName, kCodeOffset + mainDataSize);
-    serializeMultiColorData(multicolorData, outputFileName, kCodeOffset + mainDataSize + colorDataSize);
+    colorData.data[colorData.data.size() - 1].jp(codeOffset + mainDataSize);
+    int colorDataSize = serializeColorData(colorData, outputFileName, codeOffset + mainDataSize);
+    serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize + colorDataSize);
 
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
