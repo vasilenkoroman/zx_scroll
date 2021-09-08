@@ -643,12 +643,9 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 auto registers1 = registers;
 
                 int stackMovingAtStart = 0;
-                if (ctx.flags & kOptimizeLineEdge)
+                if ((ctx.flags & kOptimizeLineEdge) && !prevLine.data.empty())
                 {
-                    stackMovingAtStart = ctx.minX;
-                    if (!prevLine.data.empty())
-                        stackMovingAtStart += 32 - prevLine.maxX;
-
+                    stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
                     if (stackMovingAtStart >= 5)
                     {
                         auto hl = findRegister(registers1, "hl");
@@ -678,6 +675,13 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
 
                 result.push_back(line);
                 prevLine = line;
+            }
+
+            if (context.flags & kOptimizeLineEdge)
+            {
+                auto& line = result[0];
+                line.stackMovingAtStart = line.minX + (32 - prevLine.maxX);
+                Z80Parser::serializeAddSpToFront(line, line.stackMovingAtStart);
             }
 
 
