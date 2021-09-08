@@ -641,12 +641,12 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 CompressedLine line;
                 auto registers1 = registers;
 
-                int stackMovingAtStart = 0;
                 if ((ctx.flags & kOptimizeLineEdge) && !result.empty())
                 {
                     auto& prevLine = *result.rbegin();
-                    stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
-                    if (stackMovingAtStart >= 5)
+                    // Real moving can be 1 bytes less if there is no oddCompression flag and minX is odd.
+                    int expectedStackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
+                    if (expectedStackMovingAtStart >= 5)
                     {
                         auto hl = findRegister(registers1, "hl");
                         hl->reset();
@@ -669,17 +669,22 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                     line.minX = ctx.minX;
                     line.maxX = ctx.minX - info.spOffset;
 
-                    if (stackMovingAtStart >= 5)
-                    {
-                        Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
-                        line.stackMovingAtStart = stackMovingAtStart;
-                    }
-                    else if (stackMovingAtStart > 0)
+                    if (!result.empty())
                     {
                         auto& prevLine = *result.rbegin();
-                        Z80Parser::serializeAddSpToFront(line, line.minX);
-                        Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
-                        line.stackMovingAtStart = line.minX;
+                        int stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
+
+                        if (stackMovingAtStart >= 5)
+                        {
+                            Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
+                            line.stackMovingAtStart = stackMovingAtStart;
+                        }
+                        else if (stackMovingAtStart > 0)
+                        {
+                            Z80Parser::serializeAddSpToFront(line, line.minX);
+                            Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
+                            line.stackMovingAtStart = line.minX;
+                        }
                     }
                 }
 
@@ -1713,6 +1718,11 @@ int serializeMainData(
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
+        if (d == 1)
+        {
+            int gg = 1;
+        }
+
         Z80Parser parser;
         int ticksLimit = ticksRest - linePreambulaTicks;
         int extraCommandsIncluded = 0;
@@ -1736,7 +1746,6 @@ int serializeMainData(
                 return !success;
             });
 
-        //int relativeOffsetToMid = descriptor.rastrForMulticolor.codeInfo.endOffset;
 
         if (!(flags & kOptimizeLineEdge))
             parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
@@ -1745,15 +1754,15 @@ int serializeMainData(
             serializedData,
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             codeOffset);
-#if 0
-        if (descriptor.rastrForMulticolor.codeInfo.spOffset
-            + descriptor.rastrForOffscreen.codeInfo.spOffset != -256)
+
+        int spDeltaSum = descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset + (dataLine.stackMovingAtStart - dataLine.minX);
+        if (spDeltaSum < -256)
         {
-            std::cerr << "Invalid SP delta sum " << descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset
-                << " at line #" << d << ". It is bug!" << std::endl;
+            std::cerr << "Invalid SP delta sum " << spDeltaSum
+                << " at line #" << d << ". It is bug! Expected exact value -256 or a bit above with flag kOptimizeLineEdge" << std::endl;
             abort();
         }
-#endif
+
 
         descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
         descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + codeOffset;
