@@ -1673,8 +1673,7 @@ int serializeMainData(
         int relativeOffsetToStart = lineOffset[lineNum];
 
         // Do not swap DEC SP, LD REG, XX at this mode
-        if (!(flags & kOptimizeLineEdge))
-            Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
+        Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
@@ -1746,8 +1745,7 @@ int serializeMainData(
             });
 
 
-        if (!(flags & kOptimizeLineEdge))
-            parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
+        parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
