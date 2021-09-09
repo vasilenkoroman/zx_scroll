@@ -1883,7 +1883,8 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
 void serializeAsmFile(
     const std::string& inputFileName,
     const CompressedData& multicolorData,
-    int rastrFlags)
+    int rastrFlags,
+    int firstLineDelay)
 {
     using namespace std;
 
@@ -1896,6 +1897,7 @@ void serializeAsmFile(
         return;
     }
 
+    phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & kOptimizeLineEdge) ? 1 : 0)
@@ -2092,6 +2094,7 @@ int serializeTimingData(
         return -1;
     }
     int worseLineTicks = std::numeric_limits<int>::max();
+    std::optional<int> firstLineDelay;
     for (int line = 0; line < imageHeight; ++line)
     {
         // offscreen rastr
@@ -2143,10 +2146,12 @@ int serializeTimingData(
         worseLineTicks = std::min(worseLineTicks, freeTicks);
         const uint16_t freeTicks16 = (uint16_t) freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
+        if (!firstLineDelay)
+            firstLineDelay = freeTicks;
     }
     std::cout << "worse line free ticks=" << worseLineTicks << std::endl;
 
-    return 0;
+    return *firstLineDelay;
 }
 
 int serializeJpIxDescriptors(
@@ -2316,7 +2321,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    serializeTimingData(descriptors, data, colorData, outputFileName, flags);
-    serializeAsmFile(outputFileName, multicolorData, flags);
+    int firstLineDelay = serializeTimingData(descriptors, data, colorData, outputFileName, flags);
+    serializeAsmFile(outputFileName, multicolorData, flags, firstLineDelay);
     return 0;
 }

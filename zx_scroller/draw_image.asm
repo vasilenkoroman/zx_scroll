@@ -195,7 +195,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 46210
+fixed_startup_delay     equ 38587 + FIRST_LINE_DELAY
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
