@@ -30,18 +30,17 @@ static const int lineSize = 32;
 static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 
-// flags
-
-static const int interlineRegisters = 1; //< Experimental. Keep registers between lines.
-static const int verticalCompressionL = 2; //< Skip drawing data if it exists on the screen from the previous step.
-static const int verticalCompressionH = 4; //< Skip drawing data if it exists on the screen from the previous step.
-static const int oddVerticalCompression = 8; //< can skip odd drawing bytes.
-static const int inverseColors = 16;
-static const int skipInvisibleColors = 32;
-static const int hurryUpViaIY = 64;      //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
-static const int kOptimizeLineEdge = 128;
-
-
+enum Flags
+{
+    interlineRegisters = 1,     //< Experimental. Keep registers between lines.
+    verticalCompressionL = 2,   //< Skip drawing data if it exists on the screen from the previous step.
+    verticalCompressionH = 4,   //< Skip drawing data if it exists on the screen from the previous step.
+    oddVerticalCompression = 8, //< can skip odd drawing bytes.
+    inverseColors = 16,         //< Try to inverse data blocks for better compression.
+    skipInvisibleColors = 32,   //< Don't draw invisible colors.
+    hurryUpViaIY = 64,          //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
+    optimizeLineEdge = 128      //< merge two line borders with single SP moving block.
+};
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
@@ -634,13 +633,13 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 Context ctx = context;
                 ctx.y = line;
 
-                if (ctx.flags & kOptimizeLineEdge)
+                if (ctx.flags & optimizeLineEdge)
                     ctx.removeEdge();
 
                 CompressedLine line;
                 auto registers1 = registers;
 
-                if ((ctx.flags & kOptimizeLineEdge) && !result.empty())
+                if ((ctx.flags & optimizeLineEdge) && !result.empty())
                 {
                     auto& prevLine = *result.rbegin();
                     // Real moving can be 1 bytes less if there is no oddCompression flag and minX is odd.
@@ -657,7 +656,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                     registers = registers1;
 
 
-                if (ctx.flags & kOptimizeLineEdge)
+                if (ctx.flags & optimizeLineEdge)
                 {
                     Z80Parser parser;
                     auto info = parser.parseCode(
@@ -690,7 +689,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 result.push_back(line);
             }
 
-            if (context.flags & kOptimizeLineEdge)
+            if (context.flags & optimizeLineEdge)
             {
                 auto& line = result[0];
                 auto& prevLine = *result.rbegin();
@@ -1756,7 +1755,7 @@ int serializeMainData(
         if (spDeltaSum < -256)
         {
             std::cerr << "Invalid SP delta sum " << spDeltaSum
-                << " at line #" << d << ". It is bug! Expected exact value -256 or a bit above with flag kOptimizeLineEdge" << std::endl;
+                << " at line #" << d << ". It is bug! Expected exact value -256 or a bit above with flag optimizeLineEdge" << std::endl;
             abort();
         }
 
@@ -1774,7 +1773,7 @@ int serializeMainData(
         ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
-        if (flags & kOptimizeLineEdge)
+        if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
         descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset, &dataLine);
@@ -1898,7 +1897,7 @@ void serializeAsmFile(
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
-        << ((rastrFlags & kOptimizeLineEdge) ? 1 : 0)
+        << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
 }
 
@@ -2119,7 +2118,7 @@ int serializeTimingData(
         }
         static const int kZ80CodeDelay = 3226;
         ticks += kZ80CodeDelay;
-        if (flags & kOptimizeLineEdge)
+        if (flags & optimizeLineEdge)
             ticks += 10 * 23 - 5; // LD SP, XX in each line
 
         int freeTicks = totalTicksPerFrame - ticks;
@@ -2270,7 +2269,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | kOptimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
