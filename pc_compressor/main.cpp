@@ -293,11 +293,11 @@ inline bool makeChoise(
     if (canAvoidFirst && canAvoidSecond)
         success = true;
     else if (canAvoidFirst)
-        success = reg.l.updateToValue(result, (uint8_t)word, registers);
+        success = reg.l.updateToValue(result, (uint8_t)word, registers, context.af);
     else if (canAvoidSecond)
-        success = reg.h.updateToValue(result, word >> 8, registers);
+        success = reg.h.updateToValue(result, word >> 8, registers, context.af);
     else
-        success = reg.updateToValue(result, word, registers);
+        success = reg.updateToValue(result, word, registers, context.af);
     if (!success)
         return false;
 
@@ -520,7 +520,7 @@ bool compressLine(
                 {
                     if (auto hl = findRegister(registers, "hl", result.isAltReg))
                     {
-                        hl->updateToValue(result, 32 - prevX - verticalRepCount, registers);
+                        hl->updateToValue(result, 32 - prevX - verticalRepCount, registers, context.af);
                         hl->addSP(result);
                         if (auto f = findRegister8(registers, 'f'))
                             f->value.reset();
@@ -540,7 +540,7 @@ bool compressLine(
 
             if (auto hl = findRegister(registers, "hl", result.isAltReg))
             {
-                hl->updateToValue(result, -verticalRepCount, registers);
+                hl->updateToValue(result, -verticalRepCount, registers, context.af);
                 hl->addSP(result);
                 if (auto f = findRegister8(registers, 'f'))
                     f->value.reset();
@@ -578,7 +578,7 @@ bool compressLine(
         {
             if (result.isAltReg != registers[0].isAlt)
                 result.exx();
-            registers[0].updateToValue(result, word, registers);
+            registers[0].updateToValue(result, word, registers, context.af);
             registers[0].push(result);
             x += 2;
             continue;
@@ -742,6 +742,41 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
+Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>& sameBytesCount, int* usageCount = nullptr)
+{
+    Register16 af("af");
+    std::map<uint8_t, int> byteCount;
+    for (int y = 0; y < 24; ++y)
+    {
+        for (int x = 0; x < 32;)
+        {
+            int index = y * 32 + x;
+            int reps = sameBytesCount[index];
+            if (reps > 0)
+            {
+                x += reps;
+                continue;
+            }
+
+            ++byteCount[buffer[index]];
+            ++x;
+        }
+    }
+
+    int bestByteCounter = 0;
+    for (const auto& [byte, count] : byteCount)
+    {
+        if (count > bestByteCounter)
+        {
+            bestByteCounter = count;
+            af.h.value = byte;
+        }
+    }
+    if (usageCount)
+        *usageCount = bestByteCounter;
+    return af;
+}
+
 CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors,
     std::vector<int>* sameBytesCount, int imageHeight)
 {
@@ -755,6 +790,8 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
     context.buffer = buffer;
     context.maskColor = maskColors;
     context.sameBytesCount = sameBytesCount;
+    //context.af = findBestByte(buffer, imageHeight, *context.sameBytesCount);
+    context.af.h.value = 0;
 
     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
 
@@ -870,7 +907,6 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight, *a.value);
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
-
 
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
     if (!(flags & inverseColors))
@@ -1088,7 +1124,7 @@ CompressedLine  compressMultiColorsLine(Context context)
                             auto prevRegs =  i < 3
                                 ? std::array<Register16, 3> { registers6[0], registers6[1], registers6[2] }
                                 : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
-                            registers6[i].updateToValue(line, inputReg->value16(), prevRegs);
+                            registers6[i].updateToValue(line, inputReg->value16(), prevRegs, context.af);
                         }
                         break;
                     }
@@ -1184,40 +1220,6 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
         {
             *usageCount = count;
             af.setValue(word);
-        }
-    }
-
-    return af;
-}
-
-Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>& sameBytesCount, int* usageCount)
-{
-    Register16 af("af");
-    std::map<uint8_t, int> byteCount;
-    for (int y = 0; y < 24; ++y)
-    {
-        for (int x = 0; x < 32;)
-        {
-            int index = y * 32 + x;
-            int reps = sameBytesCount[index];
-            if (reps > 0)
-            {
-                x += reps;
-                continue;
-            }
-
-            ++byteCount[buffer[index]];
-            ++x;
-        }
-    }
-
-    *usageCount = 0;
-    for (const auto& [byte, count] : byteCount)
-    {
-        if (count > * usageCount)
-        {
-            *usageCount = count;
-            af.h.value = byte;
         }
     }
 
@@ -1363,8 +1365,8 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.sameBytesCount = &sameBytesCount;
     context.borderPoint = 16;
 
-    int count1;
-    context.af = findBestByte(suffledPtr, imageHeight, sameBytesCount, &count1);
+    //int count1;
+    //context.af = findBestByte(suffledPtr, imageHeight, sameBytesCount, &count1);
 
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
@@ -2116,7 +2118,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3226;
+        static const int kZ80CodeDelay = 3226 + 8;
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23 - 5; // LD SP, XX in each line

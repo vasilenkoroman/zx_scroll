@@ -104,54 +104,7 @@ public:
     void setBit(CompressedLine& line, uint8_t bit);
     
     template <int N>
-    inline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16)
-    {
-        if (name == 'f')
-            return false;
-
-        for (const auto& reg16 : registers16)
-        {
-            if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
-                continue;
-            if (reg16.h.name == 'i')
-                continue;
-
-            if (reg16.h.hasValue(byte))
-            {
-                loadFromReg(line, reg16.h);
-                return true;
-            }
-            else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
-            {
-                loadFromReg(line, reg16.l);
-                return true;
-            }
-        }
-
-        if (isEmpty())
-        {
-            loadX(line, byte);
-        }
-        else if (*value == uint8_t(byte - 1))
-        {
-            incValue(line);
-            if (auto f = findRegister8(registers16, 'f'))
-                f->value.reset();
-        }
-        else if (*value == uint8_t(byte + 1))
-        {
-            decValue(line);
-            if (auto f = findRegister8(registers16, 'f'))
-                f->value.reset();
-        }
-        else
-        {
-            loadX(line, byte);
-        }
-        return true;
-    }
-
-
+    inline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af);
 };
 
 class Register16
@@ -350,7 +303,7 @@ public:
     }
 
     template <typename T>
-    bool updateToValue(CompressedLine& line, uint16_t value, T& registers)
+    bool updateToValue(CompressedLine& line, uint16_t value, T& registers, const Register16& af)
     {
         if (hasValue16(value))
         {
@@ -367,12 +320,12 @@ public:
         if (h.hasValue(hiByte))
         {
             line.regUsage.useReg(h);
-            l.updateToValue(line, lowByte, registers);
+            l.updateToValue(line, lowByte, registers, af);
         }
         else if (l.hasValue(lowByte))
         {
             line.regUsage.useReg(l);
-            h.updateToValue(line, hiByte, registers);
+            h.updateToValue(line, hiByte, registers, af);
         }
         else if (hasValue16(value + 1))
         {
@@ -400,6 +353,12 @@ public:
                 else if (reg16.l.name != 'f' && reg16.l.hasValue(lowByte) && !reg16.hasReg8(regH))
                     regL = &reg16.l;
             }
+#if 0
+            if (!regH && af.h.hasValue(hiByte))
+                regH = &af.h;
+            if (!regL && af.h.hasValue(lowByte))
+                regL = &af.h;
+#endif
 
             if (regH && regL)
             {
@@ -428,6 +387,62 @@ public:
     void incValue(RegUsageInfo& info);
     void poke(CompressedLine& line, uint16_t address);
 };
+
+template <int N>
+inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af)
+{
+    if (name == 'f')
+        return false;
+
+    for (const auto& reg16 : registers16)
+    {
+        if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
+            continue;
+        if (reg16.h.name == 'i')
+            continue;
+
+        if (reg16.h.hasValue(byte))
+        {
+            loadFromReg(line, reg16.h);
+            return true;
+        }
+        else if (reg16.l.name != 'f' && reg16.l.hasValue(byte))
+        {
+            loadFromReg(line, reg16.l);
+            return true;
+        }
+    }
+
+#if 1
+    if (af.h.hasValue(byte))
+    {
+        loadFromReg(line, af.h);
+        return true;
+    }
+#endif
+
+    if (isEmpty())
+    {
+        loadX(line, byte);
+    }
+    else if (*value == uint8_t(byte - 1))
+    {
+        incValue(line);
+        if (auto f = findRegister8(registers16, 'f'))
+            f->value.reset();
+    }
+    else if (*value == uint8_t(byte + 1))
+    {
+        decValue(line);
+        if (auto f = findRegister8(registers16, 'f'))
+            f->value.reset();
+    }
+    else
+    {
+        loadX(line, byte);
+    }
+    return true;
+}
 
 template <typename T>
 Register8* findRegister8(T& registers, const char& name)
