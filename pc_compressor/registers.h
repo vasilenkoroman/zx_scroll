@@ -354,9 +354,9 @@ public:
                     regL = &reg16.l;
             }
 #if 0
-            if (!regH && af.h.hasValue(hiByte))
+            if (af.h.hasValue(hiByte))
                 regH = &af.h;
-            if (!regL && af.h.hasValue(lowByte))
+            if (af.h.hasValue(lowByte))
                 regL = &af.h;
 #endif
 
@@ -394,6 +394,12 @@ inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::ar
     if (name == 'f')
         return false;
 
+    if (af.h.hasValue(byte))
+    {
+        loadFromReg(line, af.h);
+        return true;
+    }
+
     for (const auto& reg16 : registers16)
     {
         if (name != 'a' && name != 'i' && name != 'x' && name != 'y' && isAlt != reg16.isAlt)
@@ -412,14 +418,6 @@ inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::ar
             return true;
         }
     }
-
-#if 1
-    if (af.h.hasValue(byte))
-    {
-        loadFromReg(line, af.h);
-        return true;
-    }
-#endif
 
     if (isEmpty())
     {

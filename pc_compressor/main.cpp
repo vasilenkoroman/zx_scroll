@@ -660,6 +660,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                 {
                     Z80Parser parser;
                     auto info = parser.parseCode(
+                        context.af,
                         *line.inputRegisters,
                         line.data.buffer(), line.data.size(),
                         0, line.data.size(), 0);
@@ -710,8 +711,6 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
 
 
             updateTransitiveRegUsage(result);
-
-
             return result;
         }
     );
@@ -809,7 +808,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
         compressedData.data.insert(compressedData.data.end(),
             compressedLines.begin(), compressedLines.end());
     }
-
+    compressedData.af = context.af;
     return compressedData;
 }
 
@@ -1001,6 +1000,7 @@ void finilizeLine(
     // parse pushLine to find point for LD SP, IY
 
     auto info = parser.parseCode(
+        context.af,
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
@@ -1010,6 +1010,7 @@ void finilizeLine(
     );
 
     auto info2 = parser.parseCode(
+        context.af,
         registers,
         pushLine.data.buffer(),
         pushLine.data.size(),
@@ -1095,6 +1096,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     CompressedLine loadLineMain;
     Z80Parser parser;
     auto info = parser.parseCode(
+        context.af,
         *line1.inputRegisters,
         line1.data.buffer(),
         line1.data.size(),
@@ -1247,6 +1249,7 @@ void alignMulticolorTimings(CompressedData& compressedData)
         Z80Parser parser;
 
         auto timingInfo = parser.parseCode(
+            compressedData.af,
             registers,
             line.data.buffer(),
             line.data.size(),
@@ -1444,6 +1447,7 @@ struct DescriptorState
 
     int extraDelay = 0;             //< Alignment delay when serialize preambula.
     int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
+    Register16 af{"af"};
 
     void setEndBlock(const uint8_t* ptr)
     {
@@ -1462,8 +1466,13 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    void makePreambula(const std::vector<uint8_t>& serializedData, int codeOffset, const CompressedLine* line = nullptr)
+    void makePreambula(
+        const Register16& _af,
+        const std::vector<uint8_t>& serializedData, 
+        int codeOffset, 
+        const CompressedLine* line = nullptr)
     {
+        af = _af;
         Register16* updatedHl = nullptr;
 
         if (line && line->stackMovingAtStart != line->minX)
@@ -1493,7 +1502,7 @@ struct DescriptorState
         regs.serialize(preambula);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
-        startDataInfo = Z80Parser::parseCode(firstCommands);
+        startDataInfo = Z80Parser::parseCode(af, firstCommands);
         if (updatedHl)
         {
             firstCommands[1] = *updatedHl->l.value;
@@ -1717,15 +1726,12 @@ int serializeMainData(
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
-        if (d == 1)
-        {
-            int gg = 1;
-        }
 
         Z80Parser parser;
         int ticksLimit = ticksRest - linePreambulaTicks;
         int extraCommandsIncluded = 0;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
+            data.af,
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
@@ -1748,6 +1754,7 @@ int serializeMainData(
 
         parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
+            data.af,
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData,
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
@@ -1778,8 +1785,8 @@ int serializeMainData(
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
-        descriptor.rastrForMulticolor.makePreambula(serializedData, codeOffset, &dataLine);
-        descriptor.rastrForOffscreen.makePreambula(serializedData, codeOffset);
+        descriptor.rastrForMulticolor.makePreambula(data.af, serializedData, codeOffset, &dataLine);
+        descriptor.rastrForOffscreen.makePreambula(data.af, serializedData, codeOffset);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -2046,7 +2053,7 @@ OffscreenTicks getTicksChainFor64Line(
         const auto& d = descriptors[lineNumber];
 
         //int sum = 0;
-        auto info = Z80Parser::parseCode(d.rastrForOffscreen.preambula);
+        auto info = Z80Parser::parseCode(d.rastrForOffscreen.af, d.rastrForOffscreen.preambula);
         result.preambulaTicks += info.ticks;
         result.payloadTicks -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         result.payloadTicks += d.rastrForOffscreen.codeInfo.ticks;

@@ -39,10 +39,11 @@ class Z80Parser
 public:
     static z80Command parseCommand(const uint8_t* ptr);
 
-    static Z80CodeInfo parseCode(const std::vector<uint8_t>& serializedData);
-    static Z80CodeInfo parseCode(const uint8_t* buffer, int size);
+    static Z80CodeInfo parseCode(const Register16& af, const std::vector<uint8_t>& serializedData);
+    static Z80CodeInfo parseCode(const Register16& af, const uint8_t* buffer, int size);
 
     static Z80CodeInfo parseCode(
+        const Register16& af,
         const std::vector<Register16>& inputRegisters,
         const std::vector<uint8_t>& serializedData,
         int startOffset,
@@ -51,6 +52,7 @@ public:
         BreakCondition breakCondition = nullptr);
 
     static Z80CodeInfo parseCode(
+        const Register16& af,
         const std::vector<Register16>& inputRegisters,
         const uint8_t* serializedData,
         const int serializedDataSize,

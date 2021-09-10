@@ -11,6 +11,8 @@ JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
 JPIX__BANKS_HELPER      EQU JPIX__REF_TABLE_END
 JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
 
+DEBUG_MODE              EQU 0
+
 STACK_SIZE:     equ 4  ; in words
 stack_bottom    equ JPIX__BANKS_HELPER_END
 stack_top       equ stack_bottom + STACK_SIZE * 2
@@ -23,6 +25,57 @@ JP_HL_CODE      equ 0e9h
 JP_IX_CODE      equ #e9dd
 LD_BC_XXXX_CODE equ 01h
 LD_DE_XXXX_CODE equ 11h
+
+jp_ix_record_size       equ 8
+jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
+write_initial_jp_ix_table
+                // create banks helper (to avoid mul in runtime)
+                ld b, 64
+                ld hl, jpix_table + jp_ix_bank_size * 64
+                ld de, -jp_ix_bank_size
+                ld sp, JPIX__BANKS_HELPER_END
+.helper:        add hl, de
+                push hl
+                djnz .helper
+
+                // main data
+                ld sp, jpix_table
+                ; skip several descriptors
+                ld c, 8
+.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
+                ; read sp to de
+                
+                ld hl, 0
+                add hl, sp
+                ld de, hl
+
+                ; fill JPIX_REF_TABLE
+                ld a, 8
+                sub c
+                rla
+                ld h, high(JPIX__REF_TABLE_START)
+                ld l, a
+                ld (hl), e
+                inc l
+                ld (hl), d
+
+                ld de, JP_IX_CODE
+.rep:           
+                pop hl                          ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+                pop hl                          ; skip restore data
+                djnz .rep
+                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
+                add hl, sp
+                ld sp, hl
+                dec c
+                jr nz, .loop
+
+
+                ld sp, stack_top - 2
+                ret
 
         MACRO draw_colors
         ; hl - line number / 4
@@ -116,9 +169,13 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
                 DRAW_MULTICOLOR_LINE  N?
         
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256        ; 10
-                ASSERT(high($+6) == high(MC_LINE_N? + 5))
-                ld ixl, low($ + 6)                                      ; 11
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+		IF (DEBUG_MODE == 1)
+                        ld ix, low($ + 7)                              ; 14
+		ELSE
+                        ASSERT(high($+6) == high(MC_LINE_N? + 5))
+                        ld ixl, low($ + 6)                             ; 11
+                ENDIF                        
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
         // total ticks: 70 (86 with ret)
     ENDM                
@@ -180,8 +237,8 @@ main:
         di
         ld sp, stack_top
 
-        //call copy_image
-        //call copy_colors
+        call copy_image
+        call copy_colors
 
         call prepare_interruption_table
         ; Pentagon timings
@@ -195,7 +252,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 38587 + FIRST_LINE_DELAY
+fixed_startup_delay     equ 38539 + FIRST_LINE_DELAY
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
         assert (sync_tick <= 65535)
@@ -205,6 +262,7 @@ sync_tick equ screen_ticks + screen_start_tick  - initial_delay + 224*7
 
 max_scroll_offset equ imageHeight - 1
 
+        xor a
         ld bc, 0h                       ; 10  ticks
         jp loop1
 lower_limit_reached:
@@ -262,6 +320,7 @@ loop:
                 // total 666
         // ------------------------- update jpix table end
         exx
+        xor a
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_RASTR_LINE 23
         exx
@@ -346,6 +405,7 @@ loop1:
         out 0xfe,a                      ; 11 ticks
 
         ; timing here on first frame: 91168
+        xor a   // current generator uses const A = 0
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
@@ -375,9 +435,6 @@ loop1:
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
-        //ld sp, stack_top
-        //call long_delay
-
         ld a, 2                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
         ld bc, (stack_bottom)
@@ -392,12 +449,55 @@ loop1:
 
 /*********************** routines *************/
 
+prepare_interruption_table:
+
+        //save data
+        LD   hl, #FE00
+        LD   de, screen_end + 256
+        LD   bc, #0200
+        ldir
+
+        // make interrupt table
+        ld A, 18h       ; JR instruction code
+        ld  (65535), a
+
+        ld   a, 0c3h    ; JP instruction code
+        ld   (65524), a
+        ld hl, after_interrupt
+        ld   (65525), hl
+
+        LD   hl, #FE00
+        LD   de, #FE01
+        LD   bc, #0100
+        LD   (hl), #FF
+        LD   a, h
+        LDIR
+        ld i, a
+        im 2
+
+        ei
+        halt
+after_interrupt:
+        di                              ; 4 ticks
+        ; remove interrupt data from stack
+        pop af                          ; 10 ticks
+
+        ; restore data
+        LD   de, #FE00
+        LD   hl, screen_end + 256
+        LD   bc, #0200
+        ldir
+        ret
+
 /************** delay routine *************/
 
 d1      equ     17+15+21+11+15+14
 d2      equ     16
 d3      equ     20+10+11+12
 
+	IF (DEBUG_MODE == 1)
+        	ALIGN 256
+	ENDIF		
 base    
         ASSERT(low(base) <= 256-58)
         org     base + (256-58) - low(base)
@@ -446,98 +546,6 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t22&255,t23&255,t24&255,t25&255
         db      t26&255,t27&255,t28&255,t29&255
 
-jp_ix_record_size       equ 8
-jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
-write_initial_jp_ix_table
-                // create banks helper (to avoid mul in runtime)
-                ld b, 64
-                ld hl, jpix_table + jp_ix_bank_size * 64
-                ld de, -jp_ix_bank_size
-                ld sp, JPIX__BANKS_HELPER_END
-.helper:        add hl, de
-                push hl
-                djnz .helper
-
-                // main data
-                ld sp, jpix_table
-                ; skip several descriptors
-                ld c, 8
-.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
-                ; read sp to de
-                
-                ld hl, 0
-                add hl, sp
-                ld de, hl
-
-                ; fill JPIX_REF_TABLE
-                ld a, 8
-                sub c
-                rla
-                ld h, high(JPIX__REF_TABLE_START)
-                ld l, a
-                ld (hl), e
-                inc l
-                ld (hl), d
-
-                ld de, JP_IX_CODE
-.rep:           
-                pop hl                          ; address
-                ld (hl), e
-                inc hl
-                ld (hl), d
-                pop hl                          ; skip restore data
-                djnz .rep
-                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
-                add hl, sp
-                ld sp, hl
-                dec c
-                jr nz, .loop
-
-
-                ld sp, stack_top - 2
-                ret
-
-prepare_interruption_table:
-        //save data
-        LD   hl, #FE00
-        LD   de, screen_end + 256
-        LD   bc, #0200
-        ldir
-
-        // make interrupt table
-        ld A, 18h       ; JR instruction code
-        ld  (65535), a
-
-        ld   a, 0c3h    ; JP instruction code
-        ld   (65524), a
-        ld hl, after_interrupt
-        ld   (65525), hl
-
-        LD   hl, #FE00
-        LD   de, #FE01
-        LD   bc, #0100
-        LD   (hl), #FF
-        LD   a, h
-        LDIR
-        ld i, a
-        im 2
-
-        ei
-        halt
-after_interrupt:
-        di                              ; 4 ticks
-        ; remove interrupt data from stack
-        pop af                          ; 10 ticks
-
-        ; restore data
-        LD   de, #FE00
-        LD   hl, screen_end + 256
-        LD   bc, #0200
-        ldir
-        ret
-
-
-/*
 copy_image:
         ld hl, src_data
         ld de, 16384
@@ -553,15 +561,16 @@ copy_colors:
         ret
 long_delay:
         exx
-        ld b, 5
+        ld b, 10
 rep:    ld hl, 65535
         call delay
-        dec a
         djnz rep
         exx
         ret
-*/
 /*************** Image data. ******************/
+	IF (DEBUG_MODE == 1)
+        	ORG 28000
+	ENDIF		
 generated_code:
 
         INCBIN "resources/compressed_data.main"
@@ -586,12 +595,11 @@ timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
 
-/*
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
-*/        
+        
 data_end:
 
 imageHeight     equ (timings_data_end - timings_data) / 2

@@ -270,17 +270,18 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
     return result;
 }
 
-Z80CodeInfo Z80Parser::parseCode(const std::vector<uint8_t>& serializedData)
+Z80CodeInfo Z80Parser::parseCode(const Register16& af, const std::vector<uint8_t>& serializedData)
 {
-    return parseCode(serializedData.data(), serializedData.size());
+    return parseCode(af, serializedData.data(), serializedData.size());
 }
 
-Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
+Z80CodeInfo Z80Parser::parseCode(const Register16& af, const uint8_t* buffer, int size)
 {
     std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     for (auto& reg : registers)
         reg.setValue(0); //< Make registers non-empty to correct update regUseMask
     return parseCode(
+        af,
         registers,
         buffer,
         size,
@@ -290,6 +291,7 @@ Z80CodeInfo Z80Parser::parseCode(const uint8_t* buffer, int size)
 }
 
 Z80CodeInfo Z80Parser::parseCode(
+    const Register16& af,
     const std::vector<Register16>& inputRegisters,
     const std::vector<uint8_t>& serializedData,
     int startOffset,
@@ -297,13 +299,14 @@ Z80CodeInfo Z80Parser::parseCode(
     uint16_t codeOffset,
     BreakCondition breakCondition)
 {
-    return parseCode(inputRegisters,
+    return parseCode(af, inputRegisters,
         serializedData.data(), serializedData.size(),
         startOffset, endOffset, codeOffset, breakCondition);
 }
 
 
 Z80CodeInfo Z80Parser::parseCode(
+    const Register16& af,
     const std::vector<Register16>& inputRegisters,
     const uint8_t* serializedData,
     const int serializedDataSize,
@@ -335,8 +338,7 @@ Z80CodeInfo Z80Parser::parseCode(
     Register8& e = de->l;
 
 
-    Register16 af{"af"};
-    Register8& a = af.h;
+    Register8 a = af.h;
 
     const uint8_t* bufferBegin = serializedData;
     const uint8_t* bufferEnd = serializedData + serializedDataSize;
@@ -829,8 +831,9 @@ int Z80Parser::swap2CommandIfNeed(
     if (command1.opCode == kLdSpHlCode)
         return 0;
 
-    auto info1 = parseCode(ptr, command1.size);
-    auto info2 = parseCode(ptr + command1.size, command2.size);
+    const Register16 af("af");
+    auto info1 = parseCode(af, ptr, command1.size);
+    auto info2 = parseCode(af, ptr + command1.size, command2.size);
 
     if (info2.hasJump)
         return 0;
