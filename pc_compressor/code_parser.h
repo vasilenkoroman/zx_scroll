@@ -16,10 +16,14 @@ struct z80Command
     int size = 0;
     int ticks = 0;
     uint8_t opCode = 0;
+    uint16_t ptr = 0;
 };
 
 struct Z80CodeInfo
 {
+    const uint8_t* bufferBegin = nullptr;
+    const uint8_t* bufferEnd = nullptr;
+
     int startOffset = 0;
     int endOffset = 0;
     int ticks = 0;
@@ -79,9 +83,12 @@ public:
         std::vector<std::pair<int, int>>& lockedBlocks);
 
     static int removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandToRemove = std::numeric_limits<int>::max());
+    static uint16_t removeTrailingCommands(Z80CodeInfo& codeInfo, int commandToRemove);
     static int removeStartStackMoving(Z80CodeInfo& codeInfo);
 
     static void serializeAddSpToFront(CompressedLine& line, int value);
     static void serializeAddSpToBack(CompressedLine& line, int value);
+
+    static RegUsageInfo selfRegMask(const z80Command& command);
 };
 

@@ -340,8 +340,8 @@ Z80CodeInfo Z80Parser::parseCode(
 
     Register8 a = af.h;
 
-    const uint8_t* bufferBegin = serializedData;
-    const uint8_t* bufferEnd = serializedData + serializedDataSize;
+    result.bufferBegin = serializedData;
+    result.bufferEnd = serializedData + serializedDataSize;
     const uint8_t* ptr = serializedData + startOffset;
     const uint8_t* end = serializedData + endOffset;
     int iySpOffset = 16; //< delta IY offset to initial offset
@@ -357,10 +357,11 @@ Z80CodeInfo Z80Parser::parseCode(
 
     while (ptr != end)
     {
-        if (ptr < bufferBegin || ptr >= bufferEnd)
+        if (ptr < result.bufferBegin || ptr >= result.bufferEnd)
             break;
 
         auto command = parseCommand(ptr);
+        command.ptr = ptr - result.bufferBegin;
         //if (result.ticks + command.ticks > maxTicks)
         if (breakCondition && breakCondition(result, command))
             break;
@@ -682,6 +683,49 @@ Z80CodeInfo Z80Parser::parseCode(
 }
 
 
+RegUsageInfo Z80Parser::selfRegMask(const z80Command& command)
+{
+    static Register16 bc("bc");
+    static Register16 de("de");
+    static Register16 hl("hl");
+
+    RegUsageInfo regUsage;
+
+    switch (command.opCode)
+    {
+        case 0x01:  // LD BC, xx
+            regUsage.selfReg(bc.h, bc.l);
+            break;
+        case 0x21:  // LD DE, xx
+            regUsage.selfReg(de.h, de.l);
+            break;
+        case 0x31:  // LD HL, xx
+            regUsage.selfReg(hl.h, hl.l);
+            break;
+        case 0x06:  // LD B, x
+            regUsage.selfReg(bc.h);
+            break;
+        case 0x0e:  // LD C, x
+            regUsage.selfReg(bc.l);
+            break;
+        case 0x16:  // LD D, x
+            regUsage.selfReg(de.h);
+            break;
+        case 0x1e:  // LD E, x
+            regUsage.selfReg(de.l);
+            break;
+        case 0x26:  // LD H, x
+            regUsage.selfReg(hl.h);
+            break;
+        case 0x2e:  // LD L, x
+            regUsage.selfReg(hl.l);
+            break;
+        default:
+            break;
+    }
+    return regUsage;
+}
+
 std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCodeSize)
 {
     std::vector<uint8_t> result;
@@ -856,7 +900,8 @@ const Register16* Z80Parser::findRegByItsPushOpCode(
         return findRegister(registers, "de");
     else if (pushOpCode == 0xe5)
         return findRegister(registers, "hl");
-
+    else if (pushOpCode == 0xf5)
+        return findRegister(registers, "af");
     return nullptr;
 }
 
@@ -895,6 +940,23 @@ int Z80Parser::removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandTo
     }
 
     return removedBytes;
+}
+
+uint16_t Z80Parser::removeTrailingCommands(Z80CodeInfo& codeInfo, int commandToRemove)
+{
+    uint16_t result = 0;
+
+    while (!codeInfo.commands.empty() && commandToRemove > 0)
+    {
+        auto command = codeInfo.commands.rbegin();
+        codeInfo.ticks -= command->ticks;
+        codeInfo.endOffset -= command->size;
+        result = command->ptr;
+        codeInfo.commands.pop_back();
+        --commandToRemove;
+    }
+
+    return result;
 }
 
 int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
