@@ -1455,15 +1455,74 @@ struct DescriptorState
         endBlock.push_back(*ptr);
     }
 
-    int ticksWithLoadingRegs() const
-    {
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
-        return codeInfo.ticks + regs.drawTicks;
-    }
-
     void removeTrailingStackMoving(int maxCommandToRemove = std::numeric_limits<int>::max())
     {
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
+    }
+
+    int ticksWithLoadingRegs(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset) const
+    {
+        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
+        auto omitedDataInfo = Z80Parser::parseCode(
+            af, codeInfo.inputRegisters, firstCommands,
+            0, firstCommands.size(), 0);
+
+        const auto firstCommand = omitedDataInfo.commands[0];
+        auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
+        auto newCodeInfo = codeInfo;
+        if (regUsage.selfRegMask)
+        {
+            // Join LD REG8, X from omited data directly to the serialized registers
+            newCodeInfo.inputRegisters = omitedDataInfo.outputRegisters;
+            newCodeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
+            newCodeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
+            newCodeInfo.ticks -= firstCommand.ticks;
+        }
+        auto regs = newCodeInfo.regUsage.getSerializedUsedRegisters(newCodeInfo.inputRegisters);
+        return newCodeInfo.ticks + regs.drawTicks;
+    }
+
+
+    void serializeOmitedData(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset,
+        int omitedDataSize,
+        std::optional<uint16_t> updatedHlValue)
+    {
+        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
+        omitedDataInfo = Z80Parser::parseCode(
+            af, codeInfo.inputRegisters, firstCommands,
+            0, firstCommands.size(), 0);
+
+        const int firstCommandsSize = firstCommands.size();
+        if (!omitedDataInfo.commands.empty())
+        {
+            const auto firstCommand = omitedDataInfo.commands[0];
+            auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
+            if (regUsage.selfRegMask)
+            {
+                // Join LD REG8, X from omited data directly to the serialized registers
+                codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
+                codeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
+                codeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
+                if (updatedHlValue)
+                {
+                    auto hl = findRegister(codeInfo.inputRegisters, "hl");
+                    hl->setValue(*updatedHlValue);
+                }
+
+                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + firstCommand.size);
+            }
+        }
+
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        regs.serialize(preambula);
+        addToPreambule(firstCommands);
+
+        if (!omitedDataInfo.hasJump)
+            addJpIx(lineStartPtr + firstCommandsSize);
     }
 
     void makePreambulaForMC(
@@ -1473,16 +1532,13 @@ struct DescriptorState
         const CompressedLine* line)
     {
         af = _af;
-        Register16* updatedHl = nullptr;
+        std::optional<uint16_t> updatedHlValue;
 
         if (line->stackMovingAtStart != line->minX)
         {
             bool hasAddHlSp = line->stackMovingAtStart > 4;
             if (hasAddHlSp)
-            {
-                updatedHl = findRegister(codeInfo.inputRegisters, "hl");
-                updatedHl->setValue(-line->minX);
-            }
+                updatedHlValue = -line->minX;
         }
 
         /*
@@ -1494,21 +1550,8 @@ struct DescriptorState
         if (extraDelay > 0)
             addToPreambule(Z80Parser::genDelay(extraDelay));
 
-        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
-
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
-        regs.serialize(preambula);
-
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
-        omitedDataInfo = Z80Parser::parseCode(af, firstCommands);
-        if (updatedHl)
-        {
-            firstCommands[1] = *updatedHl->l.value;
-            firstCommands[2] = *updatedHl->h.value;
-        }
-        addToPreambule(firstCommands);
-        if (!omitedDataInfo.hasJump)
-            addJpIx(lineStartPtr + firstCommands.size());
+        std::vector<uint8_t> firstCommands;
+        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
     }
 
     void makePreambulaForOffscreen(
@@ -1549,35 +1592,7 @@ struct DescriptorState
         if (startSpDelta > 0)
             serializeSpDelta(startSpDelta);
 
-        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
-
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - descriptorsDelta);
-        omitedDataInfo = Z80Parser::parseCode(
-            af, codeInfo.inputRegisters, firstCommands,
-            0, firstCommands.size(), 0);
-
-        const int firstCommandsSize = firstCommands.size();
-        if (!omitedDataInfo.commands.empty())
-        {
-            const auto firstCommand = omitedDataInfo.commands[0];
-            auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
-            if (regUsage.selfRegMask)
-            {
-                // Join LD REG8, X from omited data directly to the serialized registers
-                codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
-                codeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
-                codeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
-                
-                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + firstCommand.size);
-            }
-        }
-
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
-        regs.serialize(preambula);
-        addToPreambule(firstCommands);
-
-        if (!omitedDataInfo.hasJump)
-            addJpIx(lineStartPtr + firstCommandsSize);
+        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -1848,11 +1863,16 @@ int serializeMainData(
 
         descriptor.rastrForMulticolor.removeTrailingStackMoving(extraCommandsIncluded);
         // align timing for RastrForMulticolor part
-        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs();
+        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs(data.af, serializedData, codeOffset);
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
+
+        if (d == 65)
+        {
+            int gg = 4;
+        }
 
         descriptor.rastrForMulticolor.makePreambulaForMC(data.af, serializedData, codeOffset, &dataLine);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(data.af, serializedData, codeOffset, descriptorsDelta);
