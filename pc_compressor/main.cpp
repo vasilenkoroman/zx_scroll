@@ -1466,16 +1466,16 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    void makePreambula(
+    void makePreambulaForMC(
         const Register16& _af,
         const std::vector<uint8_t>& serializedData, 
         int codeOffset, 
-        const CompressedLine* line = nullptr)
+        const CompressedLine* line)
     {
         af = _af;
         Register16* updatedHl = nullptr;
 
-        if (line && line->stackMovingAtStart != line->minX)
+        if (line->stackMovingAtStart != line->minX)
         {
             bool hasAddHlSp = line->stackMovingAtStart > 4;
             if (hasAddHlSp)
@@ -1494,9 +1494,6 @@ struct DescriptorState
         if (extraDelay > 0)
             addToPreambule(Z80Parser::genDelay(extraDelay));
 
-        if (startSpDelta > 0)
-            serializeSpDelta(startSpDelta);
-
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
         auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
         regs.serialize(preambula);
@@ -1508,6 +1505,56 @@ struct DescriptorState
             firstCommands[1] = *updatedHl->l.value;
             firstCommands[2] = *updatedHl->h.value;
         }
+        addToPreambule(firstCommands);
+        if (!startDataInfo.hasJump)
+            addJpIx(lineStartPtr + firstCommands.size());
+    }
+
+    void makePreambulaForOffscreen(
+        const Register16& _af,
+        const std::vector<uint8_t>& serializedData,
+        int codeOffset,
+        int descriptorsDelta)
+    {
+        af = _af;
+
+        if (codeInfo.commands.size() >= 3)
+        {
+            if (codeInfo.commands[1].opCode == kAddHlSpCode && codeInfo.commands[2].opCode == kLdSpHlCode)
+            {
+                // Remove LD HL, x: add HL, SP: LD HL, SP if exists
+                int size = codeInfo.commands[0].size + codeInfo.commands[1].size + codeInfo.commands[2].size;
+                auto p = Z80Parser::parseCode(
+                    af,
+                    codeInfo.inputRegisters,
+                    serializedData,
+                    codeInfo.startOffset, codeInfo.startOffset + size,
+                    codeOffset);
+                codeInfo.inputRegisters = p.outputRegisters;
+                codeInfo.startOffset += size;
+                lineStartPtr += size;
+                startSpDelta -= p.spOffset;
+                descriptorsDelta += size;
+                codeInfo.ticks -= p.ticks;
+            }
+        }
+
+        /*
+         * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
+         * So, descriptor point not to the line begin, but some line offset (2..4 bytes) and it repeat first N bytes of the line
+         * directly in descriptor preambula. Additionally, preambula contains alignment delay and correction for SP register if need.
+         */
+
+        if (startSpDelta > 0)
+            serializeSpDelta(startSpDelta);
+
+        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        regs.serialize(preambula);
+
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - descriptorsDelta);
+        startDataInfo = Z80Parser::parseCode(af, firstCommands);
+
         addToPreambule(firstCommands);
         if (!startDataInfo.hasJump)
             addJpIx(lineStartPtr + firstCommands.size());
@@ -1730,13 +1777,14 @@ int serializeMainData(
         Z80Parser parser;
         int ticksLimit = ticksRest - linePreambulaTicks;
         int extraCommandsIncluded = 0;
+        int descriptorsDelta = 0;
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             data.af,
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset,
-            [ticksLimit, &extraCommandsIncluded](const Z80CodeInfo& info, const z80Command& command)
+            [ticksLimit, &extraCommandsIncluded, &descriptorsDelta](const Z80CodeInfo& info, const z80Command& command)
             {
                 int sum = info.ticks + command.ticks;
                 bool success = sum == ticksLimit || sum < ticksLimit - 3;
@@ -1745,6 +1793,7 @@ int serializeMainData(
                     if (command.opCode == kDecSpCode || command.opCode == kAddHlSpCode || command.opCode == kLdSpHlCode)
                     {
                         ++extraCommandsIncluded;
+                        descriptorsDelta += command.size;
                         return false; //< Continue
                     }
                 }
@@ -1785,8 +1834,8 @@ int serializeMainData(
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
-        descriptor.rastrForMulticolor.makePreambula(data.af, serializedData, codeOffset, &dataLine);
-        descriptor.rastrForOffscreen.makePreambula(data.af, serializedData, codeOffset);
+        descriptor.rastrForMulticolor.makePreambulaForMC(data.af, serializedData, codeOffset, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(data.af, serializedData, codeOffset, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
