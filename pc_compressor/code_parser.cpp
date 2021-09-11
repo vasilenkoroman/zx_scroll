@@ -683,7 +683,7 @@ Z80CodeInfo Z80Parser::parseCode(
 }
 
 
-RegUsageInfo Z80Parser::selfRegMask(const z80Command& command)
+RegUsageInfo Z80Parser::regUsageByCommand(const z80Command& command)
 {
     static Register16 bc("bc");
     static Register16 de("de");
@@ -696,10 +696,10 @@ RegUsageInfo Z80Parser::selfRegMask(const z80Command& command)
         case 0x01:  // LD BC, xx
             regUsage.selfReg(bc.h, bc.l);
             break;
-        case 0x21:  // LD DE, xx
+        case 0x11:  // LD DE, xx
             regUsage.selfReg(de.h, de.l);
             break;
-        case 0x31:  // LD HL, xx
+        case 0x21:  // LD HL, xx
             regUsage.selfReg(hl.h, hl.l);
             break;
         case 0x06:  // LD B, x

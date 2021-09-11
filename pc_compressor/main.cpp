@@ -1442,7 +1442,7 @@ struct DescriptorState
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
     Z80CodeInfo codeInfo;           //< Descriptor data info.
 
-    Z80CodeInfo startDataInfo;      //< Information about skipped start block (it's included directly to the descriptor preambula).
+    Z80CodeInfo omitedDataInfo;     //< Information about skipped start block (it's included directly to the descriptor preambula).
     std::vector<uint8_t> endBlock;  //< Information about replaced end block (JP IX command).
 
     int extraDelay = 0;             //< Alignment delay when serialize preambula.
@@ -1495,18 +1495,19 @@ struct DescriptorState
             addToPreambule(Z80Parser::genDelay(extraDelay));
 
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+
         auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
         regs.serialize(preambula);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
-        startDataInfo = Z80Parser::parseCode(af, firstCommands);
+        omitedDataInfo = Z80Parser::parseCode(af, firstCommands);
         if (updatedHl)
         {
             firstCommands[1] = *updatedHl->l.value;
             firstCommands[2] = *updatedHl->h.value;
         }
         addToPreambule(firstCommands);
-        if (!startDataInfo.hasJump)
+        if (!omitedDataInfo.hasJump)
             addJpIx(lineStartPtr + firstCommands.size());
     }
 
@@ -1549,15 +1550,34 @@ struct DescriptorState
             serializeSpDelta(startSpDelta);
 
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
-        regs.serialize(preambula);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen - descriptorsDelta);
-        startDataInfo = Z80Parser::parseCode(af, firstCommands);
+        omitedDataInfo = Z80Parser::parseCode(
+            af, codeInfo.inputRegisters, firstCommands,
+            0, firstCommands.size(), 0);
 
+        const int firstCommandsSize = firstCommands.size();
+        if (!omitedDataInfo.commands.empty())
+        {
+            const auto firstCommand = omitedDataInfo.commands[0];
+            auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
+            if (regUsage.selfRegMask)
+            {
+                // Join LD REG8, X from omited data directly to the serialized registers
+                codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
+                codeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
+                codeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
+                
+                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + firstCommand.size);
+            }
+        }
+
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        regs.serialize(preambula);
         addToPreambule(firstCommands);
-        if (!startDataInfo.hasJump)
-            addJpIx(lineStartPtr + firstCommands.size());
+
+        if (!omitedDataInfo.hasJump)
+            addJpIx(lineStartPtr + firstCommandsSize);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -2104,7 +2124,7 @@ OffscreenTicks getTicksChainFor64Line(
         //int sum = 0;
         auto info = Z80Parser::parseCode(d.rastrForOffscreen.af, d.rastrForOffscreen.preambula);
         result.preambulaTicks += info.ticks;
-        result.payloadTicks -= d.rastrForOffscreen.startDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
+        result.payloadTicks -= d.rastrForOffscreen.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         result.payloadTicks += d.rastrForOffscreen.codeInfo.ticks;
     }
     return result;

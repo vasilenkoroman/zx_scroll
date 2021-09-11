@@ -89,6 +89,6 @@ public:
     static void serializeAddSpToFront(CompressedLine& line, int value);
     static void serializeAddSpToBack(CompressedLine& line, int value);
 
-    static RegUsageInfo selfRegMask(const z80Command& command);
+    static RegUsageInfo regUsageByCommand(const z80Command& command);
 };
 
