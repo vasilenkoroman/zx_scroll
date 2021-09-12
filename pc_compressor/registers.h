@@ -114,6 +114,7 @@ public:
     Register8 h;
     Register8 l;
     bool isAlt = false;
+    bool isAltAf = false;
 
     bool hasReg8(const Register8* reg) const
     {
@@ -423,13 +424,13 @@ inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::ar
     {
         loadX(line, byte);
     }
-    else if (*value == uint8_t(byte - 1))
+    else if (!line.isAltAf && *value == uint8_t(byte - 1))
     {
         incValue(line);
         if (auto f = findRegister8(registers16, 'f'))
             f->value.reset();
     }
-    else if (*value == uint8_t(byte + 1))
+    else if (!line.isAltAf && *value == uint8_t(byte + 1))
     {
         decValue(line);
         if (auto f = findRegister8(registers16, 'f'))

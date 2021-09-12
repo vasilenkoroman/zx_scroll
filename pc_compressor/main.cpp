@@ -29,6 +29,7 @@ static const uint8_t LD_BC_CODE = 1;
 static const int lineSize = 32;
 static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
+static const int kMinDelay = 93;
 
 enum Flags
 {
@@ -414,6 +415,7 @@ void choiseNextRegister(
 
         CompressedLine newLine;
         newLine.isAltReg = currentLine.isAltReg;
+        newLine.isAltAf = currentLine.isAltAf;
         newLine.regUsage = currentLine.regUsage;
 
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
@@ -462,6 +464,8 @@ bool loadWordFromExistingRegister(
 
     if (context.af.hasValue16(word, canAvoidFirst, canAvoidSecond))
     {
+        if (context.af.isAltAf != result.isAltAf)
+            result.exAf();
         context.af.push(result);
         return true;
     }
@@ -516,10 +520,15 @@ bool compressLine(
                 const int prevX = x;
                 verticalRepCount -= context.borderPoint -x;
                 x = context.borderPoint;
+                int threshold = 3;
+                if (result.isAltAf)
+                    ++threshold; // << It need to switch AF. So, add SP, HL more expensive at this case.
                 if (verticalRepCount > 3)
                 {
                     if (auto hl = findRegister(registers, "hl", result.isAltReg))
                     {
+                        if (result.isAltAf)
+                            result.exAf();
                         hl->updateToValue(result, 32 - prevX - verticalRepCount, registers, context.af);
                         hl->addSP(result);
                         if (auto f = findRegister8(registers, 'f'))
@@ -535,11 +544,16 @@ bool compressLine(
 
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
-        if (verticalRepCount > 4)
+        int threshold = 4;
+        if (result.isAltAf)
+            ++threshold;
+        if (verticalRepCount > threshold)
         {
 
             if (auto hl = findRegister(registers, "hl", result.isAltReg))
             {
+                if (result.isAltAf)
+                    result.exAf();
                 hl->updateToValue(result, -verticalRepCount, registers, context.af);
                 hl->addSP(result);
                 if (auto f = findRegister8(registers, 'f'))
@@ -606,8 +620,7 @@ bool compressLine(
 
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
-        //if (context.flags & oddVerticalCompression)
-        //    result.lastOddRepPosition = x;
+        result.isAltAf = choisedLine.isAltAf;
         result.lastOddRepPosition = choisedLine.lastOddRepPosition;
         if (choisedLine.extraIyDelta > 0)
             result.extraIyDelta = choisedLine.extraIyDelta;
@@ -618,6 +631,8 @@ bool compressLine(
 
     if (context.flags & oddVerticalCompression)
         result.lastOddRepPosition = context.maxX;
+    if (result.isAltAf)
+        result.exAf();
     return true;
 }
 
@@ -741,7 +756,7 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
-Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>& sameBytesCount, int* usageCount = nullptr)
+Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>* sameBytesCount = nullptr, int* usageCount = nullptr)
 {
     Register16 af("af");
     std::map<uint8_t, int> byteCount;
@@ -750,11 +765,14 @@ Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>
         for (int x = 0; x < 32;)
         {
             int index = y * 32 + x;
-            int reps = sameBytesCount[index];
-            if (reps > 0)
+            if (sameBytesCount)
             {
-                x += reps;
-                continue;
+                int reps = sameBytesCount->at(index);
+                if (reps > 0)
+                {
+                    x += reps;
+                    continue;
+                }
             }
 
             ++byteCount[buffer[index]];
@@ -773,6 +791,7 @@ Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>
     }
     if (usageCount)
         *usageCount = bestByteCounter;
+    af.l.value = af.h.value;
     return af;
 }
 
@@ -789,7 +808,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
     context.buffer = buffer;
     context.maskColor = maskColors;
     context.sameBytesCount = sameBytesCount;
-    //context.af = findBestByte(buffer, imageHeight, *context.sameBytesCount);
+    //context.af = findBestByte(buffer, imageHeight, context.sameBytesCount);
     context.af.h.value = 0;
 
     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
@@ -868,6 +887,70 @@ std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer,
 }
 
 
+void inverseColorBlock(uint8_t* colorBuffer, int x, int y)
+{
+    auto ptr = colorBuffer + y * 32 + x;
+    int inc = *ptr & 7;
+    int paper = (*ptr >> 3) & 7;
+    *ptr = (*ptr & 0xc0) + (inc << 3) + paper;
+}
+
+void inverseImageIfNeed(uint8_t* buffer, uint8_t* colorBuffer)
+{
+    // TODO: not checked yet
+    return;
+
+    auto af = findBestByte(buffer, 192);
+    if (af.h.value == 255)
+    {
+        for (int i = 0; i < 6144; ++i)
+        {
+            *buffer = *buffer ^ 255;
+            ++buffer;
+        }
+        for (int y = 0; y < 24; ++y)
+        {
+            for (int x = 0; x < 32; ++x)
+            {
+                inverseColorBlock(colorBuffer, x, y);
+            }
+        }
+    }
+}
+
+int sameVerticalLinesForBlock(int flags, uint8_t* buffer, int x, int y, int imageHeight)
+{
+    int prev = y - 1;
+    if (prev < 0)
+        prev += imageHeight;
+    int bottom = (y + 7) % imageHeight;
+    int result = 0;
+    if (sameVerticalBytes(flags, kScrollDelta, buffer, nullptr, x, prev, imageHeight))
+        ++result;
+    if (sameVerticalBytes(flags, kScrollDelta, buffer, nullptr, x, bottom, imageHeight))
+        ++result;
+
+    return result;
+}
+
+void doInverseColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
+{
+    for (int y = 0; y < imageHeight / 8; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            int before = sameVerticalLinesForBlock(flags, buffer, x, y*8, imageHeight);
+            inversBlock(buffer, x, y);
+            int after = sameVerticalLinesForBlock(flags, buffer, x, y*8, imageHeight);
+            if (after > before)
+                inverseColorBlock(colorBuffer, x, y);
+            else
+                inversBlock(buffer, x, y); // Restore data
+        }
+    }
+
+}
+
 CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     // Detect the most common byte in image
@@ -907,7 +990,12 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight, *a.value);
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
+    if (flags & inverseColors)
+        doInverseColors(flags, buffer, colorBuffer, imageHeight);
+
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
+
+#if 0
     if (!(flags & inverseColors))
         return result;
 
@@ -957,7 +1045,7 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             }
         }
     }
-
+#endif
     return result;
 }
 
@@ -1032,6 +1120,16 @@ void finilizeLine(
     result.extraIyDelta = pushLine.extraIyDelta;
     result.drawTicks += pushLine.drawTicks;
 
+}
+
+int getDrawTicks(const CompressedLine& pushLine)
+{
+    int drawTicks = pushLine.drawTicks;
+    if (pushLine.splitPosHint >= 0)
+        drawTicks += kStackMovingTimeForMc;
+    if (pushLine.data.last() == kExAfOpCode)
+        drawTicks -= 4;
+    return drawTicks;
 }
 
 CompressedLine  compressMultiColorsLine(Context context)
@@ -1133,7 +1231,7 @@ CompressedLine  compressMultiColorsLine(Context context)
                 }
             }
 
-            return false; //< Break condition.
+            return false; //< Don't break.
         });
 
         CompressedLine loadLine;
@@ -1158,9 +1256,8 @@ CompressedLine  compressMultiColorsLine(Context context)
     //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
     int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
     t2 += (31 - context.maxX) * kTicksOnScreenPerByte;
-    int drawTicks = pushLine.drawTicks;
-    if (pushLine.splitPosHint >= 0)
-        drawTicks += kStackMovingTimeForMc;
+    
+    int drawTicks = getDrawTicks(pushLine);
 
     if (drawTicks > t2 && pushLine.splitPosHint >= 0)
     {
@@ -1168,9 +1265,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         CompressedLine pushLine2;
         success = compressLine(context, pushLine2, registers6,  /*x*/ context.minX);
 
-        int drawTicks2 = pushLine2.drawTicks;
-        if (pushLine2.splitPosHint >= 0)
-            drawTicks2 += kStackMovingTimeForMc;
+        int drawTicks2 = getDrawTicks(pushLine2);
 
         if (drawTicks2 < drawTicks)
         {
@@ -1190,12 +1285,12 @@ CompressedLine  compressMultiColorsLine(Context context)
     }
 
 
-    if (pushLine.drawTicks > t2)
+    if (drawTicks > t2)
     {
         // TODO: implement me
-        std::cerr << "ERROR: Line " << context.y << ". Not enough " << pushLine.drawTicks - t2  << " ticks for multicolor" << std::endl;
-        assert(0);
-        abort();
+        std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2  << " ticks for multicolor" << std::endl;
+        //assert(0);
+        //abort();
     }
 
     pushLine.maxDrawDelayTicks = t2 - drawTicks;
@@ -1395,8 +1490,9 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.sameBytesCount = &sameBytesCount;
     context.borderPoint = 16;
 
-    //int count1;
-    //context.af = findBestByte(suffledPtr, imageHeight, sameBytesCount, &count1);
+    int count1;
+    context.af = findBestByte(suffledPtr, imageHeight, &sameBytesCount, &count1);
+    context.af.isAltAf = true;
 
     CompressedData compressedData;
     for (int y = 0; y < imageHeight; y ++)
@@ -1417,7 +1513,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     }
 
     alignMulticolorTimings(compressedData);
-
+    compressedData.af = context.af;
     return compressedData;
 }
 
@@ -2004,6 +2100,7 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
 
 void serializeAsmFile(
     const std::string& inputFileName,
+    const CompressedData& rastrData,
     const CompressedData& multicolorData,
     int rastrFlags,
     int firstLineDelay)
@@ -2019,6 +2116,8 @@ void serializeAsmFile(
         return;
     }
 
+    phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
+    phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.af.value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
@@ -2247,7 +2346,7 @@ int serializeTimingData(
             ticks += 10 * 23; // LD SP, XX in each line
 
         int freeTicks = totalTicksPerFrame - ticks;
-        if (freeTicks < 100)
+        if (freeTicks < kMinDelay)
         {
             std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks
                 << " color=" << colorTicks
@@ -2378,6 +2477,8 @@ int main(int argc, char** argv)
 
         fileIn.read((char*) bufferPtr, 6144);
         fileIn.read((char*) colorBufferPtr, 768);
+        inverseImageIfNeed(bufferPtr, colorBufferPtr);
+
         bufferPtr += 6144;
         colorBufferPtr += 768;
         fileIn.close();
@@ -2444,6 +2545,6 @@ int main(int argc, char** argv)
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     int firstLineDelay = serializeTimingData(descriptors, data, colorData, outputFileName, flags);
-    serializeAsmFile(outputFileName, multicolorData, flags, firstLineDelay);
+    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }
