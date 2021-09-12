@@ -71,6 +71,7 @@ write_initial_jp_ix_table
                 add hl, sp
                 ld sp, hl
                 dec c
+
                 jr nz, .loop
 
 
@@ -252,7 +253,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 36849
+fixed_startup_delay     equ 36841
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -261,6 +262,9 @@ sync_tick equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DEL
         call delay
 
 max_scroll_offset equ imageHeight - 1
+
+        ld a, 3                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
 
         xor a
         ld bc, 0h                       ; 10  ticks
@@ -401,8 +405,11 @@ loop1:
         pop hl
         exx
         
-        ld a, 1                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
+        IF (DEBUG_MODE == 1)
+                ld a, 1                         ; 7 ticks
+                out 0xfe,a                      ; 11 ticks
+        ENDIF                
+
 
         ; timing here on first frame: 91168
         xor a   // current generator uses const A = 0
@@ -435,8 +442,10 @@ loop1:
         ; draw rastr23 later, after updating JP_IX table
         DRAW_MULTICOLOR_LINE 23
 
-        ld a, 2                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
+        IF (DEBUG_MODE == 1)
+                ld a, 2                         ; 7 ticks
+                out 0xfe,a                      ; 11 ticks
+        ENDIF                
         ld bc, (stack_bottom)
         // -------------------------- DRAW_MULTICOLOR_AND_RASTR_LINEs_done ------------------------------
 
@@ -444,6 +453,7 @@ loop1:
         ; compare to -1
         ld a, b
         inc a
+
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
