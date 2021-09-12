@@ -21,10 +21,7 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
 
     org start
 
-JP_HL_CODE      equ 0e9h
 JP_IX_CODE      equ #e9dd
-LD_BC_XXXX_CODE equ 01h
-LD_DE_XXXX_CODE equ 11h
 
 jp_ix_record_size       equ 8
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
@@ -47,7 +44,7 @@ write_initial_jp_ix_table
                 
                 ld hl, 0
                 add hl, sp
-                ld de, hl
+                ex de, hl
 
                 ; fill JPIX_REF_TABLE
                 ld a, 8
@@ -71,9 +68,7 @@ write_initial_jp_ix_table
                 add hl, sp
                 ld sp, hl
                 dec c
-
                 jr nz, .loop
-
 
                 ld sp, stack_top - 2
                 ret
@@ -253,7 +248,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 36841
+fixed_startup_delay     equ 36809
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
