@@ -233,8 +233,8 @@ main:
         di
         ld sp, stack_top
 
-        call copy_image
-        call copy_colors
+        //call copy_image
+        //call copy_colors
 
         call prepare_interruption_table
         ; Pentagon timings
@@ -261,7 +261,14 @@ max_scroll_offset equ imageHeight - 1
         ld a, 3                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 
-        xor a
+        // Prepare data
+        xor a   ; TODO: load from RASTR_REG_A. In current version its const 0
+        ld hl, COLOR_REG_AF2
+        push hl
+        ex af, af'
+        pop af
+        ex af, af'
+
         ld bc, 0h                       ; 10  ticks
         jp loop1
 lower_limit_reached:
@@ -492,6 +499,7 @@ after_interrupt:
         LD   hl, screen_end + 256
         LD   bc, #0200
         ldir
+
         ret
 
 /************** delay routine *************/
@@ -551,19 +559,22 @@ table   db      t14&255,t15&255,t16&255,t17&255
         db      t22&255,t23&255,t24&255,t25&255
         db      t26&255,t27&255,t28&255,t29&255
 
+/*
 copy_image:
         ld hl, src_data
         ld de, 16384
         ld bc, 6144
         ldir
         ret
-
 copy_colors:
         ld hl, color_data
         ld de, 16384 + 6144
         ld bc, 768
         ldir
         ret
+*/        
+
+
 long_delay:
         exx
         ld b, 10
@@ -600,10 +611,12 @@ timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
 
+/*
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
+*/        
         
 data_end:
 
