@@ -94,12 +94,16 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
       
 
     MACRO DRAW_MULTICOLOR_LINE N?:
-                exx                                     ; 4
+                IF (N? != 0)
+                        exx                                     ; 4
+                ENDIF                        
                 ld sp, color_addr + N? * 32 + 16        ; 10
                 ld iy, color_addr + N? * 32 + 32        ; 14
 MC_LINE_N?      ld ix, $ + 5                            ; 14
                 jp hl                                   ; 4
-                exx                                     ; 4
+                IF (N? != 23)
+                        exx                             ; 4
+                ENDIF                        
                 // total ticks: 50 (58 with ret)
     ENDM                
 
@@ -197,7 +201,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 37882
+fixed_startup_delay     equ 37874
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -237,7 +241,7 @@ loop:
                 pop hl  ; hl = bank offset      ; 10
                 ; ticks: 38
 
-                ; bc =  offset in bank (bc/8)
+                ; de =  offset in bank (bc/8)
                 ld a, 0xc0
                 and c
                 ld d, b
@@ -410,14 +414,13 @@ delay_end
         add hl, bc
         ld sp, hl
         pop hl
-        exx
         
         IF (DEBUG_MODE == 1)
                 ld a, 1                         ; 7 ticks
                 out 0xfe,a                      ; 11 ticks
         ENDIF                
 
-        ; timing here on first frame: 91168
+        ; timing here on first frame: 91172
         xor a   // current generator uses const A = 0
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
