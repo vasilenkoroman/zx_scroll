@@ -1165,8 +1165,12 @@ CompressedLine  compressMultiColorsLine(Context context)
     if (drawTicks > t2 && pushLine.splitPosHint >= 0)
     {
         context.flags |= hurryUpViaIY;
-        pushLine = CompressedLine();
-        success = compressLine(context, pushLine, registers6,  /*x*/ context.minX);
+        CompressedLine pushLine2;
+        success = compressLine(context, pushLine2, registers6,  /*x*/ context.minX);
+        if (pushLine2.drawTicks < pushLine.drawTicks)
+            pushLine = pushLine2;
+        else
+            context.flags &= ~hurryUpViaIY;
     }
     if (!success)
     {
