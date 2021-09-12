@@ -29,7 +29,7 @@ static const uint8_t LD_BC_CODE = 1;
 static const int lineSize = 32;
 static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
-static const int kMinDelay = 93;
+static const int kMinDelay = 78;
 
 enum Flags
 {
@@ -2340,7 +2340,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3193;
+        static const int kZ80CodeDelay = 3183;
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line
@@ -2348,7 +2348,8 @@ int serializeTimingData(
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < kMinDelay)
         {
-            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks
+            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks << ". minDelay=" << kMinDelay
+                << ". Not enough " << kMinDelay - freeTicks << " ticks. "
                 << " color=" << colorTicks
                 << ". preambula=" << offscreenTicks.preambulaTicks
                 << ". off rastr=" << offscreenTicks.payloadTicks

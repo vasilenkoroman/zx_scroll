@@ -21,58 +21,6 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
 
     org start
 
-JP_IX_CODE      equ #e9dd
-
-jp_ix_record_size       equ 8
-jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
-write_initial_jp_ix_table
-                // create banks helper (to avoid mul in runtime)
-                ld b, 64
-                ld hl, jpix_table + jp_ix_bank_size * 64
-                ld de, -jp_ix_bank_size
-                ld sp, JPIX__BANKS_HELPER_END
-.helper:        add hl, de
-                push hl
-                djnz .helper
-
-                // main data
-                ld sp, jpix_table
-                ; skip several descriptors
-                ld c, 8
-.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
-                ; read sp to de
-                
-                ld hl, 0
-                add hl, sp
-                ex de, hl
-
-                ; fill JPIX_REF_TABLE
-                ld a, 8
-                sub c
-                rla
-                ld h, high(JPIX__REF_TABLE_START)
-                ld l, a
-                ld (hl), e
-                inc l
-                ld (hl), d
-
-                ld de, JP_IX_CODE
-.rep:           
-                pop hl                          ; address
-                ld (hl), e
-                inc hl
-                ld (hl), d
-                pop hl                          ; skip restore data
-                djnz .rep
-                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
-                add hl, sp
-                ld sp, hl
-                dec c
-                jr nz, .loop
-
-                ld sp, stack_top - 2
-                ret
-
         MACRO draw_colors
         ; hl - line number / 4
 
@@ -228,6 +176,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
+
 /*************** Main. ******************/
 main:
         di
@@ -248,13 +197,11 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 36809
+fixed_startup_delay     equ 56886
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
-sync_tick equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
-
-        ld hl, sync_tick
-        call delay
+        call static_delay
 
 max_scroll_offset equ imageHeight - 1
 
@@ -387,8 +334,66 @@ loop1:
         add hl, bc
         ld sp, hl
         pop hl
-        ld sp, stack_top
-        call delay
+        
+/************** delay routine *************/
+
+//d1      equ     17 + 15+21+11+15+14
+d1      equ     15+21+11+15+14 + 7 - 5
+d2      equ     16
+d3      equ     20+10+11+12
+
+base
+delay   
+        xor     a               ; 4
+        or      h               ; 4
+        jr      nz,wait1        ; 12/7  20/15
+        ld      a,l             ; 4
+        sub     d1              ; 7
+        ld      hl,high(base)*256 + d2      ; 10    21
+wait2   sub     l               ; 4
+        jr      nc,wait2        ; 12/7  16/11
+        sub (256-16) - low(table)
+        ld      l,a             ; 4
+        ld      l,(hl)          ; 7
+        jp      (hl)            ; 4     15
+
+table
+        db      low(t09), low(t10), low(t11), low(t12)
+        db      low(t13), low(t14), low(t15), low(t16)
+        db      low(t17), low(t18), low(t19), low(t20)
+        db      low(t21), low(t22), low(t23), low(t24)
+        db      low(t25), low(t26), low(t27)
+table_end
+
+wait1   ld      de,-d3          ; 10
+        add     hl,de           ; 11
+        jr      delay           ; 12    33
+
+t24     nop
+t20     nop
+t16     nop
+t12     jr delay_end
+
+t27     nop
+t23     nop
+t19     nop
+t15     nop
+t11     ld l, low(delay_end)
+        jp (hl)
+
+t26     nop
+t22     nop
+t18     nop
+t14     nop
+t10     jp delay_end
+
+t25     nop
+t21     nop
+t17     nop
+t13     nop
+t09     ld a, r
+delay_end
+        ASSERT high(delay_end) == high(base)
 
         // calculate floor(bc,8) / 4
 
@@ -499,65 +504,61 @@ after_interrupt:
         LD   hl, screen_end + 256
         LD   bc, #0200
         ldir
-
+        call fill_colors
         ret
 
-/************** delay routine *************/
+JP_IX_CODE      equ #e9dd
 
-d1      equ     17+15+21+11+15+14
-d2      equ     16
-d3      equ     20+10+11+12
+jp_ix_record_size       equ 8
+jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
+write_initial_jp_ix_table
+                // create banks helper (to avoid mul in runtime)
+                ld b, 64
+                ld hl, jpix_table + jp_ix_bank_size * 64
+                ld de, -jp_ix_bank_size
+                ld sp, JPIX__BANKS_HELPER_END
+.helper:        add hl, de
+                push hl
+                djnz .helper
 
-	IF (DEBUG_MODE == 1)
-        	ALIGN 256
-	ENDIF		
-base    
-        ASSERT(low(base) <= 256-58)
-        org     base + (256-58) - low(base)
+                // main data
+                ld sp, jpix_table
+                ; skip several descriptors
+                ld c, 8
+.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
+                ; read sp to de
+                
+                ld hl, 0
+                add hl, sp
+                ex de, hl
 
-delay   xor     a               ; 4
-        or      h               ; 4
-        jr      nz,wait1        ; 12/7  20/15
-        ld      a,l             ; 4
-        sub     d1              ; 7
-        ld      hl,high(base)*256 + d2      ; 10    21
-wait2   sub     l               ; 4
-        jr      nc,wait2        ; 12/7  16/11
-        ld      l,a             ; 4
-        ld      l,(hl)          ; 7
-        jp      (hl)            ; 4     15
-wait1   ld      de,-d3          ; 10
-        add     hl,de           ; 11
-        jr      delay           ; 12    33
+                ; fill JPIX_REF_TABLE
+                ld a, 8
+                sub c
+                rla
+                ld h, high(JPIX__REF_TABLE_START)
+                ld l, a
+                ld (hl), e
+                inc l
+                ld (hl), d
 
-t26     nop
-t22     nop
-t18     nop
-t14     nop
-        ret
+                ld de, JP_IX_CODE
+.rep:           
+                pop hl                          ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+                pop hl                          ; skip restore data
+                djnz .rep
+                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
+                add hl, sp
+                ld sp, hl
+                dec c
+                jr nz, .loop
 
-t27     nop
-t23     nop
-t19     nop
-t15     ret     nc
-        ret
+                ld sp, stack_top - 2
+                ret
 
-t28     nop
-t24     nop
-t20     nop
-t16     inc     hl
-        ret
-
-t29     nop
-t25     nop
-t21     nop
-t17     ld l, (hl)
-        ret
-
-table   db      t14&255,t15&255,t16&255,t17&255
-        db      t18&255,t19&255,t20&255,t21&255
-        db      t22&255,t23&255,t24&255,t25&255
-        db      t26&255,t27&255,t28&255,t29&255
 
 /*
 copy_image:
@@ -574,15 +575,69 @@ copy_colors:
         ret
 */        
 
-
-long_delay:
-        exx
-        ld b, 10
-rep:    ld hl, 65535
-        call delay
-        djnz rep
-        exx
+fill_colors:
+        ld e, 0x08
+        ld hl, 16384 + 6144
+        ld bc, 0x0003
+.rep    ld (hl), e
+        inc hl
+        djnz .rep
+        dec c
+        jr nz, .rep
         ret
+
+static_delay
+D0              EQU 17 + 10 + 10        ; call, initial LD, ret
+D1              EQU     6 + 4 + 4 + 12     ; 26
+DELAY_STEPS     EQU (sync_tick-D0) / D1
+TICKS_REST      EQU  (sync_tick-D0) - DELAY_STEPS * D1 + 5
+                LD hl, DELAY_STEPS      ; 10
+.rep            dec hl                  ; 6
+                ld a, h                 ; 4 
+                or l                    ; 4
+                jr nz, .rep             ; 7/12
+                ASSERT(TICKS_REST >= 5 && TICKS_REST <= 30)
+t1              EQU TICKS_REST                
+                IF (t1 >= 26)
+                        add hl, hl
+t2                      EQU t1 - 11                        
+                ELSE
+t2                      EQU t1
+                ENDIF
+
+                IF (t2 >= 15)
+                        add hl, hl
+t3                      EQU t2 - 11
+                ELSE
+t3                      EQU t2
+                ENDIF
+
+                IF (t3 >= 10)
+                        inc hl
+t4                      EQU t3 - 6                        
+                ELSE
+t4                      EQU t3
+                ENDIF
+
+                IF (t4 == 9)
+                        ret c
+                        nop
+                ELSEIF (t4 == 8)
+                        ld hl, hl
+                ELSEIF (t4 == 7)
+                        ld l, (hl)
+                ELSEIF (t4 == 6)
+                        inc hl
+                ELSEIF (t4 == 5)
+                        ret c
+                ELSEIF (t4 == 4)
+                        nop
+                ELSE
+                        ASSERT 0
+                ENDIF
+        ret
+
+
 /*************** Image data. ******************/
 	IF (DEBUG_MODE == 1)
         	ORG 28000
