@@ -115,7 +115,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
 		IF (DEBUG_MODE == 1)
-                        ld ix, low($ + 7)                              ; 14
+                        ld ix, $ + 7                                   ; 14
 		ELSE
                         ASSERT(high($+6) == high(MC_LINE_N? + 5))
                         ld ixl, low($ + 6)                             ; 11
@@ -197,7 +197,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 56866
+fixed_startup_delay     equ 37882
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)

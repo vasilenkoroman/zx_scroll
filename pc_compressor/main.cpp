@@ -2286,9 +2286,9 @@ int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
         int l  = (lineNum + i) % imageHeight;
         const auto& line = data.data[l];
         result += line.drawTicks;
-        if (data.data.size() == 24)
-            result += 7; //< Image height 192 has additional filler LD A, 0 for color lines.
     }
+    if (data.data.size() == 24)
+        result += 23 * 7; //< Image height 192 has additional filler LD A, 0 for color lines.
 
     // End line contains JP <first line> command. If drawing is stoppeed on the end line this command is not executed.
     int endLine = (lineNum + 24) % imageHeight;
@@ -2315,7 +2315,7 @@ int serializeTimingData(
         return -1;
     }
     int worseLineTicks = std::numeric_limits<int>::max();
-    std::optional<int> firstLineDelay;
+    int firstLineDelay = 0;
     for (int line = 0; line < imageHeight; ++line)
     {
         // offscreen rastr
@@ -2328,6 +2328,10 @@ int serializeTimingData(
         ticks += offscreenTicks.ticks();
         int colorTicks = getColorTicksForWholeFrame(color, (line + 7) / 8);
         ticks += colorTicks;
+
+        if (line == 0)
+            firstLineDelay = ticks;
+
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
         if (line % 8 == 0)
@@ -2340,7 +2344,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3163;
+        static const int kZ80CodeDelay = 3170;
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line
@@ -2368,15 +2372,16 @@ int serializeTimingData(
         worseLineTicks = std::min(worseLineTicks, freeTicks);
         const uint16_t freeTicks16 = (uint16_t) freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
-        if (!firstLineDelay)
-            firstLineDelay = freeTicks;
+
+        if (line == 0)
+            firstLineDelay += freeTicks;
     }
     std::cout << "worse line free ticks=" << worseLineTicks << ". ";
     if (kMinDelay - worseLineTicks > 0)
         std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
     std::cout <<  std::endl;
 
-    return *firstLineDelay;
+    return firstLineDelay;
 }
 
 int serializeJpIxDescriptors(
