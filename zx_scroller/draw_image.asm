@@ -134,14 +134,14 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
         exx
-        pop hl: ld (RASTR_15+1), hl:    pop hl: ld (OFF_RASTR_0+1), hl
-        pop hl: ld (RASTR_14+1), hl:    pop hl: ld (OFF_RASTR_1+1), hl
-        pop hl: ld (RASTR_13+1), hl:    pop hl: ld (OFF_RASTR_2+1), hl
-        pop hl: ld (RASTR_12+1), hl:    pop hl: ld (OFF_RASTR_3+1), hl
-        pop hl: ld (RASTR_11+1), hl:    pop hl: ld (OFF_RASTR_4+1), hl
-        pop hl: ld (RASTR_10+1), hl:    pop hl: ld (OFF_RASTR_5+1), hl
-        pop hl: ld (RASTR_9+1), hl:     pop hl: ld (OFF_RASTR_6+1), hl
-        pop hl: ld (RASTR_8+1), hl:     pop hl: ld (OFF_RASTR_7+1), hl
+        pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR_15+1), hl
+        pop hl: ld (OFF_RASTR_1+1), hl:    pop hl: ld (RASTR_14+1), hl
+        pop hl: ld (OFF_RASTR_2+1), hl:    pop hl: ld (RASTR_13+1), hl
+        pop hl: ld (OFF_RASTR_3+1), hl:    pop hl: ld (RASTR_12+1), hl
+        pop hl: ld (OFF_RASTR_4+1), hl:    pop hl: ld (RASTR_11+1), hl
+        pop hl: ld (OFF_RASTR_5+1), hl:    pop hl: ld (RASTR_10+1), hl
+        pop hl: ld (OFF_RASTR_6+1), hl:    pop hl: ld (RASTR_9+1), hl
+        pop hl: ld (OFF_RASTR_7+1), hl:    pop hl: ld (RASTR_8+1), hl
         exx
 
         // Draw middle 3-th of rastr during top 3-th of colors
@@ -149,30 +149,30 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         inc h
         ld sp, hl
 
-        pop hl: ld (RASTR_7+1), hl:    pop hl: ld (OFF_RASTR_8+1), hl
-        pop hl: ld (RASTR_6+1), hl:    pop hl: ld (OFF_RASTR_9+1), hl
-        pop hl: ld (RASTR_5+1), hl:    pop hl: ld (OFF_RASTR_10+1), hl
-        pop hl: ld (RASTR_4+1), hl:    pop hl: ld (OFF_RASTR_11+1), hl
-        pop hl: ld (RASTR_3+1), hl:    pop hl: ld (OFF_RASTR_12+1), hl
-        pop hl: ld (RASTR_2+1), hl:    pop hl: ld (OFF_RASTR_13+1), hl
-        pop hl: ld (RASTR_1+1), hl:    pop hl: ld (OFF_RASTR_14+1), hl
-        pop hl: ld (RASTR_0+1), hl:    pop hl: ld (OFF_RASTR_15+1), hl
+        pop hl: ld (OFF_RASTR_8+1), hl:    pop hl: ld (RASTR_7+1), hl
+        pop hl: ld (OFF_RASTR_9+1), hl:    pop hl: ld (RASTR_6+1), hl
+        pop hl: ld (OFF_RASTR_10+1), hl:   pop hl: ld (RASTR_5+1), hl
+        pop hl: ld (OFF_RASTR_11+1), hl:   pop hl: ld (RASTR_4+1), hl
+        pop hl: ld (OFF_RASTR_12+1), hl:   pop hl: ld (RASTR_3+1), hl
+        pop hl: ld (OFF_RASTR_13+1), hl:   pop hl: ld (RASTR_2+1), hl
+        pop hl: ld (OFF_RASTR_14+1), hl:   pop hl: ld (RASTR_1+1), hl
+        pop hl: ld (OFF_RASTR_15+1), hl:   pop hl: ld (RASTR_0+1), hl
 
         // Draw top 3-th of rastr during bottom 3-th of colors
         ; shift to 63 for MC rastr instead of 64 to move on next frame
-        ld hl, (63-8) * 4  
+        ld hl, (63-8) * 4 + 2
         add hl, sp
         ld sp, hl
 
-        pop hl: ld (RASTR_23+1), hl:    pop hl
-        pop hl: ld (RASTR_22+1), hl:    pop hl: ld (OFF_RASTR_16+1), hl
-        pop hl: ld (RASTR_21+1), hl:    pop hl: ld (OFF_RASTR_17+1), hl
-        pop hl: ld (RASTR_20+1), hl:    pop hl: ld (OFF_RASTR_18+1), hl
-        pop hl: ld (RASTR_19+1), hl:    pop hl: ld (OFF_RASTR_19+1), hl
-        pop hl: ld (RASTR_18+1), hl:    pop hl: ld (OFF_RASTR_20+1), hl
-        pop hl: ld (RASTR_17+1), hl:    pop hl: ld (OFF_RASTR_21+1), hl
-        pop hl: ld (RASTR_16+1), hl:    pop hl: ld (OFF_RASTR_22+1), hl
-        pop hl:                         pop hl: ld (OFF_RASTR_23+1), hl
+                                            pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_16+1), hl
+        pop hl: ld (OFF_RASTR_23+1), hl:    
 
         ENDM
 
@@ -197,7 +197,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 56886
+fixed_startup_delay     equ 56866
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -343,8 +343,7 @@ d2      equ     16
 d3      equ     20+10+11+12
 
 base
-delay   
-        xor     a               ; 4
+delay   xor     a               ; 4
         or      h               ; 4
         jr      nz,wait1        ; 12/7  20/15
         ld      a,l             ; 4
@@ -394,6 +393,7 @@ t13     nop
 t09     ld a, r
 delay_end
         ASSERT high(delay_end) == high(base)
+/************** end delay routine *************/        
 
         // calculate floor(bc,8) / 4
 
@@ -416,7 +416,6 @@ delay_end
                 ld a, 1                         ; 7 ticks
                 out 0xfe,a                      ; 11 ticks
         ENDIF                
-
 
         ; timing here on first frame: 91168
         xor a   // current generator uses const A = 0
@@ -641,7 +640,9 @@ t4                      EQU t3
 /*************** Image data. ******************/
 	IF (DEBUG_MODE == 1)
         	ORG 28000
-	ENDIF		
+	ENDIF	
+        ASSERT $ <= 25600
+        ORG 25600
 generated_code:
 
         INCBIN "resources/compressed_data.main"

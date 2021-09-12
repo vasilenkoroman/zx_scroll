@@ -2226,8 +2226,8 @@ int serializeRastrDescriptors(
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
 
-        file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
         file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
+        file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
     }
 }
 
@@ -2340,7 +2340,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3183;
+        static const int kZ80CodeDelay = 3163;
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line
@@ -2350,9 +2350,9 @@ int serializeTimingData(
         {
             std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks << ". minDelay=" << kMinDelay
                 << ". Not enough " << kMinDelay - freeTicks << " ticks. "
-                << " color=" << colorTicks
+                << "Color=" << colorTicks
                 << ". preambula=" << offscreenTicks.preambulaTicks
-                << ". off rastr=" << offscreenTicks.payloadTicks
+                << ". offRastr=" << offscreenTicks.payloadTicks
                 << std::endl;
         }
         else
@@ -2371,7 +2371,10 @@ int serializeTimingData(
         if (!firstLineDelay)
             firstLineDelay = freeTicks;
     }
-    std::cout << "worse line free ticks=" << worseLineTicks << std::endl;
+    std::cout << "worse line free ticks=" << worseLineTicks << ". ";
+    if (kMinDelay - worseLineTicks > 0)
+        std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
+    std::cout <<  std::endl;
 
     return *firstLineDelay;
 }
