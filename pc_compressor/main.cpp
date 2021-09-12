@@ -1167,10 +1167,20 @@ CompressedLine  compressMultiColorsLine(Context context)
         context.flags |= hurryUpViaIY;
         CompressedLine pushLine2;
         success = compressLine(context, pushLine2, registers6,  /*x*/ context.minX);
-        if (pushLine2.drawTicks < pushLine.drawTicks)
+
+        int drawTicks2 = pushLine2.drawTicks;
+        if (pushLine2.splitPosHint >= 0)
+            drawTicks2 += kStackMovingTimeForMc;
+
+        if (drawTicks2 < drawTicks)
+        {
             pushLine = pushLine2;
+            drawTicks = drawTicks2;
+        }
         else
+        {
             context.flags &= ~hurryUpViaIY;
+        }
     }
     if (!success)
     {
@@ -1319,14 +1329,27 @@ void alignMulticolorTimings(CompressedData& compressedData)
     }
 
 #ifdef LOG_INFO
-    std::cout << "INFO: max multicolor ticks at line " << maxTicksLine << ", min ticks " << minTicks << " at line " << minTicksLine << std::endl;
+    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks<<  ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
 
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " lose ticks=" << maxTicks * 24 - regularTicks << std::endl;
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 #endif
 
     for (auto& line : compressedData.data)
     {
         const int endLineDelay = maxTicks - line.drawTicks;
+        if (endLineDelay >= 41 + 21)
+        {
+            // TODO: Can update rastr here to spend free ticks:
+            // LD A, iyh
+            // ADD a, #90
+            // rlca
+            // rlca
+            // rlca
+            // LD iyh, a
+            // LD sp, iy
+            // total 41 ticks
+
+        }
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
         line.drawTicks += endLineDelay;
