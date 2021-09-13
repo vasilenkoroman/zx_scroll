@@ -24,8 +24,8 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
         MACRO draw_colors
         ; hl - line number / 4
 
-        ld de, color_descriptor
-        add hl, de                                      ; 10
+        ld de, color_descriptor                         ; 10
+        add hl, de                                      ; 11
         ld sp, hl                                       ; 6
         ; iy - address to execute
         pop iy                                          ; 14
@@ -41,9 +41,9 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
         ex (sp), hl                                     ; 19
 
         exx                                             ; 4
-        ld sp, color_addr + 768
+        ld sp, color_addr + 768                         ; 10
         ld ix, $ + 6                                    ; 14
-        jp iy                                           ; 4
+        jp iy                                           ; 8
         exx                                             ; 4
 
         ; Restore data
@@ -53,7 +53,7 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
         inc hl                                          ; 6
         ld (hl), d                                      ; 7
 
-        ; total 140
+        ; total 154 (162 with ret)
 
         ENDM
 

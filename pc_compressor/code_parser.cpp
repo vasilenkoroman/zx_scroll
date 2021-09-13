@@ -34,7 +34,7 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 2, 12}, // 18: jr *
         { 1, 11}, // 19: add hl,de
         { 1, 7}, // 1a: ld a,(de)
-        { 1, 11}, // 1b: dec de
+        { 1, 6}, // 1b: dec de
         { 1, 4}, // 1c: inc e
         { 1, 4}, // 1d: dec e
         { 2, 7}, // 1e: ld e,*

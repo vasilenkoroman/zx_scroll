@@ -1080,6 +1080,7 @@ void finilizeLine(
     result += loadLine;
     int preloadTicks = result.drawTicks;
 
+    result.maxDrawDelayTicks = pushLine.maxDrawDelayTicks;
     result.maxMcDrawShift = (64 - preloadTicks) + pushLine.maxDrawDelayTicks;
 
     Z80Parser parser;
@@ -1384,7 +1385,15 @@ void alignMulticolorTimings(CompressedData& compressedData)
                 return false;
             });
 
-        const auto delay = Z80Parser::genDelay(extraDelay, /*alowInacurateTicks*/ true);
+        if (extraDelay > 0)
+            extraDelay = std::max(4, extraDelay);
+        if (extraDelay > line.maxDrawDelayTicks)
+        {
+            std::cerr << "Something wrong. Multicolor line #" << i << ". Extray delay " << extraDelay << " is bigger than maxDrawDelayTicks=" << line.maxDrawDelayTicks << std::endl;
+            abort();
+        }
+
+        const auto delay = Z80Parser::genDelay(extraDelay);
         line.push_front(delay);
         line.drawTicks += extraDelay;
         ++i;
