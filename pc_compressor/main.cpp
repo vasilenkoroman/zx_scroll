@@ -520,10 +520,7 @@ bool compressLine(
                 const int prevVerticalRepCount = verticalRepCount;
                 verticalRepCount -= context.borderPoint -x;
                 x = context.borderPoint;
-                int threshold = 3;
-                if (result.isAltAf)
-                    ++threshold; // << It need to switch AF. So, add SP, HL more expensive at this case.
-                if (verticalRepCount > threshold)
+                if (verticalRepCount > 3)
                 {
                     if (auto hl = findRegister(registers, "hl", result.isAltReg))
                     {
@@ -544,10 +541,7 @@ bool compressLine(
 
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
-        int threshold = 4;
-        if (result.isAltAf)
-            ++threshold;
-        if (verticalRepCount > threshold)
+        if (verticalRepCount > 4)
         {
 
             if (auto hl = findRegister(registers, "hl", result.isAltReg))
@@ -1190,6 +1184,11 @@ CompressedLine  compressMultiColorsLine(Context context)
     //std::array<Register16&, 3> regMain = { registers6[0], registers6[1], registers6[2]};
     //std::array<Register16&, 3> regAlt = { registers6[3], registers6[4], registers6[5] };
 
+    if (context.y == 18)
+    {
+        int gg = 4;
+    }
+
 
     CompressedLine loadLineAlt;
     CompressedLine loadLineMain;
@@ -1534,7 +1533,8 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
+        std::array<Register16, 3> registers1 = { Register16("bc"), Register16("de"), Register16("hl")};
+        std::array<Register16, 3> registers2 = registers1;
 
         Context context;
         context.scrollDelta = kScrollDelta;
@@ -1543,10 +1543,15 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
         context.buffer = buffer;
         context.y = y;
         context.sameBytesCount = &sameBytesCount;
-        //context.af = af2;
-        CompressedLine line;
-        bool success = compressLineMain(context, line, registers);
-        compressedData.data.push_back(line);
+
+        CompressedLine line1, line2;
+        compressLineMain(context, line1, registers1);
+        context.af = af2;
+        compressLineMain(context, line2, registers2);
+        if (line1.drawTicks < line2.drawTicks)
+            compressedData.data.push_back(line1);
+        else
+            compressedData.data.push_back(line2);
     }
     updateTransitiveRegUsage(compressedData.data);
     return compressedData;
