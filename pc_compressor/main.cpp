@@ -517,19 +517,19 @@ bool compressLine(
                 return false;
             if (x + verticalRepCount >= context.borderPoint)
             {
-                const int prevX = x;
+                const int prevVerticalRepCount = verticalRepCount;
                 verticalRepCount -= context.borderPoint -x;
                 x = context.borderPoint;
                 int threshold = 3;
                 if (result.isAltAf)
                     ++threshold; // << It need to switch AF. So, add SP, HL more expensive at this case.
-                if (verticalRepCount > 3)
+                if (verticalRepCount > threshold)
                 {
                     if (auto hl = findRegister(registers, "hl", result.isAltReg))
                     {
                         if (result.isAltAf)
                             result.exAf();
-                        hl->updateToValue(result, 32 - prevX - verticalRepCount, registers, context.af);
+                        hl->updateToValue(result, 32 - prevVerticalRepCount, registers, context.af);
                         hl->addSP(result);
                         if (auto f = findRegister8(registers, 'f'))
                             f->value.reset();
@@ -1526,7 +1526,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     return compressedData;
 }
 
-CompressedData  compressColors(uint8_t* buffer, int imageHeight)
+CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register16& af2)
 {
     CompressedData compressedData;
     int flags = verticalCompressionH; // | interlineRegisters;
@@ -1543,6 +1543,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
         context.buffer = buffer;
         context.y = y;
         context.sameBytesCount = &sameBytesCount;
+        //context.af = af2;
         CompressedLine line;
         bool success = compressLineMain(context, line, registers);
         compressedData.data.push_back(line);
@@ -2521,7 +2522,7 @@ int main(int argc, char** argv)
     // Multicolor data displaying from top to bottom
     //std::reverse(multicolorData.data.begin(), multicolorData.data.end());
 
-    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
     const auto t2 = std::chrono::system_clock::now();
