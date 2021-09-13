@@ -395,7 +395,7 @@ inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::ar
     if (name == 'f')
         return false;
 
-    if (af.h.hasValue(byte))
+    if (af.h.hasValue(byte) && af.isAltAf == line.isAltAf)
     {
         loadFromReg(line, af.h);
         return true;
