@@ -747,7 +747,7 @@ std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCo
     return result;
 }
 
-std::vector<uint8_t> Z80Parser::genDelay(int ticks, bool alowInacurateTicks)
+std::vector<uint8_t> Z80Parser::genDelay(int ticks)
 {
     std::vector<uint8_t> result;
 
@@ -807,8 +807,6 @@ std::vector<uint8_t> Z80Parser::genDelay(int ticks, bool alowInacurateTicks)
         case 0:
             break;
         default:
-            if (alowInacurateTicks)
-                break;
             std::cerr << "Invalid ticks amount to align:" << ticks << std::endl;
             assert(0);
             abort();

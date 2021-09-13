@@ -69,7 +69,7 @@ public:
     // Return first bytes from the buffer. Round it up to op code size.
     static std::vector<uint8_t> getCode(const uint8_t* buffer, int requestedOpCodeSize);
 
-    static std::vector<uint8_t> genDelay(int ticks, bool alowInacurateTicks = false);
+    static std::vector<uint8_t> genDelay(int ticks);
 
     static const Register16* findRegByItsPushOpCode(const std::vector<Register16>& registers, uint8_t pushOpCode);
 
