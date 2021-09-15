@@ -191,7 +191,7 @@ main:
 
         call prepare_interruption_table
         ; Pentagon timings
-first_timing_in_interrupt       equ 22
+first_timing_in_interrupt       equ 19 + 22
 screen_ticks                    equ 71680
 first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
@@ -201,7 +201,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 37879
+fixed_startup_delay     equ 17829
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -420,7 +420,7 @@ delay_end
                 out 0xfe,a                      ; 11 ticks
         ENDIF                
 
-        ; timing here on first frame: 91172
+        ; timing here on first frame: 91153
         xor a   // current generator uses const A = 0
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
@@ -506,7 +506,6 @@ after_interrupt:
         LD   hl, screen_end + 256
         LD   bc, #0200
         ldir
-        call fill_colors
         ret
 
 JP_IX_CODE      equ #e9dd
@@ -576,17 +575,6 @@ copy_colors:
         ldir
         ret
 */        
-
-fill_colors:
-        ld e, 0x08
-        ld hl, 16384 + 6144
-        ld bc, 0x0003
-.rep    ld (hl), e
-        inc hl
-        djnz .rep
-        dec c
-        jr nz, .rep
-        ret
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret
