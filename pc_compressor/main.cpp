@@ -918,7 +918,72 @@ int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHe
     return result;
 }
 
-CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
+CompressedLine  compressMultiColorsLine(Context context, bool* successOut);
+
+bool updateMulticolorLine(
+    uint8_t* buffer, uint8_t* colorBuffer,
+    int x, int y, int inverseFlags,
+    CompressedData& multicolorData, int maxMcDrawTicks, 
+    std::vector<uint8_t>& shufledBuffer)
+{
+    if (inverseFlags & 1)
+        inversBlock(buffer, colorBuffer, x, y);
+    if (inverseFlags & 2)
+        inversBlock(buffer, colorBuffer, x + 1, y);
+
+    struct Context context;
+    context.scrollDelta = 1;
+    context.flags = verticalCompressionL;
+    context.imageHeight = multicolorData.data.size();
+    context.buffer = shufledBuffer.data();
+    context.borderPoint = 16;
+    context.af = multicolorData.af;
+    context.y = y;
+
+    CompressedData compressedData;
+    bool success = false;
+    auto line = compressMultiColorsLine(context, &success);
+    bool result = success && line.drawTicks <= maxMcDrawTicks;
+    if (success && line.drawTicks <= maxMcDrawTicks)
+    {
+        multicolorData.data[y] = line;
+    }
+    else
+    {
+        if (inverseFlags & 1)
+            inversBlock(buffer, colorBuffer, x, y);
+        if (inverseFlags & 2)
+            inversBlock(buffer, colorBuffer, x + 1, y);
+    }
+
+    return result;
+}
+
+std::vector<uint8_t> makeShufledBuffer(uint8_t* buffer, int imageHeight)
+{
+    std::vector<uint8_t> shufledBuffer(imageHeight * 32);
+    uint8_t* src = buffer;
+    uint8_t* dst = shufledBuffer.data();
+
+    for (int y = 0; y < imageHeight; ++y)
+    {
+        for (int x = 0; x < 16; ++x)
+        {
+            dst[16] = src[0];
+            dst++;
+            src++;
+        }
+        for (int x = 0; x < 16; ++x)
+        {
+            dst[-16] = src[0];
+            dst++;
+            src++;
+        }
+    }
+    return shufledBuffer;
+}
+
+CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, CompressedData& multicolorData)
 {
     // Detect the most common byte in image
     std::vector<int> bytesCount(256);
@@ -949,6 +1014,13 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 
     std::cout << "rastr ticks = " << result.ticks() << std::endl;
 
+
+    auto shufledBuffer = makeShufledBuffer(colorBuffer, multicolorData.data.size());
+
+    int maxMcDrawTicks = 0;
+    for (const auto& line : multicolorData.data)
+        maxMcDrawTicks = std::max(maxMcDrawTicks, line.drawTicks);
+
     for (int y = 0; y < imageHeight / 8; ++y)
     {
         for (int x = 0; x < 32; x += 2)
@@ -970,28 +1042,24 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             const int resultTicks = result.ticks();
             if (candidateLeft.ticks() < resultTicks
                 && candidateLeft.ticks() < candidateBoth.ticks()
-                && candidateLeft.ticks() < candidateRight.ticks())
+                && candidateLeft.ticks() < candidateRight.ticks()
+                && updateMulticolorLine(buffer, colorBuffer,  x, y, 1, multicolorData, maxMcDrawTicks, shufledBuffer))
             {
                 result = candidateLeft;
-                std::cout << "reduce ticks to = " << result.ticks() << std::endl;colorBuffer,
-                inversBlock(buffer, colorBuffer, x, y);
+                std::cout << "reduce ticks to = " << result.ticks() << std::endl;
             }
             else if (candidateBoth.ticks() < resultTicks
-                && candidateBoth.ticks() < candidateLeft.ticks()
-                && candidateBoth.ticks() < candidateRight.ticks())
+                && candidateBoth.ticks() < candidateRight.ticks()
+                && updateMulticolorLine(buffer, colorBuffer, x, y, 3, multicolorData, maxMcDrawTicks, shufledBuffer))
             {
                 result = candidateBoth;
                 std::cout << "reduce ticks to = " << result.ticks() << std::endl;
-                inversBlock(buffer, colorBuffer, x, y);
-                inversBlock(buffer, colorBuffer, x + 1, y);
             }
             else if (candidateRight.ticks() < resultTicks
-                && candidateRight.ticks() < candidateLeft.ticks()
-                && candidateRight.ticks() < candidateBoth.ticks())
+                && updateMulticolorLine(buffer, colorBuffer, x, y, 2, multicolorData, maxMcDrawTicks, shufledBuffer))
             {
                 result = candidateRight;
                 std::cout << "reduce ticks to = " << result.ticks() << std::endl;
-                inversBlock(buffer, colorBuffer, x + 1, y);
             }
         }
     }
@@ -1082,8 +1150,10 @@ int getDrawTicks(const CompressedLine& pushLine)
     return drawTicks;
 }
 
-CompressedLine  compressMultiColorsLine(Context context)
+CompressedLine  compressMultiColorsLine(Context context, bool* successOut)
 {
+    bool& success = *successOut;
+
     /*
      *      Screen in words [0..15]
      *       0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
@@ -1106,11 +1176,11 @@ CompressedLine  compressMultiColorsLine(Context context)
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
 
-    bool success = compressLineMain(context, line1, registers);
+    success = compressLineMain(context, line1, registers);
     if (!success)
     {
         std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
-        abort();
+        return result;
     }
 
     context.lastOddRepPosition = line1.lastOddRepPosition;
@@ -1203,7 +1273,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
             << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
-        abort();
+        return result;
     }
 
 
@@ -1236,7 +1306,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
             << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
-        abort();
+        return result;
     }
 
 
@@ -1244,8 +1314,8 @@ CompressedLine  compressMultiColorsLine(Context context)
     {
         // TODO: implement me
         std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2  << " ticks for multicolor" << std::endl;
-        //assert(0);
-        //abort();
+        success = false;
+        return result;
     }
 
     pushLine.maxDrawDelayTicks = t2 - drawTicks;
@@ -1421,26 +1491,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     // 32  <------------------16
     //                        16 <------------------ 0
 
-    std::vector<uint8_t> shufledBuffer(imageHeight * 32);
-    uint8_t* src = buffer;
-    uint8_t* dst = shufledBuffer.data();
-
-    for (int y = 0; y < imageHeight; ++y)
-    {
-        for (int x = 0; x < 16; ++x)
-        {
-            dst[16] = src[0];
-            dst++;
-            src++;
-        }
-        for (int x = 0; x < 16; ++x)
-        {
-            dst[-16] = src[0];
-            dst++;
-            src++;
-        }
-    }
-
+    auto shufledBuffer = makeShufledBuffer(buffer, imageHeight);
     auto suffledPtr = shufledBuffer.data();
 
 
@@ -1461,7 +1512,13 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     for (int y = 0; y < imageHeight; y ++)
     {
         context.y = y;
-        auto line = compressMultiColorsLine(context);
+        bool success = false;
+        auto line = compressMultiColorsLine(context, &success);
+        if (!success)
+        {
+            std::cerr << "Can't compress multicolor line #" << y << std::endl;
+            abort();
+        }
         /*
         if (!success)
         {
@@ -2478,9 +2535,9 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
-
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
+    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight, multicolorData);
+
     // Multicolor data displaying from top to bottom
     //std::reverse(multicolorData.data.begin(), multicolorData.data.end());
 
