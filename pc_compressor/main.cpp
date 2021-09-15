@@ -725,7 +725,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     );
 }
 
-std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, uint8_t bestByte)
+std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     std::vector<bool> result;
     bool moveDown = flags & verticalCompressionL;
@@ -735,15 +735,6 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
         {
             bool isHidden = isHiddenData(colorBuffer, x, y);
             result.push_back(isHidden);
-            if (isHidden)
-            {
-                uint8_t* ptr = buffer + y * 32 + x;
-                for (int i = 0; i < 8; ++i)
-                {
-                    *ptr = bestByte;
-                    ptr += 32;
-                }
-            }
         }
     }
 
@@ -964,24 +955,9 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
         }
     }
 
-    std::vector<int> wordsCount(65536);
-    uint16_t* buffer16 = (uint16_t*)buffer;
-    for (int i = 0; i < 16 * imageHeight; ++i)
-        ++wordsCount[buffer16[i]];
-
-    int bestWordCounter = 0;
-    for (int i = 0; i < 65536; ++i)
-    {
-        if (wordsCount[i] > bestWordCounter)
-        {
-            af.setValue((uint16_t) i);
-            bestWordCounter = wordsCount[i];
-        }
-    }
-    std::cout << "best byte = " << (int) *af.h.value << " best word=" << af.value16() << std::endl;
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
-        maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight, *a.value);
+        maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
     if (flags & inverseColors)
@@ -1256,7 +1232,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
     int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
     t2 += (31 - context.maxX) * kTicksOnScreenPerByte;
-    
+
     int drawTicks = getDrawTicks(pushLine);
 
     if (drawTicks > t2 && pushLine.splitPosHint >= 0)
@@ -1665,8 +1641,8 @@ struct DescriptorState
 
     void makePreambulaForMC(
         const Register16& _af,
-        const std::vector<uint8_t>& serializedData, 
-        int codeOffset, 
+        const std::vector<uint8_t>& serializedData,
+        int codeOffset,
         const CompressedLine* line)
     {
         af = _af;
