@@ -380,6 +380,8 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x06: b.loadX(info, ptr[1]);
                 break;
+            case 0x08: // ex af, af'
+                break;
             case 0x0b: bc->decValue(info);
                 break;
             case 0x0c: c.incValue(info);
@@ -398,7 +400,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x16: d.loadX(info, ptr[1]);
                 break;
-            case 0x1b: de->incValue(info);
+            case 0x1b: de->decValue(info);
                 break;
             case 0x1c: e.incValue(info);
                 break;
@@ -431,6 +433,8 @@ Z80CodeInfo Z80Parser::parseCode(
             case 0x33: result.spOffset++;    // incSP
                 break;
             case 0x34: hl->incValue(info);
+                break;
+            case 0x37: // scf
                 break;
             case 0x39:
             {
@@ -651,6 +655,8 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0xd6: a.subValue(info, ptr[1]);
                 break;
+            case 0xd9: // exx
+                break;
             case 0xe6: a.andValue(info, ptr[1]);
                 break;
             case 0xee: a.xorValue(info, ptr[1]);
@@ -671,6 +677,8 @@ Z80CodeInfo Z80Parser::parseCode(
             default:
                 // Unsopported command
                 assert(0);
+                std::cerr << "Unsupported op code " << std::hex << (int) *ptr << " to parse" << std::endl;
+                abort();
         }
         isIndexReg = false;
         ptr += command.size;
