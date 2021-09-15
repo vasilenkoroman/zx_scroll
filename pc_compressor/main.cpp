@@ -236,8 +236,15 @@ void deinterlaceBuffer(std::vector<uint8_t>& buffer)
     memcpy(buffer.data(), tempBuffer.data(), imageHeight * 32);
 }
 
+void inverseColorBlock(uint8_t* colorBuffer, int x, int y)
+{
+    auto ptr = colorBuffer + y * 32 + x;
+    int inc = *ptr & 7;
+    int paper = (*ptr >> 3) & 7;
+    *ptr = (*ptr & 0xc0) + (inc << 3) + paper;
+}
 
-void inversBlock(uint8_t* buffer, int x, int y)
+void inversBlock(uint8_t* buffer, uint8_t* colorBuffer, int x, int y)
 {
     uint8_t* ptr = buffer + y * 8 * 32 + x;
     for (int k = 0; k < 8; ++k)
@@ -245,6 +252,8 @@ void inversBlock(uint8_t* buffer, int x, int y)
         ptr[0] = ~ptr[0];
         ptr += 32;
     }
+
+    inverseColorBlock(colorBuffer, x, y);
 }
 
 int sameVerticalWorlds(uint8_t* buffer, int x, int y)
@@ -872,14 +881,6 @@ std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer,
 }
 
 
-void inverseColorBlock(uint8_t* colorBuffer, int x, int y)
-{
-    auto ptr = colorBuffer + y * 32 + x;
-    int inc = *ptr & 7;
-    int paper = (*ptr >> 3) & 7;
-    *ptr = (*ptr & 0xc0) + (inc << 3) + paper;
-}
-
 void inverseImageIfNeed(uint8_t* buffer, uint8_t* colorBuffer)
 {
     // TODO: not checked yet
@@ -903,37 +904,18 @@ void inverseImageIfNeed(uint8_t* buffer, uint8_t* colorBuffer)
     }
 }
 
-int sameVerticalLinesForBlock(int flags, uint8_t* buffer, int x, int y, int imageHeight)
+int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHeight)
 {
-    int prev = y - 1;
-    if (prev < 0)
-        prev += imageHeight;
-    int bottom = (y + 7) % imageHeight;
+    uint8_t* ptr = buffer + y * 32 + x;
     int result = 0;
-    if (sameVerticalBytes(flags, kScrollDelta, buffer, nullptr, x, prev, imageHeight))
-        ++result;
-    if (sameVerticalBytes(flags, kScrollDelta, buffer, nullptr, x, bottom, imageHeight))
-        ++result;
-
-    return result;
-}
-
-void doInverseColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
-{
-    for (int y = 0; y < imageHeight / 8; ++y)
+    for (int i = 0; i < 8; ++i)
     {
-        for (int x = 0; x < 32; ++x)
-        {
-            int before = sameVerticalLinesForBlock(flags, buffer, x, y*8, imageHeight);
-            inversBlock(buffer, x, y);
-            int after = sameVerticalLinesForBlock(flags, buffer, x, y*8, imageHeight);
-            if (after > before)
-                inverseColorBlock(colorBuffer, x, y);
-            else
-                inversBlock(buffer, x, y); // Restore data
-        }
+        if (ptr[0] == ptr[1])
+            ++result;
+        ptr += 32;
     }
 
+    return result;
 }
 
 CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
@@ -960,14 +942,12 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
     std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
-    if (flags & inverseColors)
-        doInverseColors(flags, buffer, colorBuffer, imageHeight);
-
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
-#if 0
     if (!(flags & inverseColors))
         return result;
+
+    std::cout << "rastr ticks = " << result.ticks() << std::endl;
 
     for (int y = 0; y < imageHeight / 8; ++y)
     {
@@ -977,15 +957,15 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
 
             int lineNum = y * 8;
 
-            inversBlock(buffer, x, y);
+            inversBlock(buffer, colorBuffer, x, y);
             auto candidateLeft = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
-            inversBlock(buffer, x+1, y);
+            inversBlock(buffer, colorBuffer, x+1, y);
             auto candidateBoth = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
-            inversBlock(buffer, x, y);
+            inversBlock(buffer, colorBuffer, x, y);
             auto candidateRight = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
-            inversBlock(buffer, x + 1, y);
+            inversBlock(buffer, colorBuffer, x + 1, y);
 
             const int resultTicks = result.ticks();
             if (candidateLeft.ticks() < resultTicks
@@ -993,8 +973,8 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
                 && candidateLeft.ticks() < candidateRight.ticks())
             {
                 result = candidateLeft;
-                std::cout << "reduce ticks to = " << result.ticks() << std::endl;
-                inversBlock(buffer, x, y);
+                std::cout << "reduce ticks to = " << result.ticks() << std::endl;colorBuffer,
+                inversBlock(buffer, colorBuffer, x, y);
             }
             else if (candidateBoth.ticks() < resultTicks
                 && candidateBoth.ticks() < candidateLeft.ticks()
@@ -1002,8 +982,8 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             {
                 result = candidateBoth;
                 std::cout << "reduce ticks to = " << result.ticks() << std::endl;
-                inversBlock(buffer, x, y);
-                inversBlock(buffer, x + 1, y);
+                inversBlock(buffer, colorBuffer, x, y);
+                inversBlock(buffer, colorBuffer, x + 1, y);
             }
             else if (candidateRight.ticks() < resultTicks
                 && candidateRight.ticks() < candidateLeft.ticks()
@@ -1011,11 +991,10 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             {
                 result = candidateRight;
                 std::cout << "reduce ticks to = " << result.ticks() << std::endl;
-                inversBlock(buffer, x + 1, y);
+                inversBlock(buffer, colorBuffer, x + 1, y);
             }
         }
     }
-#endif
     return result;
 }
 
@@ -2495,9 +2474,11 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge| inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
+
+    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
     // Multicolor data displaying from top to bottom
@@ -2505,7 +2486,6 @@ int main(int argc, char** argv)
 
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
 
-    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
     const auto t2 = std::chrono::system_clock::now();
 
     std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
