@@ -29,6 +29,7 @@ struct Z80CodeInfo
     int endOffset = 0;
     int ticks = 0;
     int16_t spOffset = 0;
+    int iySpOffset = 16;
     //std::optional<int> spDeltaOnFirstPush;
     std::vector<Register16> inputRegisters;
     std::vector<Register16> outputRegisters;

@@ -1434,7 +1434,8 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
             sinkLine.append({ 0xfd, 0xf9 }); // LD sp, iy
             sinkLine.drawTicks += 10;
 
-            while(x <31 && sinkLine.drawTicks < endLineDelay)
+            int ticksLimit = endLineDelay - 11;
+            while(x <31 && sinkLine.drawTicks <= endLineDelay - 11)
             {
                 int index = y * 32 * 8 + x;
                 if (rastrSameBytes[index])
@@ -1446,7 +1447,13 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
                 uint16_t* buffer16 = (uint16_t*)(rastrBuffer + index);
                 uint16_t word = *buffer16;
                 word = swapBytes(word);
-                bc->updateToValue(sinkLine, word, registers, compressedData.af);
+
+                CompressedLine tmpLine;
+                bc->updateToValue(tmpLine, word, registers, compressedData.af);
+                int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
+                if (ticks != endLineDelay && ticks > endLineDelay-3)
+                    break;
+                sinkLine += tmpLine;
                 bc->push(sinkLine);
                 rastrSameBytes[index] = true;
                 rastrSameBytes[index+1] = true;

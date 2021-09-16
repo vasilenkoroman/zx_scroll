@@ -344,7 +344,7 @@ Z80CodeInfo Z80Parser::parseCode(
     result.bufferEnd = serializedData + serializedDataSize;
     const uint8_t* ptr = serializedData + startOffset;
     const uint8_t* end = serializedData + endOffset;
-    int iySpOffset = 16; //< delta IY offset to initial offset
+    result.iySpOffset = 16; //< delta IY offset to initial offset
 
     auto push =
         [&](const Register16* reg)
@@ -370,6 +370,8 @@ Z80CodeInfo Z80Parser::parseCode(
 
         switch (*ptr)
         {
+            case 0x00:
+                break;  // NOP. Nothing to do
             case 0x01: bc->loadXX(info, ptr[1] + ((uint16_t)ptr[2] << 8));
                 break;
             case 0x03: bc->incValue(info);
@@ -420,7 +422,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x2b:
                 if (isIndexReg)
-                    iySpOffset--;
+                    result.iySpOffset--;
                 else
                     hl->decValue(info);
                 break;
@@ -665,7 +667,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0xf9: // LD SP, HL
                 if (isIndexReg)
-                    result.spOffset = iySpOffset;
+                    result.spOffset = result.iySpOffset;
                 else
                     info.useReg(h, l);
                 break;
