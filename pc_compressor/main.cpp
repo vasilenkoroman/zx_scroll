@@ -40,7 +40,8 @@ enum Flags
     inverseColors = 16,         //< Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     hurryUpViaIY = 64,          //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
-    optimizeLineEdge = 128      //< merge two line borders with single SP moving block.
+    optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
+    sinkMcTicksToRastr = 256    //< Spend Multicolor ticks during alignments to the rastr line
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -119,6 +120,7 @@ inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
 
 struct CompressedData
 {
+    std::vector<int> sameBytesCount;
     std::vector<CompressedLine> data;
     Register16 af{"af"};
     int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
@@ -940,9 +942,10 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
-    std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
+    auto sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
+    result.sameBytesCount = sameBytesCount;
 
     if (!(flags & inverseColors))
         return result;
@@ -1284,10 +1287,15 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
     return af;
 }
 
-void alignMulticolorTimings(CompressedData& compressedData)
+void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
 {
-    // Align duration for multicolors
+    int rastrHeight = compressedData.data.size() * 8;
+    std::vector<bool> maskColor;
+    if (flags & skipInvisibleColors)
+        maskColor = removeInvisibleColors(flags, rastrBuffer, colorBuffer, rastrHeight);
+    std::vector<int> rastrSameBytes = createSameBytesTable(flags, rastrBuffer, &maskColor, rastrHeight);
 
+    // Align duration for multicolors
 
      // 1. Calculate extra delay for begin of the line if it draw too fast
 
@@ -1384,21 +1392,44 @@ void alignMulticolorTimings(CompressedData& compressedData)
     std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 #endif
 
-    for (auto& line : compressedData.data)
+    for (int y = 0; y < compressedData.data.size(); ++y)
     {
-        const int endLineDelay = maxTicks - line.drawTicks;
-        if (endLineDelay >= 41 + 21)
-        {
-            // TODO: Can update rastr here to spend free ticks:
-            // LD A, iyh
-            // ADD a, #90
-            // rlca
-            // rlca
-            // rlca
-            // LD iyh, a
-            // LD sp, iy
-            // total 41 ticks
+        auto& line = compressedData.data[y];
 
+        int endLineDelay = maxTicks - line.drawTicks;
+        if (endLineDelay >= 41 + 21 && (flags & sinkMcTicksToRastr))
+        {
+            static Register16 sp("sp");
+
+            // TODO: Can update rastr here to spend free ticks:
+            CompressedLine sinkLine;
+            static std::vector<uint8_t> colorToRastr =
+            {
+                0xfd, 0x7c,     // LD A, iyh
+                0xc6, 0x90,     // ADD a, #90
+                0x07,           // rlca
+                0x07,           // rlca
+                0x07,           // rlca
+                0xfd, 0x67,     // LD iyh, a
+                0xfd, 0xf9      // LD sp, iy
+            };
+            // total 41 ticks
+            sinkLine.append(colorToRastr);
+            sinkLine.drawTicks += 41;
+
+            auto info = Z80Parser::parseCode(compressedData.af, line.data.buffer(), line.data.size());
+            int x = 16 + info.spOffset;
+            int index = y * 32 * 8 + x;
+            while (x > 0 && rastrSameBytes[index])
+            {
+                --x;
+                --index;
+                sp.decValue(sinkLine);
+            }
+            uint8_t* rastr = rastrBuffer + index;
+
+            endLineDelay -= sinkLine.drawTicks;
+            line += sinkLine;
         }
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
@@ -1467,8 +1498,8 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         compressedData.data.push_back(line);
     }
 
-    alignMulticolorTimings(compressedData);
     compressedData.af = context.af;
+    compressedData.sameBytesCount = sameBytesCount;
     return compressedData;
 }
 
@@ -1501,6 +1532,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
             compressedData.data.push_back(line2);
     }
     updateTransitiveRegUsage(compressedData.data);
+    compressedData.sameBytesCount = sameBytesCount;
     return compressedData;
 }
 
@@ -2465,13 +2497,12 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
-
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    // Multicolor data displaying from top to bottom
-    //std::reverse(multicolorData.data.begin(), multicolorData.data.end());
+    alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
+    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
+
 
     const auto t2 = std::chrono::system_clock::now();
 
