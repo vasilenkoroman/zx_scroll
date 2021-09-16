@@ -418,7 +418,10 @@ void choiseNextRegister(
     const int x)
 {
     int choisedIndex = -1;
-    for (int regIndex = 0; regIndex < registers.size(); ++regIndex)
+    int max = registers.size();
+    if (context.flags & inverseColors)
+        --max;
+    for (int regIndex = 0; regIndex < max; ++regIndex)
     {
         auto regCopy = registers;
 
@@ -954,6 +957,7 @@ bool updateMulticolorLine(
             inversBlock(buffer, colorBuffer, x, y);
         if (inverseFlags & 2)
             inversBlock(buffer, colorBuffer, x + 1, y);
+        std::cout << "reject inversing block " << x << "," << y << " because multicolor ticks became " << line.drawTicks << std::endl;
     }
 
     return result;
@@ -1063,6 +1067,8 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
             }
         }
     }
+
+    result = compressImageAsync(flags & ~inverseColors, buffer, &maskColor, &sameBytesCount, imageHeight);
     return result;
 }
 
@@ -1532,7 +1538,6 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         compressedData.data.push_back(line);
     }
 
-    alignMulticolorTimings(compressedData);
     compressedData.af = context.af;
     return compressedData;
 }
@@ -2531,7 +2536,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge| inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
@@ -2542,6 +2547,7 @@ int main(int argc, char** argv)
     //std::reverse(multicolorData.data.begin(), multicolorData.data.end());
 
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
+    alignMulticolorTimings(multicolorData);
 
     const auto t2 = std::chrono::system_clock::now();
 
