@@ -384,6 +384,8 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x08: // ex af, af'
                 break;
+            case 0x10: // djnz
+                break;
             case 0x0b: bc->decValue(info);
                 break;
             case 0x0c: c.incValue(info);
@@ -431,6 +433,8 @@ Z80CodeInfo Z80Parser::parseCode(
             case 0x2d: l.decValue(info);
                 break;
             case 0x2e: l.loadX(info, ptr[1]);
+                break;
+            case 0x29: // ADD HL, HL
                 break;
             case 0x33: result.spOffset++;    // incSP
                 break;
@@ -538,6 +542,8 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x6d: l.loadFromReg(info, l);
                 break;
+            case 0x6e: // LD L, (HL)
+                break;
             case 0x6f: l.loadFromReg(info, a);
                 break;
             case 0x78: a.loadFromReg(info, b);
@@ -643,6 +649,8 @@ Z80CodeInfo Z80Parser::parseCode(
             }
             case 0xc5: // push BC
                 push(bc);
+                break;
+            case 0xd0: // ret nc
                 break;
             case 0xd5: // push de
                 push(de);

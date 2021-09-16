@@ -920,7 +920,7 @@ int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHe
     return result;
 }
 
-CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
+CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int> sameBytesCount)
 {
     // Detect the most common byte in image
     std::vector<int> bytesCount(256);
@@ -942,7 +942,6 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
-    auto sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
 
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
     result.sameBytesCount = sameBytesCount;
@@ -1287,7 +1286,14 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
     return af;
 }
 
-void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
+void markByteAsSame(std::vector<int>& rastrSameBytes, int x, int y)
+{
+    ++rastrSameBytes[y * 32 + x];
+    for (++x; x < 32 && rastrSameBytes[y * 32 + x]; ++x)
+        ++rastrSameBytes[y * 32 + x];
+}
+
+std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
 {
     int rastrHeight = compressedData.data.size() * 8;
     std::vector<bool> maskColor;
@@ -1392,12 +1398,14 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
     std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 #endif
 
+    int sinkPushCount = 0;
+
     for (int y = 0; y < compressedData.data.size(); ++y)
     {
         auto& line = compressedData.data[y];
 
         int endLineDelay = maxTicks - line.drawTicks;
-        if (endLineDelay >= 41 + 21 && (flags & sinkMcTicksToRastr))
+        if (endLineDelay >= 45 + 21 && (flags & sinkMcTicksToRastr))
         {
             static Register16 sp("sp");
             std::array<Register16, 1> registers = { Register16("bc")};
@@ -1405,36 +1413,58 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
 
             auto info = Z80Parser::parseCode(compressedData.af, line.data.buffer(), line.data.size());
             int x = 16 - info.iySpOffset;
-
-            CompressedLine sinkLine;
-            static std::vector<uint8_t> colorToRastr =
-            {
-                0xfd, 0x7c,     // LD A, iyh
-                0xc6, 0x90,     // ADD a, #90
-                0x07,           // rlca
-                0x07,           // rlca
-                0x07,           // rlca
-                0xfd, 0x67,     // LD iyh, a
-            };
-            // total 31 ticks
-            sinkLine.append(colorToRastr);
-            sinkLine.drawTicks += 31;
-
             int index = y * 32 * 8 + x;
-            if (rastrSameBytes[index] > 3)
+            CompressedLine sinkLine;
+            if (rastrSameBytes[index] <= 1)
             {
-                sinkLine.append({ 0xfd, 0x7d }); // LD A, iyl
-                sinkLine.data.push_back(0xd6); // SUB x
-                sinkLine.data.push_back(rastrSameBytes[index]); // SUB x
-                sinkLine.append({ 0xfd, 0x6f }); // LD iyl, A
-
-                x += rastrSameBytes[index];
-                sinkLine.drawTicks += 23;
+                // Move SP from IY
+                static std::vector<uint8_t> iyToRastr =
+                {
+                    0xfd, 0x7c,     // LD A, iyh
+                    0xc6, 0x90,     // ADD a, #90
+                    0x07,           // rlca
+                    0x07,           // rlca
+                    0x07,           // rlca
+                    0xfd, 0x67,     // LD iyh, a
+                    0xfd, 0xf9      // LD sp, iy
+                };
+                // total 45 ticks
+                sinkLine.append(iyToRastr);
+                sinkLine.drawTicks += 45;
             }
-            sinkLine.append({ 0xfd, 0xf9 }); // LD sp, iy
-            sinkLine.drawTicks += 10;
+            else
+            {
+                // Move SP from SP
+                int spPos = 16 + info.spOffset;
+                int newPos = x + rastrSameBytes[index];
+
+
+                sinkLine.data.push_back(0x21); //LD HL,  x - x2
+                sinkLine.data.push_back(0x00);
+                sinkLine.data.push_back(spPos - newPos);
+                sinkLine.data.push_back(0x39); // ADD HL, SP
+                sinkLine.drawTicks += 21;
+
+                static std::vector<uint8_t> spToRastr =
+                {
+                    0x7c,           // LD A, h
+                    0xc6, 0x90,     // ADD a, #90
+                    0x07,           // rlca
+                    0x07,           // rlca
+                    0x07,           // rlca
+                    0x67,           // LD h, a
+                    0xf9            // LD SP, HL
+                };
+                // total 33 ticks
+                sinkLine.append(spToRastr);
+                sinkLine.drawTicks += 33;
+                x = newPos;
+            }
+            sinkLine.xorA();
+            sinkLine.scf();
 
             int ticksLimit = endLineDelay - 11;
+            bool hasPush = false;
             while(x <31 && sinkLine.drawTicks <= endLineDelay - 11)
             {
                 int index = y * 32 * 8 + x;
@@ -1451,22 +1481,29 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
                 CompressedLine tmpLine;
                 bc->updateToValue(tmpLine, word, registers, compressedData.af);
                 int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
-                if (ticks != endLineDelay && ticks > endLineDelay-3)
+                if (ticks != endLineDelay && ticks > endLineDelay-4)
                     break;
                 sinkLine += tmpLine;
                 bc->push(sinkLine);
-                rastrSameBytes[index] = true;
-                rastrSameBytes[index+1] = true;
+                ++sinkPushCount;
+                markByteAsSame(rastrSameBytes, y, x + 1);
+                markByteAsSame(rastrSameBytes, y, x);
+                hasPush = true;
+                x += 2;
             }
-
-            endLineDelay -= sinkLine.drawTicks;
-            line += sinkLine;
+            if (hasPush)
+            {
+                endLineDelay -= sinkLine.drawTicks;
+                line += sinkLine;
+            }
         }
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
         line.drawTicks += endLineDelay;
     }
-
+    if (sinkPushCount > 0)
+        std::cout << "Create " << sinkPushCount << " push commands while spending alignment multicolor ticks to rastr" << std::endl;
+    return rastrSameBytes;
 }
 
 CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
@@ -2524,14 +2561,14 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | sinkMcTicksToRastr; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | sinkMcTicksToRastr; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
+    std::vector<int> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
-    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight);
+    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
 
 

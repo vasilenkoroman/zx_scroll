@@ -94,6 +94,12 @@ struct CompressedLine
         drawTicks += 4;
     }
 
+    void xorA()
+    {
+        data.push_back(0xaf);
+        drawTicks += 4;
+    }
+
     void jp(uint16_t address)
     {
         data.push_back(0xc3);
