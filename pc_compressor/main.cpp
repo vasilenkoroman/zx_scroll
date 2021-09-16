@@ -1400,8 +1400,12 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
         if (endLineDelay >= 41 + 21 && (flags & sinkMcTicksToRastr))
         {
             static Register16 sp("sp");
+            std::array<Register16, 1> registers = { Register16("bc")};
+            Register16* bc = &registers[0];
 
-            // TODO: Can update rastr here to spend free ticks:
+            auto info = Z80Parser::parseCode(compressedData.af, line.data.buffer(), line.data.size());
+            int x = 16 - info.iySpOffset;
+
             CompressedLine sinkLine;
             static std::vector<uint8_t> colorToRastr =
             {
@@ -1411,22 +1415,42 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
                 0x07,           // rlca
                 0x07,           // rlca
                 0xfd, 0x67,     // LD iyh, a
-                0xfd, 0xf9      // LD sp, iy
             };
-            // total 41 ticks
+            // total 31 ticks
             sinkLine.append(colorToRastr);
-            sinkLine.drawTicks += 41;
+            sinkLine.drawTicks += 31;
 
-            auto info = Z80Parser::parseCode(compressedData.af, line.data.buffer(), line.data.size());
-            int x = 16 + info.spOffset;
             int index = y * 32 * 8 + x;
-            while (x > 0 && rastrSameBytes[index])
+            if (rastrSameBytes[index] > 3)
             {
-                --x;
-                --index;
-                sp.decValue(sinkLine);
+                sinkLine.append({ 0xfd, 0x7d }); // LD A, iyl
+                sinkLine.data.push_back(0xd6); // SUB x
+                sinkLine.data.push_back(rastrSameBytes[index]); // SUB x
+                sinkLine.append({ 0xfd, 0x6f }); // LD iyl, A
+
+                x += rastrSameBytes[index];
+                sinkLine.drawTicks += 23;
             }
-            uint8_t* rastr = rastrBuffer + index;
+            sinkLine.append({ 0xfd, 0xf9 }); // LD sp, iy
+            sinkLine.drawTicks += 10;
+
+            while(x <31 && sinkLine.drawTicks < endLineDelay)
+            {
+                int index = y * 32 * 8 + x;
+                if (rastrSameBytes[index])
+                {
+                    sp.decValue(sinkLine);
+                    ++x;
+                    continue;
+                }
+                uint16_t* buffer16 = (uint16_t*)(rastrBuffer + index);
+                uint16_t word = *buffer16;
+                word = swapBytes(word);
+                bc->updateToValue(sinkLine, word, registers, compressedData.af);
+                bc->push(sinkLine);
+                rastrSameBytes[index] = true;
+                rastrSameBytes[index+1] = true;
+            }
 
             endLineDelay -= sinkLine.drawTicks;
             line += sinkLine;
@@ -2493,7 +2517,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | sinkMcTicksToRastr; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
