@@ -1136,14 +1136,6 @@ CompressedLine  compressMultiColorsLine(Context context)
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'")
     };
-    //std::array<Register16&, 3> regMain = { registers6[0], registers6[1], registers6[2]};
-    //std::array<Register16&, 3> regAlt = { registers6[3], registers6[4], registers6[5] };
-
-    if (context.y == 18)
-    {
-        int gg = 4;
-    }
-
 
     CompressedLine loadLineAlt;
     CompressedLine loadLineMain;
@@ -1962,11 +1954,6 @@ int serializeMainData(
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
-        if (d == 65)
-        {
-            int gg = 4;
-        }
-
         descriptor.rastrForMulticolor.makePreambulaForMC(data.af, serializedData, codeOffset, &dataLine);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(data.af, serializedData, codeOffset, descriptorsDelta);
 
@@ -2474,7 +2461,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge| inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
