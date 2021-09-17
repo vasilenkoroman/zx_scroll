@@ -1415,33 +1415,29 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
             int x = 16 - info.iySpOffset;
             int index = y * 32 * 8 + x;
             CompressedLine sinkLine;
-            if (rastrSameBytes[index] <= 1)
+            int spPos = 16 + info.spOffset;
+            //if (rastrSameBytes[index] < 2 && info.iySpOffset != 16)
+            if (rastrSameBytes[index] < 2)
             {
+                // info.iySpOffset != 16 means it point to the same line, not the begin of the next line.
                 // Move SP from IY
-                static std::vector<uint8_t> iyToRastr =
-                {
-                    0xfd, 0x7c,     // LD A, iyh
-                    0xc6, 0x90,     // ADD a, #90
-                    0x07,           // rlca
-                    0x07,           // rlca
-                    0x07,           // rlca
-                    0xfd, 0x67,     // LD iyh, a
-                    0xfd, 0xf9      // LD sp, iy
-                };
-                // total 45 ticks
-                sinkLine.append(iyToRastr);
+                sinkLine.append({ 0xfd, 0x7c });       // LD A, iyh
+                sinkLine.append({ 0xc6, 0x90 });       // ADD a, #90
+                sinkLine.append({ 0x07, 0x07, 0x07 }); // .3 rlca
+                sinkLine.append({ 0xfd, 0x67 });       // LD iyh, a 
+                sinkLine.append({ 0xfd, 0xf9 });       // LD sp, iy
                 sinkLine.drawTicks += 45;
             }
-            else
+            else if (spPos != 0)
             {
                 // Move SP from SP
-                int spPos = 16 + info.spOffset;
                 int newPos = x + rastrSameBytes[index];
+                newPos = std::max(newPos, 1); //< Keep sp at the same line.
 
 
                 sinkLine.data.push_back(0x21); //LD HL,  x - x2
-                sinkLine.data.push_back(0x00);
                 sinkLine.data.push_back(spPos - newPos);
+                sinkLine.data.push_back(0x00);
                 sinkLine.data.push_back(0x39); // ADD HL, SP
                 sinkLine.drawTicks += 21;
 
@@ -1460,10 +1456,14 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
                 sinkLine.drawTicks += 33;
                 x = newPos;
             }
-            sinkLine.xorA();
-            sinkLine.scf();
+            else
+            {
+                // fail. can't update
+                sinkLine.drawTicks = 1000;
+            }
+            sinkLine.append({0x3e, 0x00}); // LD A, 0
+            sinkLine.drawTicks += 7;
 
-            int ticksLimit = endLineDelay - 11;
             bool hasPush = false;
             while(x <31 && sinkLine.drawTicks <= endLineDelay - 11)
             {
