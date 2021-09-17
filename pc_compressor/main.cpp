@@ -1286,11 +1286,20 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
     return af;
 }
 
-void markByteAsSame(std::vector<int>& rastrSameBytes, int x, int y)
+void markByteAsSame(std::vector<int>& rastrSameBytes, int y, int x)
 {
-    ++rastrSameBytes[y * 32 + x];
-    for (++x; x < 32 && rastrSameBytes[y * 32 + x]; ++x)
-        ++rastrSameBytes[y * 32 + x];
+    int left = x;
+    int right = x;
+    while (left > 0 && rastrSameBytes[y * 32 + left - 1])
+        --left;
+    while (right < 31 && rastrSameBytes[y * 32 + right + 1])
+        ++right;
+    int value = right - left + 1;
+    for (int x = left; x <= right; ++x)
+    {
+        rastrSameBytes[y * 32 + x] = value;
+        --value;
+    }
 }
 
 std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
@@ -1423,7 +1432,8 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
             sinkLine.drawTicks += 45;
 
             // Move SP from SP
-            int x = rastrSameBytes[y * 32 * 8];
+            const int rastrY = y * 8 + 7;
+            int x = rastrSameBytes[rastrY * 32];
             int xDelta = spPos - x;
 
             bool singleByteMode = false;
@@ -1449,7 +1459,6 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
             bool hasData = false;
             bool hasLdSpHl = false;
 
-            const int rastrY = y * 8 + 7;
             while(x <31 && sinkLine.drawTicks <= endLineDelay - 10)
             {
                 int ticksRest = endLineDelay - sinkLine.drawTicks;
@@ -1459,7 +1468,24 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
                 if (!hasLdSpHl)
                     minTicksForPush += 6;
 
-                singleByteMode = ticksRest < minTicksForPush || x == 0;
+                if (singleByteMode)
+                    singleByteMode = ticksRest < minTicksForPush || x == 0;
+
+                if (rastrSameBytes[index])
+                {
+                    if (singleByteMode)
+                    {
+                        sinkLine.data.push_back(0x2d);  // DEC L
+                        sinkLine.drawTicks += 4;
+                    }
+                    else
+                    {
+                        sp.decValue(sinkLine);
+                    }
+                    ++x;
+                    continue;
+                }
+
                 if (singleByteMode)
                 {
                     int ticks = sinkLine.drawTicks + 10;
@@ -1484,38 +1510,33 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
                     ++sinkBytesUpdated;
                     continue;
                 }
-
-                if (!hasLdSpHl)
+                else
                 {
-                    hasLdSpHl = true;
-                    sinkLine.data.push_back(0xf9); // LD SP, HL
-                    sinkLine.drawTicks += 6;
+                    if (!hasLdSpHl)
+                    {
+                        hasLdSpHl = true;
+                        sinkLine.data.push_back(0xf9); // LD SP, HL
+                        sinkLine.drawTicks += 6;
+                    }
+                    hlPosDirty = false;
+
+                    uint16_t* buffer16 = (uint16_t*)(rastrBuffer + index);
+                    uint16_t word = *buffer16;
+                    word = swapBytes(word);
+
+                    CompressedLine tmpLine;
+                    bc->updateToValue(tmpLine, word, registers, compressedData.af);
+                    int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
+                    if (ticks != endLineDelay && ticks > endLineDelay - 4)
+                        break;
+                    sinkLine += tmpLine;
+                    bc->push(sinkLine);
+                    sinkBytesUpdated += 2;
+                    markByteAsSame(rastrSameBytes, rastrY, x + 1);
+                    markByteAsSame(rastrSameBytes, rastrY, x);
+                    hasData = true;
+                    x += 2;
                 }
-                hlPosDirty = false;
-
-                if (rastrSameBytes[index])
-                {
-                    sp.decValue(sinkLine);
-                    ++x;
-                    continue;
-                }
-
-                uint16_t* buffer16 = (uint16_t*)(rastrBuffer + index);
-                uint16_t word = *buffer16;
-                word = swapBytes(word);
-
-                CompressedLine tmpLine;
-                bc->updateToValue(tmpLine, word, registers, compressedData.af);
-                int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
-                if (ticks != endLineDelay && ticks > endLineDelay-4)
-                    break;
-                sinkLine += tmpLine;
-                bc->push(sinkLine);
-                sinkBytesUpdated += 2;
-                markByteAsSame(rastrSameBytes, rastrY, x + 1);
-                markByteAsSame(rastrSameBytes, rastrY, x);
-                hasData = true;
-                x += 2;
             }
             if (hasData)
             {
