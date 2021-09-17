@@ -1612,13 +1612,12 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register16& af2)
 {
     CompressedData compressedData;
-    int flags = verticalCompressionH; // | interlineRegisters;
+    int flags = verticalCompressionH;// | interlineRegisters;
     std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     for (int y = 0; y < imageHeight / 8; y ++)
     {
-        std::array<Register16, 3> registers1 = { Register16("bc"), Register16("de"), Register16("hl")};
-        std::array<Register16, 3> registers2 = registers1;
 
         Context context;
         context.scrollDelta = kScrollDelta;
@@ -1629,13 +1628,23 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
         context.sameBytesCount = &sameBytesCount;
 
         CompressedLine line1, line2;
-        compressLineMain(context, line1, registers1);
+        std::array<Register16, 3> reg1 = registers;
+        std::array<Register16, 3> reg2 = registers;
+        compressLineMain(context, line1, reg1);
         context.af = af2;
-        compressLineMain(context, line2, registers2);
+        compressLineMain(context, line2, reg2);
         if (line1.drawTicks < line2.drawTicks)
+        {
             compressedData.data.push_back(line1);
+            if (flags & interlineRegisters)
+                registers = reg1;
+        }
         else
+        {
             compressedData.data.push_back(line2);
+            if (flags & interlineRegisters)
+                registers = reg2;
+        }
     }
     updateTransitiveRegUsage(compressedData.data);
     compressedData.sameBytesCount = sameBytesCount;
@@ -2599,7 +2608,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | sinkMcTicksToRastr; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | sinkMcTicksToRastr; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
