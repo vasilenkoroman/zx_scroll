@@ -65,7 +65,7 @@ struct Context
     int imageHeight = 0;
     uint8_t* buffer = nullptr;
     std::vector<bool>* maskColor = nullptr;
-    std::vector<int>* sameBytesCount = nullptr;
+    std::vector<int8_t>* sameBytesCount = nullptr;
     int y = 0;
     int maxX = 31;
     int minX = 0;
@@ -79,6 +79,9 @@ struct Context
         int nextLineNum = (y + scrollDelta) % imageHeight;
         uint8_t* nextLine = buffer + nextLineNum * 32;
 
+        minX = sameBytesCount->at(y * 32);
+
+#if 0
         // remove left and rigt edge
         for (int x = 0; x < 32; ++x)
         {
@@ -87,9 +90,12 @@ struct Context
             else
                 break;
         }
+#endif
+
         for (int x = 31; x >= 0; --x)
         {
-            if (line[x] == nextLine[x])
+            //if (line[x] == nextLine[x])
+            if (sameBytesCount->at(y * 32 + x))
                 --maxX;
             else
                 break;
@@ -120,7 +126,7 @@ inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
 
 struct CompressedData
 {
-    std::vector<int> sameBytesCount;
+    std::vector<int8_t> sameBytesCount;
     std::vector<CompressedLine> data;
     Register16 af{"af"};
     int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
@@ -752,7 +758,7 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
-Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>* sameBytesCount = nullptr, int* usageCount = nullptr)
+Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int8_t>* sameBytesCount = nullptr, int* usageCount = nullptr)
 {
     Register16 af("af");
     std::map<uint8_t, int> byteCount;
@@ -792,7 +798,7 @@ Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int>
 }
 
 CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>* maskColors,
-    std::vector<int>* sameBytesCount, int imageHeight)
+    std::vector<int8_t>* sameBytesCount, int imageHeight)
 {
     CompressedData compressedData;
 
@@ -870,10 +876,10 @@ int sameVerticalBytes(int flags, int scrollDelta, const uint8_t* buffer,
     return result;
 }
 
-std::vector<int> createSameBytesTable(int flags, const uint8_t* buffer,
+std::vector<int8_t> createSameBytesTable(int flags, const uint8_t* buffer,
     std::vector<bool>* maskColor, int imageHeight)
 {
-    std::vector<int> result;
+    std::vector<int8_t> result;
     for (int y = 0; y < imageHeight; ++y)
     {
         for (int x = 0; x < 32; ++x)
@@ -920,25 +926,8 @@ int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHe
     return result;
 }
 
-CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int> sameBytesCount)
+CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int8_t> sameBytesCount)
 {
-    // Detect the most common byte in image
-    std::vector<int> bytesCount(256);
-    for (int i = 0; i < 32 * imageHeight; ++i)
-        ++bytesCount[buffer[i]];
-
-    Register8 a('a');
-    Register16 af("af");
-    int bestCounter = 0;
-    for (int i = 0; i < 256; ++i)
-    {
-        if (bytesCount[i] > bestCounter)
-        {
-            a.value = (uint8_t)i;
-            bestCounter = bytesCount[i];
-        }
-    }
-
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
@@ -1286,8 +1275,10 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
     return af;
 }
 
-void markByteAsSame(std::vector<int>& rastrSameBytes, int y, int x)
+void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
 {
+    int8_t* ggg = rastrSameBytes.data() + y * 32;
+
     int left = x;
     int right = x;
     while (left > 0 && rastrSameBytes[y * 32 + left - 1])
@@ -1302,13 +1293,13 @@ void markByteAsSame(std::vector<int>& rastrSameBytes, int y, int x)
     }
 }
 
-std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
+std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
 {
     int rastrHeight = compressedData.data.size() * 8;
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
         maskColor = removeInvisibleColors(flags, rastrBuffer, colorBuffer, rastrHeight);
-    std::vector<int> rastrSameBytes = createSameBytesTable(flags, rastrBuffer, &maskColor, rastrHeight);
+    std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, rastrBuffer, &maskColor, rastrHeight);
 
     // Align duration for multicolors
 
@@ -1439,7 +1430,7 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
             bool singleByteMode = false;
             int ticksRest = endLineDelay - sinkLine.drawTicks;
             bool hlPosDirty = false;
-            if (x == 0 || ticksRest < 27)
+            if (x == 0 || ticksRest < 27 || rastrSameBytes[rastrY * 32 + x + 1])
             {
                 // Make sure SP stay on the same line but not next line end.
                 // Also, if there is space for single byte only, start from ld (hl) insterad of push
@@ -1469,11 +1460,11 @@ std::vector<int> alignMulticolorTimings(int flags, CompressedData& compressedDat
                     minTicksForPush += 6;
 
                 if (singleByteMode)
-                    singleByteMode = ticksRest < minTicksForPush || x == 0;
+                    singleByteMode = ticksRest < minTicksForPush || x == 0 || rastrSameBytes[rastrY * 32 + x + 1];
 
                 if (rastrSameBytes[index])
                 {
-                    if (singleByteMode)
+                    if (!hasLdSpHl)
                     {
                         sinkLine.data.push_back(0x2d);  // DEC L
                         sinkLine.drawTicks += 4;
@@ -1587,7 +1578,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.flags = verticalCompressionL;
     context.imageHeight = imageHeight;
     context.buffer = shufledBuffer.data();
-    std::vector<int> sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
+    std::vector<int8_t> sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
     context.sameBytesCount = &sameBytesCount;
     context.borderPoint = 16;
 
@@ -1622,7 +1613,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
 {
     CompressedData compressedData;
     int flags = verticalCompressionH; // | interlineRegisters;
-    std::vector<int> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
+    std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
     for (int y = 0; y < imageHeight / 8; y ++)
     {
@@ -2608,12 +2599,12 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | sinkMcTicksToRastr; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | sinkMcTicksToRastr; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    std::vector<int> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
+    std::vector<int8_t> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
