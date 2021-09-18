@@ -385,7 +385,7 @@ bool compressLineMain(
     auto context3 = context2;
     context3.flags |= updateViaHl;
     line3.flags = context3.flags;
-    bool success3 = compressLine(context3, line3, registers3,  /*x*/ context.minX);
+    bool success3 = false; // compressLine(context3, line3, registers3,  /*x*/ context.minX);
 
     if (!success1)
     {
@@ -508,7 +508,7 @@ bool loadWordFromExistingRegister(
 }
 
 template <int N>
-bool hasWordFromExistingRegister(
+bool hasWordFromExistingRegisterExceptHl(
     const Context& context,
     bool isAltReg,
     std::array<Register16, N>& registers,
@@ -527,7 +527,8 @@ bool hasWordFromExistingRegister(
                 condition = !condition;
             if (!condition)
                 continue;
-
+            if (reg.h.name == 'h')
+                continue;
             if (reg.hasValue16(word, canAvoidFirst, canAvoidSecond))
             {
                 return true;
@@ -544,7 +545,7 @@ bool hasWordFromExistingRegister(
 }
 
 template <int N>
-bool loadWordFromExistingRegister8(
+bool loadWordFromExistingRegisterExceptHl8(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
@@ -576,7 +577,7 @@ bool loadWordFromExistingRegister8(
 }
 
 template <int N>
-bool hasWordFromExistingRegister8(
+bool hasWordFromExistingRegisterExceptHl8(
     const Context& context,
     bool isAltReg,
     std::array<Register16, N>& registers,
@@ -585,6 +586,9 @@ bool hasWordFromExistingRegister8(
 {
     for (auto& reg : registers)
     {
+        if (reg.h.name == 'h')
+            continue;
+	
         if (isAltReg != reg.isAlt)
             continue;
         if (reg.h.hasValue(byte))
@@ -612,9 +616,6 @@ bool willUseLoadFromHl(
     int x,
     int verticalRepCnt)
 {
-    if (!(context.flags & updateViaHl))
-        return false;
-
     int newX = x + verticalRepCnt;
     if (newX > 31)
         return false;
@@ -632,12 +633,12 @@ bool willUseLoadFromHl(
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
         word = swapBytes(word);
-        if (x < context.maxX && hasWordFromExistingRegister(context, isAltReg, registers, word, x))
+        if (x < context.maxX && hasWordFromExistingRegisterExceptHl(context, isAltReg, registers, word, x))
             return false;
     }
 
     if (newX < context.maxX
-        && hasWordFromExistingRegister8(context, isAltReg, registers, context.buffer[index], x))
+        && hasWordFromExistingRegisterExceptHl8(context, isAltReg, registers, context.buffer[index], x))
     {
         return true;
     }
@@ -725,11 +726,13 @@ bool compressLine(
                     result.exAf();
 
                 int spDelta = -verticalRepCount;
-                hl->reset();
-                if (willUseLoadFromHl(context, result.isAltReg, registers, x, verticalRepCount))
+                if (context.flags & updateViaHl)
                 {
-                    --spDelta;
-                    awaitingLoadFromHl = true;
+                    if (willUseLoadFromHl(context, result.isAltReg, registers, x, verticalRepCount))
+                    {
+                        --spDelta;
+                        awaitingLoadFromHl = true;
+                    }
                 }
 
                 hl->updateToValue(result, spDelta, registers, context.af);
@@ -762,7 +765,7 @@ bool compressLine(
         }
 
         if (awaitingLoadFromHl
-            && loadWordFromExistingRegister8(context, result, registers, context.buffer[index], x))
+            && loadWordFromExistingRegisterExceptHl8(context, result, registers, context.buffer[index], x))
         {
             ++x;
             awaitingLoadFromHl = false;
