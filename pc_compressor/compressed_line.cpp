@@ -51,9 +51,52 @@ std::vector<Register16> RegUsageInfo::getUsedRegisters(const std::vector<Registe
     return result;
 }
 
-CompressedLine RegUsageInfo::getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters) const
+CompressedLine RegUsageInfo::getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters, const Register16& _af) const
+{
+    return getSerializedRegisters(getUsedRegisters(inputRegisters), _af);
+}
+
+CompressedLine getSerializedRegisters(const std::vector<Register16>& data, const Register16& af)
 {
     CompressedLine line;
+
+#if 1
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    for (auto& reg16: data)
+    {
+        if (!reg16.h.isEmpty() && !reg16.l.isEmpty())
+        {
+            if (auto reg = findRegister(registers, reg16.name()))
+                reg->updateToValue(line, reg16.value16(), registers, af);
+            else
+            {
+                std::cerr << "Register not found!" << std::endl;
+                abort();
+            }
+        }
+        else if (!reg16.h.isEmpty())
+        {
+            if (auto reg = findRegister8(registers, reg16.h.name))
+                reg->updateToValue(line, *reg16.h.value, registers, af);
+            else
+            {
+                std::cerr << "Register not found!" << std::endl;
+                abort();
+            }
+
+        }
+        else if (!reg16.l.isEmpty())
+        {
+            if (auto reg = findRegister8(registers, reg16.l.name))
+                reg->updateToValue(line, *reg16.l.value, registers, af);
+            else
+            {
+                std::cerr << "Register not found!" << std::endl;
+                abort();
+            }
+        }
+    }
+#else
     for (auto& reg16 : getUsedRegisters(inputRegisters))
     {
         if (!reg16.h.isEmpty() && !reg16.l.isEmpty())
@@ -63,6 +106,7 @@ CompressedLine RegUsageInfo::getSerializedUsedRegisters(const std::vector<Regist
         else if (!reg16.l.isEmpty())
             reg16.l.loadX(line, *reg16.l.value);
     }
+#endif
 
     return line;
 }
@@ -168,7 +212,7 @@ std::vector<Register16> CompressedLine::getUsedRegisters() const
     return regUsage.getUsedRegisters(*inputRegisters);
 }
 
-CompressedLine CompressedLine::getSerializedUsedRegisters() const
+CompressedLine CompressedLine::getSerializedUsedRegisters(const Register16& af) const
 {
-    return regUsage.getSerializedUsedRegisters(*inputRegisters);
+    return regUsage.getSerializedUsedRegisters(*inputRegisters, af);
 }

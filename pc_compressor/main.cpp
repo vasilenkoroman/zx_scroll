@@ -1278,8 +1278,6 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
 
 void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
 {
-    int8_t* ggg = rastrSameBytes.data() + y * 32;
-
     int left = x;
     int right = x;
     while (left > 0 && rastrSameBytes[y * 32 + left - 1])
@@ -1693,30 +1691,51 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    int ticksWithLoadingRegs(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset) const
+    int expectedPreambulaSize(
+        const CompressedLine& dataLine,
+        std::vector<uint8_t> serializedData,
+        int relativeOffsetToStart,
+        const Register16& _af) const
     {
-        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+        CompressedLine preambula = dataLine.getSerializedUsedRegisters(_af);
 
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToStart, kJpIxCommandLen);
         auto omitedDataInfo = Z80Parser::parseCode(
-            af, codeInfo.inputRegisters, firstCommands,
+            _af, *dataLine.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
         const auto firstCommand = omitedDataInfo.commands[0];
         auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
-        auto newCodeInfo = codeInfo;
-        if (regUsage.selfRegMask)
-        {
-            // Join LD REG8, X from omited data directly to the serialized registers
-            newCodeInfo.inputRegisters = omitedDataInfo.outputRegisters;
-            newCodeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
-            newCodeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
-            newCodeInfo.ticks -= firstCommand.ticks;
-        }
-        auto regs = newCodeInfo.regUsage.getSerializedUsedRegisters(newCodeInfo.inputRegisters);
-        return newCodeInfo.ticks + regs.drawTicks;
-    }
+        if (!regUsage.selfRegMask)
+            return preambula.drawTicks;
+        
+        // Load regs + first command together
+        std::vector<uint8_t> preambulaWithFirstCommand;
+        preambula.serialize(preambulaWithFirstCommand);
+        preambulaWithFirstCommand.insert(preambulaWithFirstCommand.end(),
+            firstCommands.begin(), firstCommands.begin() + firstCommand.size);
 
+        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        auto newCodeInfo = Z80Parser::parseCode(
+            _af, emptyRegs, preambulaWithFirstCommand,
+            0, preambulaWithFirstCommand.size(), 0);
+
+        if (dataLine.stackMovingAtStart != dataLine.minX)
+        {
+            bool hasAddHlSp = dataLine.stackMovingAtStart > 4;
+            if (hasAddHlSp)
+            {
+                auto updatedHlValue = -dataLine.minX;
+                auto hl = findRegister(newCodeInfo.outputRegisters, "hl");
+                hl->setValue(updatedHlValue);
+            }
+        }
+
+        auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, _af);
+
+
+        return outRegs.drawTicks - firstCommand.ticks;
+    }
 
     void serializeOmitedData(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset,
         int omitedDataSize,
@@ -1726,7 +1745,7 @@ struct DescriptorState
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
         omitedDataInfo = Z80Parser::parseCode(
-            af, codeInfo.inputRegisters, firstCommands,
+            _af, codeInfo.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
         const int firstCommandsSize = firstCommands.size();
@@ -1750,7 +1769,7 @@ struct DescriptorState
             }
         }
 
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, _af);
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
@@ -1802,7 +1821,7 @@ struct DescriptorState
                 // Remove LD HL, x: add HL, SP: LD HL, SP if exists
                 int size = codeInfo.commands[0].size + codeInfo.commands[1].size + codeInfo.commands[2].size;
                 auto p = Z80Parser::parseCode(
-                    af,
+                    _af,
                     codeInfo.inputRegisters,
                     serializedData,
                     codeInfo.startOffset, codeInfo.startOffset + size,
@@ -2036,8 +2055,12 @@ int serializeMainData(
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
+
         if (flags & interlineRegisters)
-            linePreambulaTicks = dataLine.getSerializedUsedRegisters().drawTicks;
+        {
+            linePreambulaTicks = dataLine.getSerializedUsedRegisters(data.af).drawTicks;
+            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart, data.af);
+        }
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2068,7 +2091,6 @@ int serializeMainData(
                 return !success;
             });
 
-
         parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             data.af,
@@ -2096,7 +2118,8 @@ int serializeMainData(
 
         descriptor.rastrForMulticolor.removeTrailingStackMoving(extraCommandsIncluded);
         // align timing for RastrForMulticolor part
-        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs(data.af, serializedData, codeOffset);
+
+        ticksRest -= linePreambulaTicks + descriptor.rastrForMulticolor.codeInfo.ticks;
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
         if (flags & optimizeLineEdge)
@@ -2193,11 +2216,12 @@ int serializeColorData(
             descriptor.addressBegin += 2; //< Avoid LD A,0 filler if exists.
         }
 
+        Register16 af("af");
         if (colorData.flags & interlineRegisters)
         {
             if (d < imageHeight)
             {
-                descriptor.preambula = line.getSerializedUsedRegisters();
+                descriptor.preambula = line.getSerializedUsedRegisters(af);
                 descriptor.preambula.jp(descriptor.addressBegin);
                 descriptor.addressBegin = reachDescriptorsBase + serializedDescriptors.size();
                 descriptor.preambula.serialize(serializedDescriptors);
