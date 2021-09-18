@@ -130,6 +130,7 @@ struct CompressedData
     std::vector<CompressedLine> data;
     Register16 af{"af"};
     int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
+    int flags = 0;
 
 public:
 
@@ -1277,8 +1278,6 @@ Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>
 
 void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
 {
-    int8_t* ggg = rastrSameBytes.data() + y * 32;
-
     int left = x;
     int right = x;
     while (left > 0 && rastrSameBytes[y * 32 + left - 1])
@@ -1572,7 +1571,6 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 
     auto suffledPtr = shufledBuffer.data();
 
-
     struct Context context;
     context.scrollDelta = 1;
     context.flags = verticalCompressionL;
@@ -1612,7 +1610,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register16& af2)
 {
     CompressedData compressedData;
-    int flags = verticalCompressionH;// | interlineRegisters;
+    int flags = verticalCompressionH | interlineRegisters;
     std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
@@ -1648,6 +1646,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     }
     updateTransitiveRegUsage(compressedData.data);
     compressedData.sameBytesCount = sameBytesCount;
+    compressedData.flags = flags;
     return compressedData;
 }
 
@@ -1692,32 +1691,52 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    int ticksWithLoadingRegs(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset) const
+    int expectedPreambulaSize(
+        const CompressedLine& dataLine,
+        std::vector<uint8_t> serializedData,
+        int relativeOffsetToStart) const
     {
-        const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+        CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
 
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, kJpIxCommandLen);
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToStart, kJpIxCommandLen);
         auto omitedDataInfo = Z80Parser::parseCode(
-            af, codeInfo.inputRegisters, firstCommands,
+            af, *dataLine.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
         const auto firstCommand = omitedDataInfo.commands[0];
         auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
-        auto newCodeInfo = codeInfo;
-        if (regUsage.selfRegMask)
+        if (!regUsage.selfRegMask)
+            return preambula.drawTicks;
+        
+        // Load regs + first command together
+        std::vector<uint8_t> preambulaWithFirstCommand;
+        preambula.serialize(preambulaWithFirstCommand);
+        preambulaWithFirstCommand.insert(preambulaWithFirstCommand.end(),
+            firstCommands.begin(), firstCommands.begin() + firstCommand.size);
+
+        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        auto newCodeInfo = Z80Parser::parseCode(
+            af, emptyRegs, preambulaWithFirstCommand,
+            0, preambulaWithFirstCommand.size(), 0);
+
+        if (dataLine.stackMovingAtStart != dataLine.minX)
         {
-            // Join LD REG8, X from omited data directly to the serialized registers
-            newCodeInfo.inputRegisters = omitedDataInfo.outputRegisters;
-            newCodeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
-            newCodeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
-            newCodeInfo.ticks -= firstCommand.ticks;
+            bool hasAddHlSp = dataLine.stackMovingAtStart > 4;
+            if (hasAddHlSp)
+            {
+                auto updatedHlValue = -dataLine.minX;
+                auto hl = findRegister(newCodeInfo.outputRegisters, "hl");
+                hl->setValue(updatedHlValue);
+            }
         }
-        auto regs = newCodeInfo.regUsage.getSerializedUsedRegisters(newCodeInfo.inputRegisters);
-        return newCodeInfo.ticks + regs.drawTicks;
+
+        auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, af);
+
+
+        return outRegs.drawTicks - firstCommand.ticks;
     }
 
-
-    void serializeOmitedData(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset,
+    void serializeOmitedData(const std::vector<uint8_t>& serializedData, int codeOffset,
         int omitedDataSize,
         std::optional<uint16_t> updatedHlValue)
     {
@@ -1749,7 +1768,7 @@ struct DescriptorState
             }
         }
 
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters);
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
@@ -1758,12 +1777,10 @@ struct DescriptorState
     }
 
     void makePreambulaForMC(
-        const Register16& _af,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         const CompressedLine* line)
     {
-        af = _af;
         std::optional<uint16_t> updatedHlValue;
 
         if (line->stackMovingAtStart != line->minX)
@@ -1783,17 +1800,14 @@ struct DescriptorState
             addToPreambule(Z80Parser::genDelay(extraDelay));
 
         std::vector<uint8_t> firstCommands;
-        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
     }
 
     void makePreambulaForOffscreen(
-        const Register16& _af,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         int descriptorsDelta)
     {
-        af = _af;
-
         if (codeInfo.commands.size() >= 3)
         {
             if (codeInfo.commands[1].opCode == kAddHlSpCode && codeInfo.commands[2].opCode == kLdSpHlCode)
@@ -1824,7 +1838,7 @@ struct DescriptorState
         if (startSpDelta > 0)
             serializeSpDelta(startSpDelta);
 
-        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -1878,6 +1892,7 @@ struct ColorDescriptor
 {
     uint16_t addressBegin = 0;
     uint16_t addressEnd = 0;
+    CompressedLine preambula;
 };
 
 struct JpIxDescriptor
@@ -1982,7 +1997,6 @@ int serializeMainData(
 
     const int reachDescriptorsBase = codeOffset + serializedData.size();
 
-    std::vector<uint16_t> reachDescriptorOffset;
     std::vector<std::pair<int, int>> lockedBlocks; //< Skip locked blocks in optimization. Just in case.
 
     for (int d = 0; d < imageHeight; ++d)
@@ -2035,8 +2049,15 @@ int serializeMainData(
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
+        descriptor.rastrForMulticolor.af =  data.af;
+        descriptor.rastrForOffscreen.af = data.af;
+
+
         if (flags & interlineRegisters)
-            linePreambulaTicks = dataLine.getSerializedUsedRegisters().drawTicks;
+        {
+            linePreambulaTicks = dataLine.getSerializedUsedRegisters(data.af).drawTicks;
+            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
+        }
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2067,7 +2088,6 @@ int serializeMainData(
                 return !success;
             });
 
-
         parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             data.af,
@@ -2095,14 +2115,15 @@ int serializeMainData(
 
         descriptor.rastrForMulticolor.removeTrailingStackMoving(extraCommandsIncluded);
         // align timing for RastrForMulticolor part
-        ticksRest -= descriptor.rastrForMulticolor.ticksWithLoadingRegs(data.af, serializedData, codeOffset);
+
+        ticksRest -= linePreambulaTicks + descriptor.rastrForMulticolor.codeInfo.ticks;
         descriptor.rastrForMulticolor.extraDelay = ticksRest;
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
-        descriptor.rastrForMulticolor.makePreambulaForMC(data.af, serializedData, codeOffset, &dataLine);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(data.af, serializedData, codeOffset, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData, codeOffset, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData, codeOffset, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -2126,7 +2147,9 @@ int serializeMainData(
     return serializedSize;
 }
 
-int serializeColorData(const CompressedData& colorData, const std::string& inputFileName, uint16_t codeOffset)
+int serializeColorData(
+    std::vector<ColorDescriptor>& descriptors,
+    const CompressedData& colorData, const std::string& inputFileName, uint16_t codeOffset)
 {
     using namespace std;
 
@@ -2152,7 +2175,6 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
 
     // serialize color data
 
-    int size = 0;
     std::vector<uint8_t> serializedData;
     std::vector<int> lineOffset;
 
@@ -2171,19 +2193,41 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
         }
         line.serialize(serializedData);
     }
+    
+    const int reachDescriptorsBase = codeOffset + serializedData.size();
+    std::vector<uint8_t> serializedDescriptors;
 
     // serialize color descriptors
-    std::vector<ColorDescriptor> descriptors;
     for (int d = 0; d <= imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
         const int endLine = (d + 24) % imageHeight;
+        const auto& line = colorData.data[srcLine];
 
         ColorDescriptor descriptor;
 
         descriptor.addressBegin = lineOffset[srcLine] + codeOffset;
+
         if (imageHeight == 24)
+        {
             descriptor.addressBegin += 2; //< Avoid LD A,0 filler if exists.
+        }
+
+        Register16 af("af");
+        if (colorData.flags & interlineRegisters)
+        {
+            if (d < imageHeight)
+            {
+                descriptor.preambula = line.getSerializedUsedRegisters(af);
+                descriptor.preambula.jp(descriptor.addressBegin);
+                descriptor.addressBegin = reachDescriptorsBase + serializedDescriptors.size();
+                descriptor.preambula.serialize(serializedDescriptors);
+            }
+            else
+            {
+                descriptor = descriptors[0];
+            }
+        }
 
         if (endLine == 0)
             descriptor.addressEnd = serializedData.size() - 3 + codeOffset;
@@ -2193,13 +2237,16 @@ int serializeColorData(const CompressedData& colorData, const std::string& input
         descriptors.push_back(descriptor);
     }
 
-    for (const auto& descriptor: descriptors)
-        descriptorFile.write((const char*)&descriptor, sizeof(descriptor));
+    for (const auto& descriptor : descriptors)
+    {
+        descriptorFile.write((const char*)&descriptor.addressBegin, sizeof(descriptor.addressBegin));
+        descriptorFile.write((const char*)&descriptor.addressEnd, sizeof(descriptor.addressEnd));
+    }
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
-
-    return serializedData.size();
-    return size;
+    colorDataFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
+    
+    return serializedData.size() + serializedDescriptors.size();
 }
 
 void serializeAsmFile(
@@ -2380,7 +2427,9 @@ OffscreenTicks getTicksChainFor64Line(
     return result;
 }
 
-int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
+int getColorTicksForWholeFrame(
+    const std::vector<ColorDescriptor>& colorDescriptors,
+    const CompressedData& data, int lineNum)
 {
     int result = 0;
     const int imageHeight = data.data.size();
@@ -2391,6 +2440,9 @@ int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
         const auto& line = data.data[l];
         result += line.drawTicks;
     }
+
+    if (data.flags & interlineRegisters)
+        result += colorDescriptors[lineNum].preambula.drawTicks;
     if (data.data.size() == 24)
         result += 23 * 7; //< Image height 192 has additional filler LD A, 0 for color lines.
 
@@ -2404,6 +2456,7 @@ int getColorTicksForWholeFrame(const CompressedData& data, int lineNum)
 
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
+    const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data, const CompressedData& color, const std::string& inputFileName,
     int flags)
 {
@@ -2430,7 +2483,7 @@ int serializeTimingData(
         // colors
         int ticks = 0;
         ticks += offscreenTicks.ticks();
-        int colorTicks = getColorTicksForWholeFrame(color, (line + 7) / 8);
+        int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
         ticks += colorTicks;
 
         if (line == 0)
@@ -2645,19 +2698,20 @@ int main(int argc, char** argv)
     }
 
     std::vector<LineDescriptor> descriptors;
+    std::vector<ColorDescriptor> colorDescriptors;
 
     int multicolorTicks = multicolorData.data[0].drawTicks;
     int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, multicolorTicks);
 
     // put JP to the latest line of colors
     colorData.data[colorData.data.size() - 1].jp(codeOffset + mainDataSize);
-    int colorDataSize = serializeColorData(colorData, outputFileName, codeOffset + mainDataSize);
+    int colorDataSize = serializeColorData(colorDescriptors, colorData, outputFileName, codeOffset + mainDataSize);
     serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize + colorDataSize);
 
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, data, colorData, outputFileName, flags);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }

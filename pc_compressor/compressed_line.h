@@ -18,7 +18,7 @@ struct RegUsageInfo
 
 
     std::vector<Register16> getUsedRegisters(const std::vector<Register16>& inputRegisters) const;
-    CompressedLine getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters) const;
+    CompressedLine getSerializedUsedRegisters(const std::vector<Register16>& inputRegisters, const Register16& af) const;
 
     uint8_t regUseMask = 0;
     uint8_t selfRegMask = 0;
@@ -158,7 +158,7 @@ struct CompressedLine
     void push_front(const ZxData& buffer);
 
     std::vector<Register16> getUsedRegisters() const;
-    CompressedLine getSerializedUsedRegisters() const;
+    CompressedLine getSerializedUsedRegisters(const Register16& af) const;
 
     void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
 
@@ -183,3 +183,5 @@ public:
     int16_t maxX = 0;
     int16_t stackMovingAtStart = 0;
 };
+
+CompressedLine getSerializedRegisters(const std::vector<Register16>& registers, const Register16& af);

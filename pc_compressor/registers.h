@@ -354,10 +354,10 @@ public:
                 else if (reg16.l.name != 'f' && reg16.l.hasValue(lowByte) && !reg16.hasReg8(regH))
                     regL = &reg16.l;
             }
-#if 0
-            if (af.h.hasValue(hiByte))
+#if 1
+            if (af.h.hasValue(hiByte) && af.isAltAf == line.isAltAf)
                 regH = &af.h;
-            if (af.h.hasValue(lowByte))
+            if (af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
                 regL = &af.h;
 #endif
 
