@@ -1694,14 +1694,13 @@ struct DescriptorState
     int expectedPreambulaSize(
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
-        int relativeOffsetToStart,
-        const Register16& _af) const
+        int relativeOffsetToStart) const
     {
-        CompressedLine preambula = dataLine.getSerializedUsedRegisters(_af);
+        CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToStart, kJpIxCommandLen);
         auto omitedDataInfo = Z80Parser::parseCode(
-            _af, *dataLine.inputRegisters, firstCommands,
+            af, *dataLine.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
         const auto firstCommand = omitedDataInfo.commands[0];
@@ -1717,7 +1716,7 @@ struct DescriptorState
 
         std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto newCodeInfo = Z80Parser::parseCode(
-            _af, emptyRegs, preambulaWithFirstCommand,
+            af, emptyRegs, preambulaWithFirstCommand,
             0, preambulaWithFirstCommand.size(), 0);
 
         if (dataLine.stackMovingAtStart != dataLine.minX)
@@ -1731,13 +1730,13 @@ struct DescriptorState
             }
         }
 
-        auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, _af);
+        auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, af);
 
 
         return outRegs.drawTicks - firstCommand.ticks;
     }
 
-    void serializeOmitedData(const Register16& _af, const std::vector<uint8_t>& serializedData, int codeOffset,
+    void serializeOmitedData(const std::vector<uint8_t>& serializedData, int codeOffset,
         int omitedDataSize,
         std::optional<uint16_t> updatedHlValue)
     {
@@ -1745,7 +1744,7 @@ struct DescriptorState
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
         omitedDataInfo = Z80Parser::parseCode(
-            _af, codeInfo.inputRegisters, firstCommands,
+            af, codeInfo.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
         const int firstCommandsSize = firstCommands.size();
@@ -1769,7 +1768,7 @@ struct DescriptorState
             }
         }
 
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, _af);
+        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
@@ -1778,12 +1777,10 @@ struct DescriptorState
     }
 
     void makePreambulaForMC(
-        const Register16& _af,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         const CompressedLine* line)
     {
-        af = _af;
         std::optional<uint16_t> updatedHlValue;
 
         if (line->stackMovingAtStart != line->minX)
@@ -1803,17 +1800,14 @@ struct DescriptorState
             addToPreambule(Z80Parser::genDelay(extraDelay));
 
         std::vector<uint8_t> firstCommands;
-        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
     }
 
     void makePreambulaForOffscreen(
-        const Register16& _af,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         int descriptorsDelta)
     {
-        af = _af;
-
         if (codeInfo.commands.size() >= 3)
         {
             if (codeInfo.commands[1].opCode == kAddHlSpCode && codeInfo.commands[2].opCode == kLdSpHlCode)
@@ -1821,7 +1815,7 @@ struct DescriptorState
                 // Remove LD HL, x: add HL, SP: LD HL, SP if exists
                 int size = codeInfo.commands[0].size + codeInfo.commands[1].size + codeInfo.commands[2].size;
                 auto p = Z80Parser::parseCode(
-                    _af,
+                    af,
                     codeInfo.inputRegisters,
                     serializedData,
                     codeInfo.startOffset, codeInfo.startOffset + size,
@@ -1844,7 +1838,7 @@ struct DescriptorState
         if (startSpDelta > 0)
             serializeSpDelta(startSpDelta);
 
-        serializeOmitedData(_af, serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -2055,11 +2049,14 @@ int serializeMainData(
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
+        descriptor.rastrForMulticolor.af =  data.af;
+        descriptor.rastrForOffscreen.af = data.af;
+
 
         if (flags & interlineRegisters)
         {
             linePreambulaTicks = dataLine.getSerializedUsedRegisters(data.af).drawTicks;
-            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart, data.af);
+            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
         }
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
@@ -2125,8 +2122,8 @@ int serializeMainData(
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
 
-        descriptor.rastrForMulticolor.makePreambulaForMC(data.af, serializedData, codeOffset, &dataLine);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(data.af, serializedData, codeOffset, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData, codeOffset, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData, codeOffset, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
