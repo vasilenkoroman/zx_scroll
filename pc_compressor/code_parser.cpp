@@ -546,14 +546,19 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x6f: l.loadFromReg(info, a);
                 break;
-            case 0x70: 
-            case 0x71:
-            case 0x72:
-            case 0x73:
-            case 0x74:
-            case 0x75:
-            case 0x77:
-                // LD (HL), reg8
+            case 0x70: info.useReg(b);
+                break;
+            case 0x71: info.useReg(c);
+                break;
+            case 0x72: info.useReg(d);
+                break;
+            case 0x73: info.useReg(e);
+                break;
+            case 0x74: info.useReg(h);
+                break;
+            case 0x75: info.useReg(l);
+                break;
+            case 0x77: info.useReg(a);
                 break;
             case 0x78: a.loadFromReg(info, b);
                 break;

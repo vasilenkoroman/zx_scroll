@@ -385,7 +385,7 @@ bool compressLineMain(
     auto context3 = context2;
     context3.flags |= updateViaHl;
     line3.flags = context3.flags;
-    bool success3 = false; // compressLine(context3, line3, registers3,  /*x*/ context.minX);
+    bool success3 = compressLine(context3, line3, registers3,  /*x*/ context.minX);
 
     if (!success1)
     {
