@@ -41,7 +41,8 @@ enum Flags
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     hurryUpViaIY = 64,          //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
-    sinkMcTicksToRastr = 256    //< Spend Multicolor ticks during alignments to the rastr line
+    sinkMcTicksToRastr = 256,    //< Spend Multicolor ticks during alignments to the rastr line
+    updateViaHl = 512
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -368,16 +369,23 @@ bool compressLineMain(
     CompressedLine& line,
     std::array<Register16, N>& registers)
 {
-    CompressedLine line1, line2;
+    CompressedLine line1, line2, line3;
     auto registers1 = registers;
     auto registers2 = registers;
+    auto registers3 = registers;
 
     line1.flags = context.flags;
     bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX & ~1);
     Context context2 = context;
+    
     context2.flags |= oddVerticalCompression;
     line2.flags = context2.flags;
     bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
+
+    auto context3 = context2;
+    context3.flags |= updateViaHl;
+    line3.flags = context3.flags;
+    bool success3 = compressLine(context3, line3, registers3,  /*x*/ context.minX);
 
     if (!success1)
     {
@@ -385,8 +393,14 @@ bool compressLineMain(
         abort();
     }
 
+    bool useThirdLine = success3 && line3.drawTicks < line1.drawTicks && line3.drawTicks < line2.drawTicks;
     bool useSecondLine = success2 && line2.drawTicks <= line1.drawTicks;
-    if (useSecondLine)
+
+    if (useThirdLine)
+    {
+        line = line3;
+    }
+    else if (useSecondLine)
     {
         line = line2;
     }
@@ -402,7 +416,9 @@ bool compressLineMain(
 
     if (context.flags & interlineRegisters)
     {
-        if (useSecondLine)
+        if (useThirdLine)
+            registers = registers3;
+        else if (useSecondLine)
             registers = registers2;
         else
             registers = registers1;
@@ -492,14 +508,155 @@ bool loadWordFromExistingRegister(
 }
 
 template <int N>
+bool hasWordFromExistingRegister(
+    const Context& context,
+    bool isAltReg,
+    std::array<Register16, N>& registers,
+    const uint16_t word, const int x)
+
+{
+    bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
+    bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
+
+    for (int run = 0; run < 2; ++run)
+    {
+        for (auto& reg : registers)
+        {
+            bool condition = isAltReg == reg.isAlt;
+            if (run == 1)
+                condition = !condition;
+            if (!condition)
+                continue;
+
+            if (reg.hasValue16(word, canAvoidFirst, canAvoidSecond))
+            {
+                return true;
+            }
+        }
+    }
+
+    if (context.af.hasValue16(word, canAvoidFirst, canAvoidSecond))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+template <int N>
+bool loadWordFromExistingRegister8(
+    const Context& context,
+    CompressedLine& result,
+    std::array<Register16, N>& registers,
+    const uint8_t byte, const int x)
+
+{
+    for (auto& reg : registers)
+    {
+        if (result.isAltReg != reg.isAlt)
+            continue;
+        if (reg.h.hasValue(byte))
+        {
+            reg.h.pushViaHL(result);
+            return true;
+        }
+        else if (reg.l.hasValue(byte))
+        {
+            reg.l.pushViaHL(result);
+            return true;
+        }
+    }
+    if (context.af.h.hasValue(byte))
+    {
+        context.af.h.pushViaHL(result);
+        return true;
+    }
+
+    return false;
+}
+
+template <int N>
+bool hasWordFromExistingRegister8(
+    const Context& context,
+    bool isAltReg,
+    std::array<Register16, N>& registers,
+    const uint8_t byte, const int x)
+
+{
+    for (auto& reg : registers)
+    {
+        if (isAltReg != reg.isAlt)
+            continue;
+        if (reg.h.hasValue(byte))
+        {
+            return true;
+        }
+        else if (reg.l.hasValue(byte))
+        {
+            return true;
+        }
+    }
+    if (context.af.h.hasValue(byte))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+template <int N>
+bool willUseLoadFromHl(
+    const Context& context, 
+    bool isAltReg,
+    std::array<Register16, N>& registers,
+    int x,
+    int verticalRepCnt)
+{
+    if (!(context.flags & updateViaHl))
+        return false;
+
+    int newX = x + verticalRepCnt;
+    if (newX > 31)
+        return false;
+
+    int index = context.y * 32 + x + verticalRepCnt;
+    bool canUseOddPos = (context.flags & oddVerticalCompression) && newX < context.lastOddRepPosition;
+    if (!canUseOddPos)
+        return false;
+
+    if (context.sameBytesCount->at(index))
+        return false;
+
+    if (newX < context.maxX -1)
+    {
+        uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
+        uint16_t word = *buffer16;
+        word = swapBytes(word);
+        if (x < context.maxX && hasWordFromExistingRegister(context, isAltReg, registers, word, x))
+            return false;
+    }
+
+    if (newX < context.maxX
+        && hasWordFromExistingRegister8(context, isAltReg, registers, context.buffer[index], x))
+    {
+        return true;
+    }
+    return false;
+}
+
+template <int N>
 bool compressLine(
     const Context& context,
     CompressedLine&  result,
     std::array<Register16, N>& registers,
     int x)
 {
+    bool awaitingLoadFromHl = false;
+
     while (x <= context.maxX)
     {
+        bool canUseOddPos = (context.flags & oddVerticalCompression) && x < context.lastOddRepPosition;
+
         const int index = context.y * 32 + x;
         int verticalRepCount = context.sameBytesCount ? context.sameBytesCount->at(index) : 0;
         verticalRepCount = std::min(verticalRepCount, context.maxX - x + 1);
@@ -507,7 +664,8 @@ bool compressLine(
         {
             if (x + verticalRepCount == 31)
                 --verticalRepCount;
-            else if (!(context.flags & oddVerticalCompression) || x >= context.lastOddRepPosition)
+            else
+            if (!canUseOddPos)
                 verticalRepCount &= ~1;
         }
 
@@ -527,8 +685,7 @@ bool compressLine(
         word = swapBytes(word);
 
         assert(x < context.maxX+1);
-        if (x == 31 && !verticalRepCount) //< 31, not maxX here
-            return false;
+
         if (context.borderPoint && x < context.borderPoint)
         {
             if (x == context.borderPoint - 1 && !verticalRepCount)
@@ -566,7 +723,16 @@ bool compressLine(
             {
                 if (result.isAltAf)
                     result.exAf();
-                hl->updateToValue(result, -verticalRepCount, registers, context.af);
+
+                int spDelta = -verticalRepCount;
+                hl->reset();
+                if (willUseLoadFromHl(context, result.isAltReg, registers, x, verticalRepCount))
+                {
+                    --spDelta;
+                    awaitingLoadFromHl = true;
+                }
+
+                hl->updateToValue(result, spDelta, registers, context.af);
                 hl->addSP(result);
                 if (auto f = findRegister8(registers, 'f'))
                     f->value.reset();
@@ -576,21 +742,39 @@ bool compressLine(
             }
         }
 
-
         // Decrement stack if line has same value from previous step (vertical compression)
-        if (verticalRepCount & 1 )
+        if (verticalRepCount & 1)
         {
             sp.decValue(result, verticalRepCount);
             x += verticalRepCount;
+            if (awaitingLoadFromHl)
+                abort();
             continue;
         }
 
         // push existing 16 bit value.
-        if (x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
+        if (x < 31 && x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
         {
+            if (awaitingLoadFromHl)
+                abort();
             x += 2;
             continue;
         }
+
+        if (awaitingLoadFromHl
+            && loadWordFromExistingRegister8(context, result, registers, context.buffer[index], x))
+        {
+            ++x;
+            awaitingLoadFromHl = false;
+            continue;
+        }
+        
+        if (awaitingLoadFromHl)
+            abort();
+
+        if (x == 31 && !verticalRepCount) //< 31, not maxX here
+            return false;
+
 
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount > 0)

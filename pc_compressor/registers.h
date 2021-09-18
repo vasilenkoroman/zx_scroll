@@ -66,6 +66,9 @@ public:
         return !value.has_value();
     }
 
+    void pushViaHL(CompressedLine& line) const;
+    void pushViaHL(RegUsageInfo& line) const;
+
     void loadX(CompressedLine& line, uint8_t byte);
     void loadX(RegUsageInfo& info, uint8_t byte);
     void scf(CompressedLine& line);

@@ -125,6 +125,16 @@ void Register8::subValue(RegUsageInfo& info, uint8_t v)
 }
 
 
+void Register8::pushViaHL(CompressedLine& line) const
+{
+    line.drawTicks += 7;
+    line.data.push_back(uint8_t(0x70 + reg8Index));
+}
+
+void Register8::pushViaHL(RegUsageInfo& line) const
+{
+}
+
 void Register8::loadX(RegUsageInfo& info, uint8_t byte)
 {
     value = byte;
