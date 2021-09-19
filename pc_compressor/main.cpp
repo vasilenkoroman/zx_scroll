@@ -2871,7 +2871,7 @@ int main(int argc, char** argv)
 
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
         << colorData.ticks() << ", ratio: " << colorData.ticks() / (float) uncompressedColorTicks << std::endl;
-    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks(in progress): "
+    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks: "
         << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float) uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
 
