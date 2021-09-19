@@ -385,7 +385,7 @@ bool compressLineMain(
     auto context3 = context2;
     context3.flags |= updateViaHl;
     line3.flags = context3.flags;
-    bool success3 = compressLine(context3, line3, registers3,  /*x*/ context.minX);
+    bool success3 = false; //compressLine(context3, line3, registers3,  /*x*/ context.minX);
 
     if (!success1)
     {
@@ -2688,7 +2688,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3163;
+        static const int kZ80CodeDelay = 3163 + 8;
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line

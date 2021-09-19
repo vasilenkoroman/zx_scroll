@@ -285,40 +285,7 @@ loop:
 loop1:
         prepare_rastr_drawing
         
-        //MACRO draw_offscreen_rastr
-                IF (UNSTABLE_STACK_POS == 0)        
-                        ld sp, screen_addr + 6144
-                ENDIF                        
-                exx
-                DRAW_OFFSCREEN_LINES 0,0
-                DRAW_OFFSCREEN_LINES 1,0
-                DRAW_OFFSCREEN_LINES 2,1
-                DRAW_OFFSCREEN_LINES 3,2
-                DRAW_OFFSCREEN_LINES 4,3
-                DRAW_OFFSCREEN_LINES 5,4
-                DRAW_OFFSCREEN_LINES 6,5
-                DRAW_OFFSCREEN_LINES 7,6
-                DRAW_OFFSCREEN_LINES 8,7
-                DRAW_OFFSCREEN_LINES 9,8
-                DRAW_OFFSCREEN_LINES 10,9
-                DRAW_OFFSCREEN_LINES 11,10
-                DRAW_OFFSCREEN_LINES 12,11
-                DRAW_OFFSCREEN_LINES 13,12
-                DRAW_OFFSCREEN_LINES 14,13
-                DRAW_OFFSCREEN_LINES 15,14
-                DRAW_OFFSCREEN_LINES 16,15
-                DRAW_OFFSCREEN_LINES 17,16
-                DRAW_OFFSCREEN_LINES 18,17
-                DRAW_OFFSCREEN_LINES 19,18
-                DRAW_OFFSCREEN_LINES 20,19
-                DRAW_OFFSCREEN_LINES 21,20
-                DRAW_OFFSCREEN_LINES 22,21
-                DRAW_OFFSCREEN_LINES 23,22
-                exx
-        //ENDM
-
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
-        ld (stack_bottom), bc
 
         // calculate ceil(bc,8) / 2
 
@@ -331,6 +298,52 @@ loop1:
         ld l, a
 
         draw_colors
+
+        xor a
+        scf
+        //MACRO draw_offscreen_rastr
+                exx
+                IF (UNSTABLE_STACK_POS == 0)        
+                        ld sp, screen_addr + 6144
+                ENDIF                        
+                DRAW_OFFSCREEN_LINES 0,0
+                DRAW_OFFSCREEN_LINES 1,0
+                DRAW_OFFSCREEN_LINES 2,1
+                DRAW_OFFSCREEN_LINES 3,2
+                DRAW_OFFSCREEN_LINES 4,3
+                DRAW_OFFSCREEN_LINES 5,4
+                DRAW_OFFSCREEN_LINES 6,5
+                DRAW_OFFSCREEN_LINES 7,6
+
+                IF (UNSTABLE_STACK_POS == 0)        
+                        ld sp, screen_addr
+                ENDIF                        
+                DRAW_OFFSCREEN_LINES 16, 7
+                DRAW_OFFSCREEN_LINES 17,16
+                DRAW_OFFSCREEN_LINES 18,17
+                DRAW_OFFSCREEN_LINES 19,18
+                DRAW_OFFSCREEN_LINES 20,19
+                DRAW_OFFSCREEN_LINES 21,20
+                DRAW_OFFSCREEN_LINES 22,21
+                DRAW_OFFSCREEN_LINES 23,22
+
+                IF (UNSTABLE_STACK_POS == 0)        
+                        ld sp, screen_addr + 4096
+                ENDIF                        
+                DRAW_OFFSCREEN_LINES 8, 23
+                DRAW_OFFSCREEN_LINES 9,8
+                DRAW_OFFSCREEN_LINES 10,9
+                DRAW_OFFSCREEN_LINES 11,10
+                DRAW_OFFSCREEN_LINES 12,11
+                DRAW_OFFSCREEN_LINES 13,12
+                DRAW_OFFSCREEN_LINES 14,13
+                DRAW_OFFSCREEN_LINES 15,14
+                
+                exx
+        //ENDM
+
+
+        ld (stack_bottom), bc
 
         ; delay
         ld hl, timings_data
@@ -675,4 +688,4 @@ imageHeight     equ (timings_data_end - timings_data) / 2
 /*************** Commands to SJ asm ******************/
 
     SAVESNA "build/draw_image.sna", main
-    //savetap "build/draw_image.tap", main
+    savetap "build/draw_image.tap", main
