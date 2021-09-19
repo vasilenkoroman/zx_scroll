@@ -364,65 +364,56 @@ void updateTransitiveRegUsage(T& data)
 }
 
 template <int N>
+struct CompressTry
+{
+    int extraFlags = 0;
+    Context context;
+    std::shared_ptr<std::array<Register16, N>> registers;
+    CompressedLine line;
+    bool success = false;
+};
+
+template <int N>
 bool compressLineMain(
     Context& context,
     CompressedLine& line,
     std::array<Register16, N>& registers)
 {
-    CompressedLine line1, line2, line3;
-    auto registers1 = registers;
-    auto registers2 = registers;
-    auto registers3 = registers;
+    using TryN = CompressTry<N>;
+    using RegistersN = std::array<Register16, N>;
 
-    line1.flags = context.flags;
-    bool success1 = compressLine(context, line1, registers1,  /*x*/ context.minX & ~1);
-    Context context2 = context;
-    
-    context2.flags |= oddVerticalCompression;
-    line2.flags = context2.flags;
-    bool success2 = compressLine(context2, line2, registers2,  /*x*/ context.minX);
-
-    auto context3 = context2;
-    context3.flags |= updateViaHl;
-    line3.flags = context3.flags;
-    bool success3 = false; //compressLine(context3, line3, registers3,  /*x*/ context.minX);
-
-    if (!success1)
+    std::vector<TryN> extraCompressOptions =
     {
-        std::cerr << "Cant compress line " << context.y << " because of oddRep position. It should not be!";
-        abort();
+        {0, context, std::make_shared<RegistersN>(registers)},  //< regular
+        {oddVerticalCompression, context, std::make_shared<RegistersN>(registers)},
+        //{oddVerticalCompression | updateViaHl, context, std::make_shared<RegistersN>(registers)}
+    };
+
+    int bestTicks = std::numeric_limits<int>::max();
+    TryN* bestTry = nullptr;
+    for (auto& option: extraCompressOptions)
+    {
+        option.context.flags |= option.extraFlags;
+        option.line.flags = option.context.flags;
+        if (!(option.context.flags & oddVerticalCompression))
+            option.context.minX = option.context.minX & ~1;
+        option.success = compressLine(option.context, option.line, *option.registers,  /*x*/ option.context.minX);
+        if (option.success && option.line.drawTicks <= bestTicks)
+        {
+            bestTry = &option;
+            bestTicks = option.line.drawTicks;
+        }
     }
 
-    bool useThirdLine = success3 && line3.drawTicks < line1.drawTicks && line3.drawTicks < line2.drawTicks;
-    bool useSecondLine = success2 && line2.drawTicks <= line1.drawTicks;
-
-    if (useThirdLine)
-    {
-        line = line3;
-    }
-    else if (useSecondLine)
-    {
-        line = line2;
-    }
-    else
-    {
-        context.minX &= ~1;
-        line = line1;
-    }
-
+    line = bestTry->line;
     line.inputRegisters = std::make_shared<std::vector<Register16>>();
-    for (const auto& reg16 : registers)
+    for (const auto& reg16: registers)
         line.inputRegisters->push_back(reg16);
-
+    //context = bestTry->context;
+    context = bestTry->context;
     if (context.flags & interlineRegisters)
     {
-        if (useThirdLine)
-            registers = registers3;
-        else if (useSecondLine)
-            registers = registers2;
-        else
-            registers = registers1;
-
+        registers = *bestTry->registers;
         if (auto f = findRegister8(registers, 'f'))
             f->value.reset(); //< Interline registers is not supported for 'f'
     }
@@ -1591,6 +1582,31 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
         auto& line = compressedData.data[y];
 
         int endLineDelay = maxTicks - line.drawTicks;
+#if 0
+        if (y == 0 && endLineDelay >= 25 + 4)
+        {
+            line.data.push_back(0x3e); //LD a, 1
+            line.data.push_back(0x07); //LD a, 1
+            line.data.push_back(0xd3); //out 0xfe,a
+            line.data.push_back(0xfe); //out 0xfe,a
+            line.data.push_back(0x3e); //LD a, 0
+            line.data.push_back(0x00); //LD a, 0
+            line.drawTicks += 25;
+            endLineDelay -= 25;
+        }
+        if (y == 24 && endLineDelay >= 25 + 4)
+        {
+            line.data.push_back(0x3e); //LD a, 3
+            line.data.push_back(0x01); //LD a, 3
+            line.data.push_back(0xd3); //out 0xfe,a
+            line.data.push_back(0xfe); //out 0xfe,a
+            line.data.push_back(0x3e); //LD a, 0
+            line.data.push_back(0x00); //LD a, 0
+            line.drawTicks += 25;
+            endLineDelay -= 25;
+        }
+#endif		
+
         if (endLineDelay >= 45 + 10 && (flags & sinkMcTicksToRastr))
         {
             static Register16 sp("sp");
@@ -2574,6 +2590,7 @@ struct OffscreenTicks
     int preambulaTicks = 0;
     int payloadTicks = 0;
     int enterExitTicks = 0;
+    std::vector<int> preambulaTicksDetails;
 
     int ticks() const
     {
@@ -2585,8 +2602,29 @@ struct OffscreenTicks
         preambulaTicks += other.preambulaTicks;
         payloadTicks += other.payloadTicks;
         enterExitTicks += other.enterExitTicks;
+        preambulaTicksDetails.insert(preambulaTicksDetails.end(), 
+            other.preambulaTicksDetails.begin(), other.preambulaTicksDetails.end());
         return *this;
     }
+
+    void addPreambulaTicks(int value)
+    {
+        preambulaTicks += value;
+        preambulaTicksDetails.push_back(value);
+    }
+
+    std::string getPreambulaDetail() const
+    {
+        std::string result;
+        for (int value : preambulaTicksDetails)
+        {
+            if (!result.empty())
+                result += ' ';
+            result += std::to_string(value);
+        }
+        return result;
+    }
+
 };
 
 OffscreenTicks getTicksChainFor64Line(
@@ -2607,7 +2645,7 @@ OffscreenTicks getTicksChainFor64Line(
 
         //int sum = 0;
         auto info = Z80Parser::parseCode(d.rastrForOffscreen.af, d.rastrForOffscreen.preambula);
-        result.preambulaTicks += info.ticks;
+        result.addPreambulaTicks(info.ticks);
         result.payloadTicks -= d.rastrForOffscreen.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         result.payloadTicks += d.rastrForOffscreen.codeInfo.ticks;
     }
@@ -2708,7 +2746,7 @@ int serializeTimingData(
             #ifdef LOG_DEBUG
             std::cout << "INFO: Ticks rest at line #" << line << ". free=" << freeTicks
                 << " color=" << colorTicks
-                << ". preambula=" << offscreenTicks.preambulaTicks
+                << ". preambula=" << offscreenTicks.preambulaTicks << ".\t" << offscreenTicks.getPreambulaDetail()
                 << ". off rastr=" << offscreenTicks.payloadTicks
                 << std::endl;
             #endif
