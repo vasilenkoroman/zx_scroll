@@ -1882,6 +1882,7 @@ struct DescriptorState
     int extraDelay = 0;             //< Alignment delay when serialize preambula.
     int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
     Register16 af{"af"};
+    std::optional<uint16_t> updatedHlValue;
 
     void setEndBlock(const uint8_t* ptr)
     {
@@ -1894,22 +1895,72 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    int expectedPreambulaSize(
+
+    std::set<int> canMakePreambulaLonger(
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
         int relativeOffsetToStart) const
     {
         CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
+        auto [registers, __1, __2] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
+        std::set<int> options;
+        
+        int canSplitToTwoLoads = 0;
+        std::set<uint8_t> availableValues;
+        if (af.h.value)
+            availableValues.insert(*af.h.value);
+        for (int i = 0; i < registers.size(); ++i)
+        {
+            const auto& reg = registers[i];
+            if (reg.h.value && reg.l.value)
+            {
+                // Can split LD REG16, XX to   LD REG8, X : LD REG8, REG8
+                if (availableValues.count(*reg.h.value) || availableValues.count(*reg.l.value))
+                    options.insert(++canSplitToTwoLoads);
+            }
+            else if (reg.h.value && !reg.l.value)
+            {
+                // Can change LD REG8,REG8 to LD REG8, X
+                if (availableValues.count(*reg.h.value))
+                    options.insert(3);
+            }
+            else if (reg.l.value && !reg.h.value)
+            {
+                // Can change LD REG8,REG8 to LD REG8, X
+                if (availableValues.count(*reg.l.value))
+                    options.insert(3);
+            }
 
-        auto firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToStart, kJpIxCommandLen);
+            if (reg.h.value)
+                availableValues.insert(*reg.h.value);
+            if (reg.l.value)
+                availableValues.insert(*reg.l.value);
+        }
+        return options;
+    }
+
+
+    struct MergedPreambulaInfo
+    {
+        std::vector<Register16> outputRegisters; //< Preambula + omited registers final state.
+        int omitedTicks = 0;                     //< Omited data ticks.
+        int omitedSize = 0;                      //< Omited data bytes.
+    };
+
+    MergedPreambulaInfo mergedPreambulaInfo(
+        const CompressedLine& preambula,
+        std::vector<uint8_t> serializedData,
+        int relativeOffsetToStart,
+        int omitedDataSize) const
+    {
+        auto firstCommands = Z80Parser::getCode(serializedData.data() + relativeOffsetToStart, omitedDataSize);
+        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto omitedDataInfo = Z80Parser::parseCode(
-            af, *dataLine.inputRegisters, firstCommands,
+            af, emptyRegs, firstCommands,
             0, firstCommands.size(), 0);
 
-        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto [regUsage, commandCounter] = Z80Parser::selfRegUsageInFirstCommands(omitedDataInfo.commands, emptyRegs, af);
-        if (!regUsage.selfRegMask)
-            return preambula.drawTicks;
         
         int regUsageCommandsSize = 0;
         int regUsageCommandsTicks = 0;
@@ -1918,7 +1969,7 @@ struct DescriptorState
             regUsageCommandsSize += omitedDataInfo.commands[i].size;
             regUsageCommandsTicks += omitedDataInfo.commands[i].ticks;
         }
-        
+
         // Load regs + first command together
         std::vector<uint8_t> preambulaWithFirstCommand;
         preambula.serialize(preambulaWithFirstCommand);
@@ -1930,61 +1981,46 @@ struct DescriptorState
             af, emptyRegs, preambulaWithFirstCommand,
             0, preambulaWithFirstCommand.size(), 0);
 
-        if (dataLine.stackMovingAtStart != dataLine.minX)
+        if (updatedHlValue)
         {
-            bool hasAddHlSp = dataLine.stackMovingAtStart > 4;
-            if (hasAddHlSp)
-            {
-                auto updatedHlValue = -dataLine.minX;
-                auto hl = findRegister(newCodeInfo.outputRegisters, "hl");
-                hl->setValue(updatedHlValue);
-            }
+            auto hl = findRegister(newCodeInfo.outputRegisters, "hl");
+            hl->setValue(*updatedHlValue);
         }
 
-        auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, af);
+        return { newCodeInfo.outputRegisters, regUsageCommandsTicks, regUsageCommandsSize };
+    }
 
-
-        return outRegs.drawTicks - regUsageCommandsTicks;
+    int expectedPreambulaSize(
+        const CompressedLine& dataLine,
+        std::vector<uint8_t> serializedData,
+        int relativeOffsetToStart) const
+    {
+        CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
+        auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
+        auto outRegs = getSerializedRegisters(registers, af);
+        return outRegs.drawTicks - omitedTicksFromMainCode;
     }
 
     void serializeOmitedData(
-        const std::vector<uint8_t>& serializedData, 
+        const std::vector<uint8_t>& serializedData,
         int codeOffset,
         int omitedDataSize,
-        std::optional<uint16_t> updatedHlValue)
+        int extraDelay)
     {
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
+        CompressedLine origPreambula = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
+
+        auto [registers, omitedTicks, omitedBytes] = mergedPreambulaInfo(origPreambula, serializedData, lineStartOffset, omitedDataSize);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
+        const int firstCommandsSize = firstCommands.size();
         omitedDataInfo = Z80Parser::parseCode(
             af, codeInfo.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
-        const int firstCommandsSize = firstCommands.size();
-        if (!omitedDataInfo.commands.empty())
-        {
-            auto [regUsage, commandCounter] = Z80Parser::selfRegUsageInFirstCommands(omitedDataInfo.commands, codeInfo.inputRegisters, af);
+        firstCommands.erase(firstCommands.begin(), firstCommands.begin() + omitedBytes);
 
-            if (regUsage.selfRegMask)
-            {
-                // Join LD REG8, X from omited data directly to the serialized registers
-                //codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
-                codeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
-                codeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
-                if (updatedHlValue)
-                {
-                    auto hl = findRegister(codeInfo.inputRegisters, "hl");
-                    hl->setValue(*updatedHlValue);
-                }
-
-                int regUsageCommandsSize = 0;
-                for (int i = 0; i < commandCounter; ++i)
-                    regUsageCommandsSize += omitedDataInfo.commands[i].size;
-                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + regUsageCommandsSize);
-            }
-        }
-
-        auto regs = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
+        auto regs = getSerializedRegisters(registers, af);
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
@@ -1997,14 +2033,6 @@ struct DescriptorState
         int codeOffset,
         const CompressedLine* line)
     {
-        std::optional<uint16_t> updatedHlValue;
-
-        if (line->stackMovingAtStart != line->minX)
-        {
-            bool hasAddHlSp = line->stackMovingAtStart > 4;
-            if (hasAddHlSp)
-                updatedHlValue = -line->minX;
-        }
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -2012,11 +2040,13 @@ struct DescriptorState
          * directly in descriptor preambula. Additionally, preambula contains alignment delay and correction for SP register if need.
          */
 
-        if (extraDelay > 0)
+        if (extraDelay > 3)
+        {
             addToPreambule(Z80Parser::genDelay(extraDelay));
+            extraDelay = 0;
+        }
 
-        std::vector<uint8_t> firstCommands;
-        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen, updatedHlValue);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen, extraDelay);
     }
 
     void makePreambulaForOffscreen(
@@ -2054,7 +2084,7 @@ struct DescriptorState
         if (startSpDelta > 0)
             serializeSpDelta(startSpDelta);
 
-        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, std::nullopt);
+        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, 0);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -2265,15 +2295,19 @@ int serializeMainData(
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
+        
         descriptor.rastrForMulticolor.af =  data.af;
         descriptor.rastrForOffscreen.af = data.af;
-
+        if (dataLine.stackMovingAtStart != dataLine.minX)
+        {
+            bool hasAddHlSp = dataLine.stackMovingAtStart > 4;
+            if (hasAddHlSp)
+                descriptor.rastrForMulticolor.updatedHlValue = -dataLine.minX;
+        }
 
         if (flags & interlineRegisters)
-        {
-            linePreambulaTicks = dataLine.getSerializedUsedRegisters(data.af).drawTicks;
             linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
-        }
+        auto prolongOptions = descriptor.rastrForMulticolor.canMakePreambulaLonger(dataLine, serializedData, relativeOffsetToStart);
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2282,18 +2316,25 @@ int serializeMainData(
         int ticksLimit = ticksRest - linePreambulaTicks;
         int extraCommandsIncluded = 0;
         int descriptorsDelta = 0;
+
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             data.af,
             *dataLine.inputRegisters,
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset,
-            [ticksLimit, &extraCommandsIncluded, &descriptorsDelta](const Z80CodeInfo& info, const z80Command& command)
+            [ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &prolongOptions](const Z80CodeInfo& info, const z80Command& command)
             {
                 int sum = info.ticks + command.ticks;
                 bool success = sum == ticksLimit || sum < ticksLimit - 3;
                 if (!success)
                 {
+                    if (sum < ticksLimit && prolongOptions.count(ticksLimit - sum))
+                    {
+                        int gg = 4;
+                       // return false; //< Continue
+                    }
+
                     if (command.opCode == kDecSpCode || command.opCode == kAddHlSpCode || command.opCode == kLdSpHlCode)
                     {
                         ++extraCommandsIncluded;
