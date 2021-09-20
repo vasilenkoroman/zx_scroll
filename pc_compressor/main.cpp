@@ -17,7 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
-//#define LOG_DEBUG
+#define LOG_DEBUG
 
 #define TEMP_FOR_TEST_COLORS 1
 
@@ -1906,18 +1906,26 @@ struct DescriptorState
             af, *dataLine.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
-        const auto firstCommand = omitedDataInfo.commands[0];
-        auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
+        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        auto [regUsage, commandCounter] = Z80Parser::selfRegUsageInFirstCommands(omitedDataInfo.commands, emptyRegs, af);
         if (!regUsage.selfRegMask)
             return preambula.drawTicks;
+        
+        int regUsageCommandsSize = 0;
+        int regUsageCommandsTicks = 0;
+        for (int i = 0; i < commandCounter; ++i)
+        {
+            regUsageCommandsSize += omitedDataInfo.commands[i].size;
+            regUsageCommandsTicks += omitedDataInfo.commands[i].ticks;
+        }
         
         // Load regs + first command together
         std::vector<uint8_t> preambulaWithFirstCommand;
         preambula.serialize(preambulaWithFirstCommand);
         preambulaWithFirstCommand.insert(preambulaWithFirstCommand.end(),
-            firstCommands.begin(), firstCommands.begin() + firstCommand.size);
+            firstCommands.begin(), firstCommands.begin() + regUsageCommandsSize);
 
-        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto newCodeInfo = Z80Parser::parseCode(
             af, emptyRegs, preambulaWithFirstCommand,
             0, preambulaWithFirstCommand.size(), 0);
@@ -1936,10 +1944,12 @@ struct DescriptorState
         auto outRegs = getSerializedRegisters(newCodeInfo.outputRegisters, af);
 
 
-        return outRegs.drawTicks - firstCommand.ticks;
+        return outRegs.drawTicks - regUsageCommandsTicks;
     }
 
-    void serializeOmitedData(const std::vector<uint8_t>& serializedData, int codeOffset,
+    void serializeOmitedData(
+        const std::vector<uint8_t>& serializedData, 
+        int codeOffset,
         int omitedDataSize,
         std::optional<uint16_t> updatedHlValue)
     {
@@ -1953,12 +1963,12 @@ struct DescriptorState
         const int firstCommandsSize = firstCommands.size();
         if (!omitedDataInfo.commands.empty())
         {
-            const auto firstCommand = omitedDataInfo.commands[0];
-            auto regUsage = Z80Parser::regUsageByCommand(firstCommand);
+            auto [regUsage, commandCounter] = Z80Parser::selfRegUsageInFirstCommands(omitedDataInfo.commands, codeInfo.inputRegisters, af);
+
             if (regUsage.selfRegMask)
             {
                 // Join LD REG8, X from omited data directly to the serialized registers
-                codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
+                //codeInfo.inputRegisters = omitedDataInfo.outputRegisters;
                 codeInfo.regUsage.regUseMask |= regUsage.selfRegMask;
                 codeInfo.regUsage.selfRegMask &= ~regUsage.selfRegMask;
                 if (updatedHlValue)
@@ -1967,7 +1977,10 @@ struct DescriptorState
                     hl->setValue(*updatedHlValue);
                 }
 
-                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + firstCommand.size);
+                int regUsageCommandsSize = 0;
+                for (int i = 0; i < commandCounter; ++i)
+                    regUsageCommandsSize += omitedDataInfo.commands[i].size;
+                firstCommands.erase(firstCommands.begin(), firstCommands.begin() + regUsageCommandsSize);
             }
         }
 

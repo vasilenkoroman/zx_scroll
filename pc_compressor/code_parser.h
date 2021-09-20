@@ -17,6 +17,7 @@ struct z80Command
     int size = 0;
     int ticks = 0;
     uint8_t opCode = 0;
+    uint16_t data = 0;
     uint16_t ptr = 0;
 };
 
@@ -91,6 +92,9 @@ public:
     static void serializeAddSpToFront(CompressedLine& line, int value);
     static void serializeAddSpToBack(CompressedLine& line, int value);
 
-    static RegUsageInfo regUsageByCommand(const z80Command& command);
+    static std::pair<RegUsageInfo, int> selfRegUsageInFirstCommands(
+        const std::vector<z80Command>& command,
+        std::vector<Register16>& registers,
+        const Register16& af);
 };
 

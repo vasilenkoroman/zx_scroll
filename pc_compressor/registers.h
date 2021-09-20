@@ -357,7 +357,35 @@ public:
                 else if (reg16.l.name != 'f' && reg16.l.hasValue(lowByte) && !reg16.hasReg8(regH))
                     regL = &reg16.l;
             }
+
 #if 0
+            if (af.h.hasValue(hiByte) && af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
+            {
+                regH = &af.h;
+                regL = &af.h;
+
+                if (0)
+                {
+                    l.loadFromReg(line, af.h);
+                    h.loadFromReg(line, af.h);
+                }
+                else 
+                {
+                    uint8_t data = 0x40 + l.reg8Index * 8 + af.h.reg8Index;
+                    line.data.push_back(data);
+                    data = 0x40 + h.reg8Index * 8 + af.h.reg8Index;
+                    line.data.push_back(data);
+                    l.value = h.value = af.h.value;
+
+                    line.regUsage.selfReg(h, l);
+                    line.drawTicks += 8;
+                }
+
+                return true;
+            }
+#endif
+
+#if 1
             if (af.h.hasValue(hiByte) && af.isAltAf == line.isAltAf)
                 regH = &af.h;
             if (af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)

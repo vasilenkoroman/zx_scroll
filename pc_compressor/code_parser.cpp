@@ -267,6 +267,10 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
 
     auto result = commands[*ptr];
     result.opCode = *ptr;
+    if (result.size > 1)
+        result.data = ptr[1];
+    if (result.size > 2)
+        result.data += (uint16_t) ptr[2] << 8;
     return result;
 }
 
@@ -715,47 +719,73 @@ Z80CodeInfo Z80Parser::parseCode(
 }
 
 
-RegUsageInfo Z80Parser::regUsageByCommand(const z80Command& command)
+std::pair<RegUsageInfo, int> Z80Parser::selfRegUsageInFirstCommands(
+    const std::vector<z80Command>& commands,
+    std::vector<Register16>& registers,
+    const Register16& af)
 {
-    static Register16 bc("bc");
-    static Register16 de("de");
-    static Register16 hl("hl");
+    auto bc = findRegister(registers, "bc");
+    auto de = findRegister(registers, "de");
+    auto hl = findRegister(registers, "hl");
 
     RegUsageInfo regUsage;
+    int counter = 0;
 
-    switch (command.opCode)
+    for (const auto& command: commands)
     {
+        switch (command.opCode)
+        {
         case 0x01:  // LD BC, xx
-            regUsage.selfReg(bc.h, bc.l);
+            bc->loadXX(regUsage, command.data);
             break;
         case 0x11:  // LD DE, xx
-            regUsage.selfReg(de.h, de.l);
+            de->loadXX(regUsage, command.data);
             break;
         case 0x21:  // LD HL, xx
-            regUsage.selfReg(hl.h, hl.l);
+            hl->loadXX(regUsage, command.data);
             break;
         case 0x06:  // LD B, x
-            regUsage.selfReg(bc.h);
+            bc->h.loadX(regUsage, command.data);
             break;
         case 0x0e:  // LD C, x
-            regUsage.selfReg(bc.l);
+            bc->l.loadX(regUsage, command.data);
             break;
         case 0x16:  // LD D, x
-            regUsage.selfReg(de.h);
+            de->h.loadX(regUsage, command.data);
             break;
         case 0x1e:  // LD E, x
-            regUsage.selfReg(de.l);
+            de->l.loadX(regUsage, command.data);
             break;
         case 0x26:  // LD H, x
-            regUsage.selfReg(hl.h);
+            hl->h.loadX(regUsage, command.data);
             break;
         case 0x2e:  // LD L, x
-            regUsage.selfReg(hl.l);
+            hl->l.loadX(regUsage, command.data);
+            break;
+        case 0x47:  // LD b, a
+            bc->h.loadFromReg(regUsage, af.h);
+            break;
+        case 0x4f:  // LD c, a
+            bc->l.loadFromReg(regUsage, af.h);
+            break;
+        case 0x57:  // LD d, a
+            de->h.loadFromReg(regUsage, af.h);
+            break;
+        case 0x5f:  // LD e, a
+            de->l.loadFromReg(regUsage, af.h);
+            break;
+        case 0x67:  // LD h, a
+            hl->h.loadFromReg(regUsage, af.h);
+            break;
+        case 0x6f:  // LD l, a
+            hl->l.loadFromReg(regUsage, af.h);
             break;
         default:
-            break;
+            return { regUsage, counter };
+        }
+        ++counter;
     }
-    return regUsage;
+    return { regUsage, counter };
 }
 
 std::vector<uint8_t> Z80Parser::getCode(const uint8_t* buffer, int requestedOpCodeSize)
