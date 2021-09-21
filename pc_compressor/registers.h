@@ -488,6 +488,34 @@ Register8* findRegister8(T& registers, const char& name)
 }
 
 template <typename T>
+const Register8* findRegisterByValue(T& registers, uint8_t value, const Register8* a = nullptr)
+{
+    if (a && a->hasValue(value))
+        return a;
+    for (auto& reg: registers)
+    {
+        if (reg.h.hasValue(value))
+            return &reg.h;
+        else if (reg.l.hasValue(value))
+            return &reg.l;
+    }
+    return nullptr;
+}
+
+template <typename T>
+Register8* findRegisterByIndex(T& registers, int index)
+{
+    for (auto& reg: registers)
+    {
+        if (reg.h.reg8Index == index)
+            return &reg.h;
+        else if (reg.l.reg8Index == index)
+            return &reg.l;
+    }
+    return nullptr;
+}
+
+template <typename T>
 Register16* findRegister(T& registers, const std::string& name, std::optional<bool> isAlt = std::nullopt)
 {
     for (auto& reg: registers)

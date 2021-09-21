@@ -132,6 +132,16 @@ void CompressedLine::append(const std::vector<uint8_t>& data)
     append(data.data(), data.size());
 }
 
+void CompressedLine::appendCommand(const z80Command& command)
+{
+    drawTicks += command.ticks;
+    data.push_back(command.opCode);
+    if (command.size > 1)
+        data.push_back((uint8_t) command.data);
+    if (command.size > 2)
+        data.push_back(command.data >> 8);
+}
+
 void CompressedLine::push_front(const std::vector<uint8_t>& v)
 {
     for (auto itr = v.rbegin(); itr != v.rend(); ++itr)

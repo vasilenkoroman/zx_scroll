@@ -8,6 +8,7 @@
 class Register8;
 class Register16;
 class CompressedLine;
+class z80Command;
 
 struct RegUsageInfo
 {
@@ -72,6 +73,7 @@ public:
         memcpy(m_buffer + m_size, other.m_buffer, other.m_size);
         m_size += other.m_size;
     }
+
 };
 
 struct CompressedLine
@@ -154,6 +156,7 @@ struct CompressedLine
     void serialize(std::vector<uint8_t>& vector) const;
     void append(const uint8_t* buffer, int size);
     void append(const std::vector<uint8_t>& data);
+    void appendCommand(const z80Command& data);
     void push_front(const std::vector<uint8_t>& data);
     void push_front(const ZxData& buffer);
 

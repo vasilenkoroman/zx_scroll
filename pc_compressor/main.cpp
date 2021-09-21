@@ -1895,6 +1895,115 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
+    CompressedLine updateRegistersForDelay(const CompressedLine& serializedRegs, int delay, const Register16& af)
+    {
+        if (delay == 0)
+            return serializedRegs;
+
+        int origDelay = delay;
+
+        if (delay > 3)
+        {
+            std::cerr << "Invalid delay. " << delay << "Allowed range is [0..3]" << std::endl;
+            abort();
+        }
+
+        std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
+        auto parsedRegs = Z80Parser::parseCode(
+            af, emptyRegs, 
+            serializedRegs.data.buffer(), serializedRegs.data.size(),
+            0, serializedRegs.data.size(),
+            0);
+
+        CompressedLine updatedLine;
+
+        if (delay == 3)
+        {
+            // Try to change LD REG8,REG8 to LD REG8, X
+            for (const auto& command: parsedRegs.commands)
+            {
+                if (command.opCode >= 0x40 && command.opCode <= 0x6f && delay == 3)
+                {
+                    int regToIndex = (command.opCode - 0x40) % 7;
+                    int regFromIndex = (command.opCode - 0x40) / 8;
+                    auto regFrom = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex);
+                    auto regTo = findRegisterByIndex(parsedRegs.outputRegisters, regToIndex);
+                    regTo->loadX(updatedLine, *regFrom->value);
+                    delay = 0;
+                }
+                else
+                {
+                    updatedLine.appendCommand(command);
+                }
+            }
+        }
+        if (delay == 0)
+            return updatedLine;
+
+        auto splitLoadXX = 
+            [&](const std::string& regName)
+            {
+                auto bc = findRegister(parsedRegs.outputRegisters, regName);
+                auto reg8 = findRegisterByValue(parsedRegs.outputRegisters, *bc->h.value, &af.h);
+                if (reg8)
+                {
+                    bc->h.loadFromReg(updatedLine, *reg8);
+                    bc->l.loadX(updatedLine, bc->l.value.value());
+                }
+                else
+                {
+                    reg8 = findRegisterByValue(parsedRegs.outputRegisters, *bc->l.value);
+                    if (!reg8)
+                    {
+                        std::cerr << "Can not find 8-bit register to split LD REG16, XX to two commands" << std::endl;
+                        abort();
+                    }
+                    bc->l.loadFromReg(updatedLine, *reg8);
+                    bc->h.loadX(updatedLine, bc->h.value.value());
+                }
+            };
+
+        // Split LD REG16, XX to   LD REG8, X : LD REG8, REG8
+        std::set<uint8_t> availableValues;
+        if (af.h.value)
+            availableValues.insert(*af.h.value);
+        for (const auto& command : parsedRegs.commands)
+        {
+            if (delay > 0)
+            {
+                switch (command.opCode)
+                {
+                case 0x01:  // LD BC, xx
+                    splitLoadXX("bc");
+                    --delay;
+                    break;
+                case 0x11:  // LD DE, xx
+                    splitLoadXX("de");
+                    --delay;
+                    break;
+                case 0x21:  // LD HL, xx
+                    splitLoadXX("hl");
+                    --delay;
+                    break;
+                default:
+                    updatedLine.appendCommand(command);
+                    break;
+                }
+            }
+            else
+            {
+                updatedLine.appendCommand(command);
+            }
+        }
+
+        if (parsedRegs.ticks != updatedLine.drawTicks + origDelay)
+        {
+            std::cerr << "Updating regs for extra delay is failed. Some bug" << std::endl;
+            abort();
+        }
+
+        return updatedLine;
+    }
 
     std::set<int> canMakePreambulaLonger(
         const CompressedLine& dataLine,
@@ -2021,6 +2130,9 @@ struct DescriptorState
         firstCommands.erase(firstCommands.begin(), firstCommands.begin() + omitedBytes);
 
         auto regs = getSerializedRegisters(registers, af);
+        if (extraDelay > 0)
+            regs = updateRegistersForDelay(regs, extraDelay, af);
+
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
@@ -2331,8 +2443,7 @@ int serializeMainData(
                 {
                     if (sum < ticksLimit && prolongOptions.count(ticksLimit - sum))
                     {
-                        int gg = 4;
-                       // return false; //< Continue
+                        return false; //< Continue
                     }
 
                     if (command.opCode == kDecSpCode || command.opCode == kAddHlSpCode || command.opCode == kLdSpHlCode)
