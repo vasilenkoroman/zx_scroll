@@ -2600,7 +2600,7 @@ int serializeColorData(
         // Make filler to prevent it. It is perfomance loss, but I expect more big images ( > 192 lines) for release.
         if (imageHeight == 24)
         {
-            serializedData.push_back(0x26); // LD H, 0 as an filler
+            serializedData.push_back(0x3e); // LD A, 0 as an filler
             serializedData.push_back(0);
         }
         line.serialize(serializedData);
