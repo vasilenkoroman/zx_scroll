@@ -105,7 +105,7 @@ public:
     void decValue(RegUsageInfo& info);
 
     void setBit(CompressedLine& line, uint8_t bit);
-    
+
     template <int N>
     inline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af);
 };
@@ -147,7 +147,7 @@ public:
     {
         return h.reg8Index;
     }
-       
+
     void reset()
     {
         h.value.reset();
@@ -363,24 +363,8 @@ public:
             {
                 regH = &af.h;
                 regL = &af.h;
-
-                if (0)
-                {
-                    l.loadFromReg(line, af.h);
-                    h.loadFromReg(line, af.h);
-                }
-                else 
-                {
-                    uint8_t data = 0x40 + l.reg8Index * 8 + af.h.reg8Index;
-                    line.data.push_back(data);
-                    data = 0x40 + h.reg8Index * 8 + af.h.reg8Index;
-                    line.data.push_back(data);
-                    l.value = h.value = af.h.value;
-
-                    line.regUsage.selfReg(h, l);
-                    line.drawTicks += 8;
-                }
-
+                l.loadFromReg(line, af.h);
+                h.loadFromReg(line, af.h);
                 return true;
             }
 #endif
@@ -503,8 +487,10 @@ const Register8* findRegisterByValue(T& registers, uint8_t value, const Register
 }
 
 template <typename T>
-Register8* findRegisterByIndex(T& registers, int index)
+Register8* findRegisterByIndex(T& registers, int index, Register8* a = nullptr)
 {
+    if (a && a->reg8Index == index)
+        return a;
     for (auto& reg: registers)
     {
         if (reg.h.reg8Index == index)

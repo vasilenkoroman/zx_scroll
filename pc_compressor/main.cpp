@@ -579,7 +579,7 @@ bool hasWordFromExistingRegisterExceptHl8(
     {
         if (reg.h.name == 'h')
             continue;
-	
+
         if (isAltReg != reg.isAlt)
             continue;
         if (reg.h.hasValue(byte))
@@ -601,7 +601,7 @@ bool hasWordFromExistingRegisterExceptHl8(
 
 template <int N>
 bool willUseLoadFromHl(
-    const Context& context, 
+    const Context& context,
     bool isAltReg,
     std::array<Register16, N>& registers,
     int x,
@@ -762,7 +762,7 @@ bool compressLine(
             awaitingLoadFromHl = false;
             continue;
         }
-        
+
         if (awaitingLoadFromHl)
             abort();
 
@@ -1605,7 +1605,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
             line.drawTicks += 25;
             endLineDelay -= 25;
         }
-#endif		
+#endif
 
         if (endLineDelay >= 45 + 10 && (flags & sinkMcTicksToRastr))
         {
@@ -1895,10 +1895,10 @@ struct DescriptorState
         lineEndPtr -= Z80Parser::removeTrailingStackMoving(codeInfo, maxCommandToRemove);
     }
 
-    CompressedLine updateRegistersForDelay(const CompressedLine& serializedRegs, int delay, const Register16& af)
+    std::pair<CompressedLine, bool> updateRegistersForDelay(const CompressedLine& serializedRegs, int delay, Register16& af, bool testMode)
     {
         if (delay == 0)
-            return serializedRegs;
+            return { serializedRegs, true };
 
         int origDelay = delay;
 
@@ -1910,12 +1910,36 @@ struct DescriptorState
 
         std::vector<Register16> emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto parsedRegs = Z80Parser::parseCode(
-            af, emptyRegs, 
+            af, emptyRegs,
             serializedRegs.data.buffer(), serializedRegs.data.size(),
             0, serializedRegs.data.size(),
             0);
 
         CompressedLine updatedLine;
+
+        auto splitLoadXX =
+            [&](const std::string& regName)
+        {
+            auto reg = findRegister(parsedRegs.outputRegisters, regName);
+            auto reg8 = findRegisterByValue(parsedRegs.outputRegisters, *reg->h.value, &af.h);
+            if (reg8 && (reg8->name == 'a' || reg8->reg8Index < reg->h.reg8Index))
+            {
+                reg->l.loadX(updatedLine, reg->l.value.value());
+                reg->h.loadFromReg(updatedLine, *reg8);
+                return true;
+            }
+            else
+            {
+                reg8 = findRegisterByValue(parsedRegs.outputRegisters, *reg->l.value, &af.h);
+                if (reg8 && (reg8->name == 'a' || reg8->reg8Index < reg->l.reg8Index))
+                {
+                    reg->h.loadX(updatedLine, reg->h.value.value());
+                    reg->l.loadFromReg(updatedLine, *reg8);
+                    return true;
+                }
+            }
+            return false;
+        };
 
         if (delay == 3)
         {
@@ -1924,9 +1948,9 @@ struct DescriptorState
             {
                 if (command.opCode >= 0x40 && command.opCode <= 0x6f && delay == 3)
                 {
-                    int regToIndex = (command.opCode - 0x40) % 7;
-                    int regFromIndex = (command.opCode - 0x40) / 8;
-                    auto regFrom = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex);
+                    int regFromIndex = (command.opCode - 0x40) % 8;
+                    int regToIndex = (command.opCode - 0x40) / 8;
+                    auto regFrom = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex, &af.h);
                     auto regTo = findRegisterByIndex(parsedRegs.outputRegisters, regToIndex);
                     regTo->loadX(updatedLine, *regFrom->value);
                     delay = 0;
@@ -1937,115 +1961,123 @@ struct DescriptorState
                 }
             }
         }
-        if (delay == 0)
-            return updatedLine;
 
-        auto splitLoadXX = 
-            [&](const std::string& regName)
+        if (delay == 2)
+        {
+            // Try to change 2 LD REG8,REG8 to LD REG16, XX
+            for (int i = 0; i < (int) parsedRegs.commands.size() - 1; ++i)
             {
-                auto bc = findRegister(parsedRegs.outputRegisters, regName);
-                auto reg8 = findRegisterByValue(parsedRegs.outputRegisters, *bc->h.value, &af.h);
-                if (reg8)
+                const auto& command = parsedRegs.commands[i];
+                const auto& nextCommand = parsedRegs.commands[i+1];
+                if (command.opCode >= 0x40 && command.opCode <= 0x6f
+                    && nextCommand.opCode >= 0x40 && nextCommand.opCode <= 0x6f
+                    && delay == 2)
                 {
-                    bc->h.loadFromReg(updatedLine, *reg8);
-                    bc->l.loadX(updatedLine, bc->l.value.value());
+                    int regFromIndex1 = (command.opCode - 0x40) % 8;
+                    int regToIndex1 = (command.opCode - 0x40) / 8;
+
+                    int regFromIndex2 = (nextCommand.opCode - 0x40) % 8;
+                    int regToIndex2 = (nextCommand.opCode - 0x40) / 8;
+
+                    auto regTo1 = findRegisterByIndex(parsedRegs.outputRegisters, regToIndex1);
+                    auto regTo2 = findRegisterByIndex(parsedRegs.outputRegisters, regToIndex2);
+
+                    if (regToIndex1 + 1 == regToIndex2 && regToIndex1 % 2 == 0)
+                    {
+                        auto regFrom1 = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex1, &af.h);
+                        auto regFrom2 = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex2, &af.h);
+
+                        const uint16_t word = ((uint16_t) *regFrom1->value << 8) + *regFrom2->value;
+
+                        std::string reg16Name = std::string() + regTo1->name + regTo2->name;
+                        auto reg16 = findRegister(parsedRegs.outputRegisters, reg16Name);
+                        reg16->loadXX(updatedLine, word);
+                        delay = 0;
+                        ++i;
+                    }
+                    else
+                    {
+                        updatedLine.appendCommand(command);
+                    }
                 }
                 else
                 {
-                    reg8 = findRegisterByValue(parsedRegs.outputRegisters, *bc->l.value);
-                    if (!reg8)
-                    {
-                        std::cerr << "Can not find 8-bit register to split LD REG16, XX to two commands" << std::endl;
-                        abort();
-                    }
-                    bc->l.loadFromReg(updatedLine, *reg8);
-                    bc->h.loadX(updatedLine, bc->h.value.value());
-                }
-            };
-
-        // Split LD REG16, XX to   LD REG8, X : LD REG8, REG8
-        std::set<uint8_t> availableValues;
-        if (af.h.value)
-            availableValues.insert(*af.h.value);
-        for (const auto& command : parsedRegs.commands)
-        {
-            if (delay > 0)
-            {
-                switch (command.opCode)
-                {
-                case 0x01:  // LD BC, xx
-                    splitLoadXX("bc");
-                    --delay;
-                    break;
-                case 0x11:  // LD DE, xx
-                    splitLoadXX("de");
-                    --delay;
-                    break;
-                case 0x21:  // LD HL, xx
-                    splitLoadXX("hl");
-                    --delay;
-                    break;
-                default:
                     updatedLine.appendCommand(command);
-                    break;
                 }
-            }
-            else
-            {
-                updatedLine.appendCommand(command);
             }
         }
 
-        if (parsedRegs.ticks != updatedLine.drawTicks + origDelay)
+        if (delay)
         {
-            std::cerr << "Updating regs for extra delay is failed. Some bug" << std::endl;
+            // Split LD REG16, XX to   LD REG8, X : LD REG8, REG8
+            std::set<uint8_t> availableValues;
+            if (af.h.value)
+                availableValues.insert(*af.h.value);
+            for (const auto& command : parsedRegs.commands)
+            {
+                bool updated = false;
+                if (delay > 0)
+                {
+                    switch (command.opCode)
+                    {
+                    case 0x01:  // LD BC, xx
+                        updated = splitLoadXX("bc");
+                        break;
+                    case 0x11:  // LD DE, xx
+                        updated = splitLoadXX("de");
+                        break;
+                    case 0x21:  // LD HL, xx
+                        updated = splitLoadXX("hl");
+                        break;
+                    }
+                    if (updated)
+                        --delay;
+                }
+                if (!updated)
+                    updatedLine.appendCommand(command);
+            }
+        }
+
+        if (parsedRegs.ticks + origDelay != updatedLine.drawTicks || delay)
+        {
+            if (testMode)
+                return { updatedLine, false };
+
+            std::cerr << "Updating regs for extra delay " << origDelay << " failed. Some bug" << std::endl;
             abort();
         }
 
-        return updatedLine;
+        auto parsedRegs2 = Z80Parser::parseCode(
+            af, emptyRegs,
+            updatedLine.data.buffer(), updatedLine.data.size(),
+            0, updatedLine.data.size(),
+            0);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            if (parsedRegs2.outputRegisters[i].h.value != parsedRegs.outputRegisters[i].h.value
+                || parsedRegs2.outputRegisters[i].l.value != parsedRegs.outputRegisters[i].l.value)
+            {
+                std::cerr << "Updating regs for extra delay " << origDelay << " failed. Some bug" << std::endl;
+                abort();
+            }
+        }
+
+        return { updatedLine, true };
     }
 
-    std::set<int> canMakePreambulaLonger(
+    bool canProlongPreambulaFor(
+        int delay,
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
-        int relativeOffsetToStart) const
+        int relativeOffsetToStart)
     {
         CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
         auto [registers, __1, __2] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
-        std::set<int> options;
-        
-        int canSplitToTwoLoads = 0;
-        std::set<uint8_t> availableValues;
-        if (af.h.value)
-            availableValues.insert(*af.h.value);
-        for (int i = 0; i < registers.size(); ++i)
-        {
-            const auto& reg = registers[i];
-            if (reg.h.value && reg.l.value)
-            {
-                // Can split LD REG16, XX to   LD REG8, X : LD REG8, REG8
-                if (availableValues.count(*reg.h.value) || availableValues.count(*reg.l.value))
-                    options.insert(++canSplitToTwoLoads);
-            }
-            else if (reg.h.value && !reg.l.value)
-            {
-                // Can change LD REG8,REG8 to LD REG8, X
-                if (availableValues.count(*reg.h.value))
-                    options.insert(3);
-            }
-            else if (reg.l.value && !reg.h.value)
-            {
-                // Can change LD REG8,REG8 to LD REG8, X
-                if (availableValues.count(*reg.l.value))
-                    options.insert(3);
-            }
 
-            if (reg.h.value)
-                availableValues.insert(*reg.h.value);
-            if (reg.l.value)
-                availableValues.insert(*reg.l.value);
-        }
-        return options;
+        auto regs = getSerializedRegisters(registers, af);
+        auto [updatedRegs, success] = updateRegistersForDelay(regs, delay, af, /*testMode*/ true);
+        return success;
     }
 
 
@@ -2070,7 +2102,7 @@ struct DescriptorState
 
         emptyRegs = { Register16("bc"), Register16("de"), Register16("hl") };
         auto [regUsage, commandCounter] = Z80Parser::selfRegUsageInFirstCommands(omitedDataInfo.commands, emptyRegs, af);
-        
+
         int regUsageCommandsSize = 0;
         int regUsageCommandsTicks = 0;
         for (int i = 0; i < commandCounter; ++i)
@@ -2131,7 +2163,7 @@ struct DescriptorState
 
         auto regs = getSerializedRegisters(registers, af);
         if (extraDelay > 0)
-            regs = updateRegistersForDelay(regs, extraDelay, af);
+            regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
 
         regs.serialize(preambula);
         addToPreambule(firstCommands);
@@ -2407,7 +2439,7 @@ int serializeMainData(
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
-        
+
         descriptor.rastrForMulticolor.af =  data.af;
         descriptor.rastrForOffscreen.af = data.af;
         if (dataLine.stackMovingAtStart != dataLine.minX)
@@ -2419,7 +2451,7 @@ int serializeMainData(
 
         if (flags & interlineRegisters)
             linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
-        auto prolongOptions = descriptor.rastrForMulticolor.canMakePreambulaLonger(dataLine, serializedData, relativeOffsetToStart);
+        //auto prolongOptions = descriptor.rastrForMulticolor.canMakePreambulaLonger(dataLine, serializedData, relativeOffsetToStart);
 
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2435,15 +2467,24 @@ int serializeMainData(
             serializedData,
             relativeOffsetToStart, relativeOffsetToEnd,
             codeOffset,
-            [ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &prolongOptions](const Z80CodeInfo& info, const z80Command& command)
+            //[ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &dataLine, &serializedData, &relativeOffsetToStart]
+            [&]
+            (const Z80CodeInfo& info, const z80Command& command)
             {
                 int sum = info.ticks + command.ticks;
                 bool success = sum == ticksLimit || sum < ticksLimit - 3;
                 if (!success)
                 {
-                    if (sum < ticksLimit && prolongOptions.count(ticksLimit - sum))
+                    if (sum < ticksLimit)
                     {
-                        return false; //< Continue
+                        if (descriptor.rastrForMulticolor.canProlongPreambulaFor(
+                            ticksLimit - sum,
+                            dataLine,
+                            serializedData,
+                            relativeOffsetToStart))
+                        {
+                            return false; //< Continue
+                        }
                     }
 
                     if (command.opCode == kDecSpCode || command.opCode == kAddHlSpCode || command.opCode == kLdSpHlCode)
@@ -2489,7 +2530,10 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-
+        if (d == 51)
+        {
+            int gg = 4;
+        }
         descriptor.rastrForMulticolor.makePreambulaForMC(serializedData, codeOffset, &dataLine);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData, codeOffset, descriptorsDelta);
 
@@ -2561,7 +2605,7 @@ int serializeColorData(
         }
         line.serialize(serializedData);
     }
-    
+
     const int reachDescriptorsBase = codeOffset + serializedData.size();
     std::vector<uint8_t> serializedDescriptors;
 
@@ -2613,7 +2657,7 @@ int serializeColorData(
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
     colorDataFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
-    
+
     return serializedData.size() + serializedDescriptors.size();
 }
 
@@ -2767,7 +2811,7 @@ struct OffscreenTicks
         preambulaTicks += other.preambulaTicks;
         payloadTicks += other.payloadTicks;
         enterExitTicks += other.enterExitTicks;
-        preambulaTicksDetails.insert(preambulaTicksDetails.end(), 
+        preambulaTicksDetails.insert(preambulaTicksDetails.end(),
             other.preambulaTicksDetails.begin(), other.preambulaTicksDetails.end());
         return *this;
     }
