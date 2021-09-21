@@ -501,7 +501,7 @@ bool loadWordFromExistingRegister(
 template <int N>
 bool hasWordFromExistingRegisterExceptHl(
     const Context& context,
-    bool isAltReg,
+    const CompressedLine& line,
     std::array<Register16, N>& registers,
     const uint16_t word, const int x)
 
@@ -513,7 +513,7 @@ bool hasWordFromExistingRegisterExceptHl(
     {
         for (auto& reg : registers)
         {
-            bool condition = isAltReg == reg.isAlt;
+            bool condition = line.isAltReg == reg.isAlt;
             if (run == 1)
                 condition = !condition;
             if (!condition)
@@ -536,7 +536,7 @@ bool hasWordFromExistingRegisterExceptHl(
 }
 
 template <int N>
-bool loadWordFromExistingRegisterExceptHl8(
+bool loadByteFromExistingRegisterExceptHl(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
@@ -558,7 +558,7 @@ bool loadWordFromExistingRegisterExceptHl8(
             return true;
         }
     }
-    if (context.af.h.hasValue(byte))
+    if (context.af.h.hasValue(byte) && result.isAltAf == context.af.isAltAf)
     {
         context.af.h.pushViaHL(result);
         return true;
@@ -568,9 +568,9 @@ bool loadWordFromExistingRegisterExceptHl8(
 }
 
 template <int N>
-bool hasWordFromExistingRegisterExceptHl8(
+bool hasByteFromExistingRegisterExceptHl(
     const Context& context,
-    bool isAltReg,
+    const CompressedLine& line,
     std::array<Register16, N>& registers,
     const uint8_t byte, const int x)
 
@@ -580,7 +580,7 @@ bool hasWordFromExistingRegisterExceptHl8(
         if (reg.h.name == 'h')
             continue;
 
-        if (isAltReg != reg.isAlt)
+        if (line.isAltReg != reg.isAlt)
             continue;
         if (reg.h.hasValue(byte))
         {
@@ -591,7 +591,7 @@ bool hasWordFromExistingRegisterExceptHl8(
             return true;
         }
     }
-    if (context.af.h.hasValue(byte))
+    if (context.af.isAltAf == line.isAltAf && context.af.h.hasValue(byte))
     {
         return true;
     }
@@ -600,9 +600,9 @@ bool hasWordFromExistingRegisterExceptHl8(
 }
 
 template <int N>
-bool willUseLoadFromHl(
+bool willWriteByteViaHl(
     const Context& context,
-    bool isAltReg,
+    const CompressedLine& line,
     std::array<Register16, N>& registers,
     int x,
     int verticalRepCnt)
@@ -624,12 +624,12 @@ bool willUseLoadFromHl(
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
         word = swapBytes(word);
-        if (x < context.maxX && hasWordFromExistingRegisterExceptHl(context, isAltReg, registers, word, x))
+        if (x < context.maxX && hasWordFromExistingRegisterExceptHl(context, line, registers, word, x))
             return false;
     }
 
     if (newX < context.maxX
-        && hasWordFromExistingRegisterExceptHl8(context, isAltReg, registers, context.buffer[index], x))
+        && hasByteFromExistingRegisterExceptHl(context, line, registers, context.buffer[index], x))
     {
         return true;
     }
@@ -719,7 +719,7 @@ bool compressLine(
                 int spDelta = -verticalRepCount;
                 if (context.flags & updateViaHl)
                 {
-                    if (willUseLoadFromHl(context, result.isAltReg, registers, x, verticalRepCount))
+                    if (willWriteByteViaHl(context, result, registers, x, verticalRepCount))
                     {
                         --spDelta;
                         awaitingLoadFromHl = true;
@@ -756,7 +756,7 @@ bool compressLine(
         }
 
         if (awaitingLoadFromHl
-            && loadWordFromExistingRegisterExceptHl8(context, result, registers, context.buffer[index], x))
+            && loadByteFromExistingRegisterExceptHl(context, result, registers, context.buffer[index], x))
         {
             ++x;
             awaitingLoadFromHl = false;

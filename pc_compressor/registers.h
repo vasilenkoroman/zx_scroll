@@ -358,7 +358,7 @@ public:
                     regL = &reg16.l;
             }
 
-#if 0
+#if 1
             if (af.h.hasValue(hiByte) && af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
             {
                 regH = &af.h;
@@ -369,7 +369,7 @@ public:
             }
 #endif
 
-#if 1
+#if 0
             if (af.h.hasValue(hiByte) && af.isAltAf == line.isAltAf)
                 regH = &af.h;
             if (af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
