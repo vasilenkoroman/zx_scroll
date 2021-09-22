@@ -830,81 +830,55 @@ bool compressLine(
     return true;
 }
 
-std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& context, const std::vector<int>& lines)
+std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines)
 {
-    return std::async(
-        [context, lines]()
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::vector<CompressedLine> result;
+    for (const auto line : lines)
+    {
+        Context ctx = context;
+        ctx.y = line;
+
+        if (ctx.flags & optimizeLineEdge)
+            ctx.removeEdge();
+
+        CompressedLine line;
+        auto registers1 = registers;
+
+        if ((ctx.flags & optimizeLineEdge) && !result.empty())
         {
-            std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-            std::vector<CompressedLine> result;
-            for (const auto line: lines)
+            auto& prevLine = *result.rbegin();
+            // Real moving can be 1 bytes less if there is no oddCompression flag and minX is odd.
+            int expectedStackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
+            if (expectedStackMovingAtStart >= 5)
             {
-                Context ctx = context;
-                ctx.y = line;
-
-                if (ctx.flags & optimizeLineEdge)
-                    ctx.removeEdge();
-
-                CompressedLine line;
-                auto registers1 = registers;
-
-                if ((ctx.flags & optimizeLineEdge) && !result.empty())
-                {
-                    auto& prevLine = *result.rbegin();
-                    // Real moving can be 1 bytes less if there is no oddCompression flag and minX is odd.
-                    int expectedStackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
-                    if (expectedStackMovingAtStart >= 5)
-                    {
-                        auto hl = findRegister(registers1, "hl");
-                        hl->reset();
-                    }
-                }
-
-                compressLineMain(ctx, line, registers1);
-                if (context.flags & interlineRegisters)
-                    registers = registers1;
-
-
-                if (ctx.flags & optimizeLineEdge)
-                {
-                    Z80Parser parser;
-                    auto info = parser.parseCode(
-                        context.af,
-                        *line.inputRegisters,
-                        line.data.buffer(), line.data.size(),
-                        0, line.data.size(), 0);
-
-                    line.minX = ctx.minX;
-                    line.maxX = ctx.minX - info.spOffset;
-
-                    if (!result.empty())
-                    {
-                        auto& prevLine = *result.rbegin();
-                        int stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
-
-                        if (stackMovingAtStart >= 5)
-                        {
-                            Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
-                            line.stackMovingAtStart = stackMovingAtStart;
-                        }
-                        else if (stackMovingAtStart > 0)
-                        {
-                            Z80Parser::serializeAddSpToFront(line, line.minX);
-                            Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
-                            line.stackMovingAtStart = line.minX;
-                        }
-                    }
-                }
-
-                result.push_back(line);
+                auto hl = findRegister(registers1, "hl");
+                hl->reset();
             }
+        }
 
-            if (context.flags & optimizeLineEdge)
+        compressLineMain(ctx, line, registers1);
+        if (context.flags & interlineRegisters)
+            registers = registers1;
+
+
+        if (ctx.flags & optimizeLineEdge)
+        {
+            Z80Parser parser;
+            auto info = parser.parseCode(
+                context.af,
+                *line.inputRegisters,
+                line.data.buffer(), line.data.size(),
+                0, line.data.size(), 0);
+
+            line.minX = ctx.minX;
+            line.maxX = ctx.minX - info.spOffset;
+
+            if (!result.empty())
             {
-                auto& line = result[0];
                 auto& prevLine = *result.rbegin();
+                int stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
 
-                int stackMovingAtStart = line.minX + (32 - prevLine.maxX);
                 if (stackMovingAtStart >= 5)
                 {
                     Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
@@ -917,10 +891,41 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
                     line.stackMovingAtStart = line.minX;
                 }
             }
+        }
+
+        result.push_back(line);
+    }
+
+    if (context.flags & optimizeLineEdge)
+    {
+        auto& line = result[0];
+        auto& prevLine = *result.rbegin();
+
+        int stackMovingAtStart = line.minX + (32 - prevLine.maxX);
+        if (stackMovingAtStart >= 5)
+        {
+            Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
+            line.stackMovingAtStart = stackMovingAtStart;
+        }
+        else if (stackMovingAtStart > 0)
+        {
+            Z80Parser::serializeAddSpToFront(line, line.minX);
+            Z80Parser::serializeAddSpToBack(prevLine, stackMovingAtStart - line.minX);
+            line.stackMovingAtStart = line.minX;
+        }
+    }
 
 
-            updateTransitiveRegUsage(result);
-            return result;
+    updateTransitiveRegUsage(result);
+    return result;
+}
+
+std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& context, const std::vector<int>& lines)
+{
+    return std::async(
+        [context, lines]()
+        {
+            return compressLines(context, lines);
         }
     );
 }
@@ -1818,44 +1823,27 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
 
 CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register16& af2)
 {
-    CompressedData compressedData;
-    int flags = verticalCompressionH | interlineRegisters;
+    int flags = verticalCompressionH | interlineRegisters | optimizeLineEdge;
     std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
 
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-    for (int y = 0; y < imageHeight / 8; y ++)
+    Context context;
+    context.scrollDelta = kScrollDelta;
+    context.flags = flags;
+    context.imageHeight = imageHeight / 8;
+    context.buffer = buffer;
+    context.sameBytesCount = &sameBytesCount;
+    //context.af = af2;
+    std::vector<int> lines;
+    for (int y = 0; y < imageHeight / 8; y++)
     {
-
-        Context context;
-        context.scrollDelta = kScrollDelta;
-        context.flags = flags;
-        context.imageHeight = imageHeight / 8;
-        context.buffer = buffer;
-        context.y = y;
-        context.sameBytesCount = &sameBytesCount;
-
-        CompressedLine line1, line2;
-        std::array<Register16, 3> reg1 = registers;
-        std::array<Register16, 3> reg2 = registers;
-        compressLineMain(context, line1, reg1);
-        context.af = af2;
-        compressLineMain(context, line2, reg2);
-        if (line1.drawTicks < line2.drawTicks)
-        {
-            compressedData.data.push_back(line1);
-            if (flags & interlineRegisters)
-                registers = reg1;
-        }
-        else
-        {
-            compressedData.data.push_back(line2);
-            if (flags & interlineRegisters)
-                registers = reg2;
-        }
+        lines.push_back(y);
     }
-    updateTransitiveRegUsage(compressedData.data);
+
+    CompressedData compressedData;
+    compressedData.data = compressLines(context, lines);
     compressedData.sameBytesCount = sameBytesCount;
     compressedData.flags = flags;
+    compressedData.af = af2;
     return compressedData;
 }
 
@@ -2448,12 +2436,7 @@ int serializeMainData(
 
         descriptor.rastrForMulticolor.af =  data.af;
         descriptor.rastrForOffscreen.af = data.af;
-        if (dataLine.stackMovingAtStart != dataLine.minX)
-        {
-            bool hasAddHlSp = dataLine.stackMovingAtStart > 4;
-            if (hasAddHlSp)
-                descriptor.rastrForMulticolor.updatedHlValue = -dataLine.minX;
-        }
+        descriptor.rastrForMulticolor.updatedHlValue = dataLine.updatedHlValue();
 
         if (flags & interlineRegisters)
             linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
@@ -2636,8 +2619,24 @@ int serializeColorData(
         {
             if (d < imageHeight)
             {
-                descriptor.preambula = line.getSerializedUsedRegisters(af);
-                descriptor.preambula.jp(descriptor.addressBegin);
+                int omitedSize = 0;
+                auto regs = line.getUsedRegisters();
+                descriptor.preambula = getSerializedRegisters(regs, af);
+                auto updatedHlValue = line.updatedHlValue();
+                if (updatedHlValue)
+                {
+                    if (auto existingHl = findRegister(regs, "hl"))
+                    {
+                        std::cerr << "Reg HL should be null here" << std::endl;
+                        abort();
+                    }
+                    omitedSize = 3;
+                    Register16 hl("hl");
+                    hl.loadXX(descriptor.preambula, *updatedHlValue);
+                    descriptor.preambula.drawTicks -= 10; //< Don't count it becase it omit same LD HL, XX in the main data.
+                }
+
+                descriptor.preambula.jp(descriptor.addressBegin + omitedSize);
                 descriptor.addressBegin = reachDescriptorsBase + serializedDescriptors.size();
                 descriptor.preambula.serialize(serializedDescriptors);
             }

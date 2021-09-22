@@ -4,6 +4,7 @@
 #include <cassert>
 #include <vector>
 #include <memory>
+#include <optional>
 
 class Register8;
 class Register16;
@@ -185,6 +186,13 @@ public:
     int16_t minX = 0;
     int16_t maxX = 0;
     int16_t stackMovingAtStart = 0;
+    
+    std::optional<uint16_t> updatedHlValue() const
+    {
+        if (stackMovingAtStart >= 5)
+            return -minX;
+        return std::nullopt;
+    }
 };
 
 CompressedLine getSerializedRegisters(const std::vector<Register16>& registers, const Register16& af);
