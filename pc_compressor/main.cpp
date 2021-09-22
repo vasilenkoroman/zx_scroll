@@ -377,7 +377,8 @@ template <int N>
 bool compressLineMain(
     Context& context,
     CompressedLine& line,
-    std::array<Register16, N>& registers)
+    std::array<Register16, N>& registers,
+    bool useUpdateViaHlTry = true)
 {
     using TryN = CompressTry<N>;
     using RegistersN = std::array<Register16, N>;
@@ -393,6 +394,9 @@ bool compressLineMain(
     TryN* bestTry = nullptr;
     for (auto& option: extraCompressOptions)
     {
+        if (!useUpdateViaHlTry && (option.extraFlags & updateViaHl))
+            continue;
+
         option.context.flags |= option.extraFlags;
         option.line.flags = option.context.flags;
         if (!(option.context.flags & oddVerticalCompression))
@@ -1276,7 +1280,9 @@ CompressedLine  compressMultiColorsLine(Context context)
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
     CompressedLine line1;
 
-    bool success = compressLineMain(context, line1, registers);
+    // This code calculate expected position for register values.
+    // It could fail with this flag. It need to update calculator if use it with this flag.
+    bool success = compressLineMain(context, line1, registers, /*updateViaHlTry*/ false);
     if (!success)
     {
         std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
