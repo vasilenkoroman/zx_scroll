@@ -386,7 +386,7 @@ bool compressLineMain(
     {
         {0, context, std::make_shared<RegistersN>(registers)},  //< regular
         {oddVerticalCompression, context, std::make_shared<RegistersN>(registers)},
-        //{oddVerticalCompression | updateViaHl, context, std::make_shared<RegistersN>(registers)}
+        {oddVerticalCompression | updateViaHl, context, std::make_shared<RegistersN>(registers)}
     };
 
     int bestTicks = std::numeric_limits<int>::max();
