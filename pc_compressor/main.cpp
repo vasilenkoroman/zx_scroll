@@ -17,7 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
-#define LOG_DEBUG
+//#define LOG_DEBUG
 
 #define TEMP_FOR_TEST_COLORS 1
 

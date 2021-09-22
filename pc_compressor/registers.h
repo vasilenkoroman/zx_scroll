@@ -367,9 +367,7 @@ public:
                 h.loadFromReg(line, af.h);
                 return true;
             }
-#endif
-
-#if 0
+#else
             if (af.h.hasValue(hiByte) && af.isAltAf == line.isAltAf)
                 regH = &af.h;
             if (af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
