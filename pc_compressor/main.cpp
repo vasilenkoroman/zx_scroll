@@ -576,7 +576,7 @@ bool hasByteFromExistingRegisterExceptHl(
     const Context& context,
     const CompressedLine& line,
     std::array<Register16, N>& registers,
-    const uint8_t byte, const int x)
+    const uint8_t byte)
 
 {
     for (auto& reg : registers)
@@ -628,12 +628,12 @@ bool willWriteByteViaHl(
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
         word = swapBytes(word);
-        if (x < context.maxX && hasWordFromExistingRegisterExceptHl(context, line, registers, word, x))
+        if (x < context.maxX && hasWordFromExistingRegisterExceptHl(context, line, registers, word, newX))
             return false;
     }
 
     if (newX < context.maxX
-        && hasByteFromExistingRegisterExceptHl(context, line, registers, context.buffer[index], x))
+        && hasByteFromExistingRegisterExceptHl(context, line, registers, context.buffer[index]))
     {
         return true;
     }
