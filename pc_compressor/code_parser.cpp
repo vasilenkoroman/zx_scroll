@@ -550,31 +550,31 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x6f: l.loadFromReg(info, a);
                 break;
-            case 0x70: 
+            case 0x70:
                 info.useReg(b);  // LD (HL), B
                 info.selfReg(h, l);
                 break;
-            case 0x71: 
+            case 0x71:
                 info.useReg(c);  // LD (HL), C
                 info.selfReg(h, l);
                 break;
-            case 0x72: 
-                info.useReg(d);  
+            case 0x72:
+                info.useReg(d);
                 info.selfReg(h, l);
                 break;
-            case 0x73: 
+            case 0x73:
                 info.useReg(e);
                 info.selfReg(h, l);
                 break;
-            case 0x74: 
+            case 0x74:
                 info.useReg(h);
                 info.selfReg(h, l);
                 break;
-            case 0x75: 
+            case 0x75:
                 info.useReg(l);
                 info.selfReg(h, l);
                 break;
-            case 0x77: 
+            case 0x77:
                 info.useReg(a);
                 info.selfReg(h, l);
                 break;
@@ -1068,9 +1068,8 @@ int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
     return removedBytes;
 }
 
-CompressedLine serializeAdHlSp(int value)
+void serializeAdHlSp(CompressedLine& line, int value)
 {
-    CompressedLine line;
     static Register16 sp("sp");
     static Register16 hl("hl");
     if (value >= 5)
@@ -1085,18 +1084,17 @@ CompressedLine serializeAdHlSp(int value)
     {
         sp.decValue(line, value);
     }
-    return line;
 }
 
 void Z80Parser::serializeAddSpToFront(CompressedLine& line, int value)
 {
-    auto temp = serializeAdHlSp(value);
+    CompressedLine temp;
+    serializeAdHlSp(temp, value);
     line.push_front(temp.data);
     line.drawTicks += temp.drawTicks;
 };
 
 void Z80Parser::serializeAddSpToBack(CompressedLine& line, int value)
 {
-    auto temp = serializeAdHlSp(value);
-    line += temp;
+    serializeAdHlSp(line, value);
 };
