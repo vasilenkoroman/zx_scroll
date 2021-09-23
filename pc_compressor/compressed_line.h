@@ -189,7 +189,7 @@ public:
     
     std::optional<uint16_t> updatedHlValue() const
     {
-        if (stackMovingAtStart >= 5)
+        if (stackMovingAtStart >= 5 && minX > 0)
             return -minX;
         return std::nullopt;
     }

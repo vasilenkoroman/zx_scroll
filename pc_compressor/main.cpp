@@ -879,7 +879,7 @@ std::vector<CompressedLine> compressLines(const Context& context, const std::vec
                 auto& prevLine = *result.rbegin();
                 int stackMovingAtStart = ctx.minX + (32 - prevLine.maxX);
 
-                if (stackMovingAtStart >= 5)
+                if (stackMovingAtStart >= 5 && line.minX > 0)
                 {
                     Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
                     line.stackMovingAtStart = stackMovingAtStart;
@@ -902,7 +902,7 @@ std::vector<CompressedLine> compressLines(const Context& context, const std::vec
         auto& prevLine = *result.rbegin();
 
         int stackMovingAtStart = line.minX + (32 - prevLine.maxX);
-        if (stackMovingAtStart >= 5)
+        if (stackMovingAtStart >= 5 && line.minX > 0)
         {
             Z80Parser::serializeAddSpToFront(line, stackMovingAtStart);
             line.stackMovingAtStart = stackMovingAtStart;
