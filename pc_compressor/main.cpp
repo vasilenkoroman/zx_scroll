@@ -30,6 +30,13 @@ static const int lineSize = 32;
 static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 static const int kMinDelay = 78;
+static const int kPagesForData = 4;
+
+// Pages 0,1, 3,4
+static const uint16_t kRastrCodeStartAddr = 0xc000;
+
+// Page 7
+static const uint16_t kColorDataStartAddr = 0xc000 + 0x1b00;
 
 enum Flags
 {
@@ -2332,24 +2339,34 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
+int lineNumToPageNum(int y)
+{
+    return (y / 2) % kPagesForData;
+}
+
 int serializeMainData(
     const CompressedData& data,
     const CompressedData& multicolorData,
     std::vector<LineDescriptor>& descriptors,
-    const std::string& inputFileName, uint16_t codeOffset, int flags,
+    const std::string& inputFileName, 
+    uint16_t reachDescriptorsBase, 
+    int flags,
     int mcDrawTicks)
 {
     std::vector<uint8_t> serializedDescriptors;
 
     using namespace std;
     const int imageHeight = data.data.size();
-    ofstream mainDataFile;
-    std::string mainDataFileName = inputFileName + ".main";
-    mainDataFile.open(mainDataFileName, std::ios::binary);
-    if (!mainDataFile.is_open())
+    std::array<ofstream, kPagesForData> mainDataFiles;
+    for (int i = 0; i < kPagesForData; ++i)
     {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        std::string mainDataFileName = inputFileName + ".main" + std::to_string(i);
+        mainDataFiles[i].open(mainDataFileName, std::ios::binary);
+        if (!mainDataFiles[i].is_open())
+        {
+            std::cerr << "Can not write destination file" << std::endl;
+            return -1;
+        }
     }
 
     ofstream reachDescriptorFile;
@@ -2364,22 +2381,20 @@ int serializeMainData(
     // serialize main data
 
     int size = 0;
-    std::vector<uint8_t> serializedData;
+    std::array<std::vector<uint8_t>, kPagesForData> serializedData;
     std::vector<int> lineOffset;
     for (int y = 0; y < imageHeight; ++y)
     {
         const auto& line = data.data[y];
-        lineOffset.push_back(serializedData.size());
-        line.serialize(serializedData);
+        int pageNum = lineNumToPageNum(y);
+        lineOffset.push_back(serializedData[pageNum].size());
+        line.serialize(serializedData[pageNum]);
     }
-
 
     // serialize descriptors
 
     const int bankSize = imageHeight / 8;
     const int colorsHeight = bankSize;
-
-    const int reachDescriptorsBase = codeOffset + serializedData.size();
 
     std::vector<std::pair<int, int>> lockedBlocks; //< Skip locked blocks in optimization. Just in case.
 
@@ -2395,12 +2410,14 @@ int serializeMainData(
         int relativeOffsetToStart = lineOffset[lineNum];
 
         // Do not swap DEC SP, LD REG, XX at this mode
-        Z80Parser::swap2CommandIfNeed(serializedData, relativeOffsetToStart, lockedBlocks);
+        int pageNum = lineNumToPageNum(d);
+        Z80Parser::swap2CommandIfNeed(serializedData[pageNum], relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
+        int pageNum = lineNumToPageNum(srcLine);
 
         LineDescriptor descriptor;
         int lineBank = srcLine % 8;
@@ -2420,7 +2437,7 @@ int serializeMainData(
 
         int relativeOffsetToEnd = fullLineEndNum < imageHeight
             ? lineOffset[fullLineEndNum]
-            : serializedData.size();
+            : serializedData[pageNum].size();
         if (lineEndInBank == bankSize)
         {
             // There is additional JP 'first bank line'  command at the end of latest line in bank.
@@ -2439,9 +2456,10 @@ int serializeMainData(
         descriptor.rastrForMulticolor.updatedHlValue = dataLine.updatedHlValue();
 
         if (flags & interlineRegisters)
-            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(dataLine, serializedData, relativeOffsetToStart);
-        //auto prolongOptions = descriptor.rastrForMulticolor.canMakePreambulaLonger(dataLine, serializedData, relativeOffsetToStart);
-
+        {
+            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(
+                dataLine, serializedData[pageNum], relativeOffsetToStart);
+        }
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
 
@@ -2453,9 +2471,9 @@ int serializeMainData(
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             data.af,
             *dataLine.inputRegisters,
-            serializedData,
+            serializedData[pageNum],
             relativeOffsetToStart, relativeOffsetToEnd,
-            codeOffset,
+            kRastrCodeStartAddr,
             //[ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &dataLine, &serializedData, &relativeOffsetToStart]
             [&]
             (const Z80CodeInfo& info, const z80Command& command)
@@ -2469,7 +2487,7 @@ int serializeMainData(
                         if (descriptor.rastrForMulticolor.canProlongPreambulaFor(
                             ticksLimit - sum,
                             dataLine,
-                            serializedData,
+                            serializedData[pageNum],
                             relativeOffsetToStart))
                         {
                             return false; //< Continue
@@ -2486,13 +2504,14 @@ int serializeMainData(
                 return !success;
             });
 
-        parser.swap2CommandIfNeed(serializedData, descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
+        parser.swap2CommandIfNeed(serializedData[pageNum], 
+            descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             data.af,
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
-            serializedData,
+            serializedData[pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
-            codeOffset);
+            kRastrCodeStartAddr);
 
         int spDeltaSum = descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset + (dataLine.stackMovingAtStart - dataLine.minX);
         if (spDeltaSum < -256)
@@ -2503,11 +2522,11 @@ int serializeMainData(
         }
 
 
-        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + codeOffset;
-        descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + codeOffset;
+        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + kRastrCodeStartAddr;
+        descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + kRastrCodeStartAddr;
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
-        descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + codeOffset;
+        descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + kRastrCodeStartAddr;
         descriptor.rastrForOffscreen.startSpDelta = -descriptor.rastrForMulticolor.codeInfo.spOffset;
         descriptor.rastrForOffscreen.startSpDelta -= dataLine.stackMovingAtStart - dataLine.minX;
 
@@ -2519,12 +2538,8 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        if (d == 51)
-        {
-            int gg = 4;
-        }
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData, codeOffset, &dataLine);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData, codeOffset, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[pageNum], kRastrCodeStartAddr, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[pageNum], kRastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -2535,16 +2550,21 @@ int serializeMainData(
         descriptors.push_back(descriptor);
     }
 
-    for (auto& descriptor: descriptors)
+    for (int d = 0; d < imageHeight; ++d)
     {
-        descriptor.rastrForMulticolor.setEndBlock(serializedData.data() + descriptor.rastrForMulticolor.lineEndPtr - codeOffset);
-        descriptor.rastrForOffscreen.setEndBlock(serializedData.data() + descriptor.rastrForOffscreen.lineEndPtr - codeOffset);
+        int pageNum = lineNumToPageNum(d);
+        auto& descriptor = descriptors[d];
+        descriptor.rastrForMulticolor.setEndBlock(serializedData[pageNum].data() 
+            + descriptor.rastrForMulticolor.lineEndPtr - kRastrCodeStartAddr);
+        descriptor.rastrForOffscreen.setEndBlock(serializedData[pageNum].data() 
+            + descriptor.rastrForOffscreen.lineEndPtr - kRastrCodeStartAddr);
     }
 
-    mainDataFile.write((const char*)serializedData.data(), serializedData.size());
+    for (int i = 0; i < kPagesForData; ++i)
+        mainDataFiles[i].write((const char*)serializedData[i].data(), serializedData[i].size());
     reachDescriptorFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
 
-    int serializedSize = serializedData.size() + serializedDescriptors.size();
+    int serializedSize = serializedDescriptors.size();
     return serializedSize;
 }
 
@@ -2987,20 +3007,24 @@ int serializeJpIxDescriptors(
     using namespace std;
 
     const int imageHeight = descriptors.size();
-    ofstream jpIxDescriptorFile;
-    std::string jpIxDescriptorFileName = inputFileName + ".jpix";
-    jpIxDescriptorFile.open(jpIxDescriptorFileName, std::ios::binary);
-    if (!jpIxDescriptorFile.is_open())
+    std::array<ofstream, kPagesForData> jpIxDescriptorFiles;
+    for (int i = 0; i < kPagesForData; ++i)
     {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        std::string jpIxDescriptorFileName = inputFileName + ".jpix" + std::to_string(i);
+        jpIxDescriptorFiles[i].open(jpIxDescriptorFileName, std::ios::binary);
+        if (!jpIxDescriptorFiles[i].is_open())
+        {
+            std::cerr << "Can not write destination file" << std::endl;
+            return -1;
+        }
     }
-
     std::vector<JpIxDescriptor> jpIxDescr = createWholeFrameJpIxDescriptors(descriptors);
-    for (const auto& d: jpIxDescr)
+    for (int i = 0; i < jpIxDescr.size(); ++i)
     {
-        jpIxDescriptorFile.write((const char*) &d.address, sizeof(uint16_t));
-        jpIxDescriptorFile.write((const char*) d.originData.data(), d.originData.size());
+        const auto& d = jpIxDescr[i];
+        int pageNum = lineNumToPageNum(i);
+        jpIxDescriptorFiles[pageNum].write((const char*) &d.address, sizeof(uint16_t));
+        jpIxDescriptorFiles[pageNum].write((const char*) d.originData.data(), d.originData.size());
     }
 
     return 0;
@@ -3141,11 +3165,11 @@ int main(int argc, char** argv)
 
     int multicolorTicks = multicolorData.data[0].drawTicks;
     int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, multicolorTicks);
+    serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize);
 
     // put JP to the latest line of colors
-    colorData.data[colorData.data.size() - 1].jp(codeOffset + mainDataSize);
-    int colorDataSize = serializeColorData(colorDescriptors, colorData, outputFileName, codeOffset + mainDataSize);
-    serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize + colorDataSize);
+    colorData.data[colorData.data.size() - 1].jp(kColorDataStartAddr);
+    int colorDataSize = serializeColorData(colorDescriptors, colorData, outputFileName, kColorDataStartAddr);
 
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);

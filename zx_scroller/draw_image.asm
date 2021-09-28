@@ -9,6 +9,7 @@
  * Pages 2,5 include: reach descriptors, MC data
  * 6 - music data
  * 7 - second screen, second screen code, other descriptors
+ * page 7: color data from address #1b00
  * short port page selection:
  *    LD A, #50 + screen_num*8 + page_number
  *    OUT (#fd), A
