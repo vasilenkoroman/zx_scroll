@@ -1,5 +1,18 @@
-        DEVICE zxspectrum48
+        DEVICE zxspectrum128
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
+
+/*
+ * Page locations:
+ * 0,1, 3,4 - rastrData + JP_IX_TABLE
+ * 2 - static page 0x8000
+ * 5 - static page 0x4000
+ * Pages 2,5 include: reach descriptors, MC data
+ * 6 - music data
+ * 7 - second screen, second screen code, other descriptors
+ * short port page selection:
+ *    LD A, #50 + screen_num*8 + page_number
+ *    OUT (#fd), A
+ **/
 
 screen_addr:    equ 16384
 color_addr:     equ 5800h
