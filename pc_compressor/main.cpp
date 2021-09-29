@@ -2398,31 +2398,27 @@ int serializeMainData(
 
     std::vector<std::pair<int, int>> lockedBlocks; //< Skip locked blocks in optimization. Just in case.
 
-    for (int d = 0; d < imageHeight; ++d)
+    for (int srcLine = 0; srcLine < imageHeight; ++srcLine)
     {
-        const int srcLine = d % imageHeight;
-
-        LineDescriptor descriptor;
         int lineBank = srcLine % 8;
         int lineInBank = srcLine / 8;
         int lineNum = bankSize * lineBank + lineInBank;
-        const auto& dataLine = data.data[lineNum];
         int relativeOffsetToStart = lineOffset[lineNum];
 
         // Do not swap DEC SP, LD REG, XX at this mode
-        int pageNum = lineNumToPageNum(d);
+        int pageNum = lineNumToPageNum(lineNum);
         Z80Parser::swap2CommandIfNeed(serializedData[pageNum], relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
-        int pageNum = lineNumToPageNum(srcLine);
 
         LineDescriptor descriptor;
         int lineBank = srcLine % 8;
         int lineInBank = srcLine / 8;
         int lineNum = bankSize * lineBank + lineInBank;
+        int pageNum = lineNumToPageNum(lineNum);
 
         // Calculate timing for left/right parts in line.
 
@@ -3156,8 +3152,18 @@ int main(int argc, char** argv)
     {
         int bankSize = imageHeight / 8;
         int line = bank * bankSize + bankSize - 1;
-        int firstLineOffset = data.size(0, bank * bankSize);
-        data.data[line].jp(firstLineOffset + codeOffset);
+        int firstLineInBank = bank * bankSize;
+
+        int pageNum = lineNumToPageNum(line);
+        //int firstLineOffset = data.size(0, firstLineInBank);
+        int firstLineOffset = 0;
+        for (int i = 0; i < firstLineInBank; ++i)
+        {
+            int page = lineNumToPageNum(line);
+            if (page == pageNum)
+                firstLineOffset += data.size(i);
+        }
+        data.data[line].jp(firstLineOffset + kRastrCodeStartAddr);
     }
 
     std::vector<LineDescriptor> descriptors;
