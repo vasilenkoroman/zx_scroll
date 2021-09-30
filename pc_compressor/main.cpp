@@ -2290,7 +2290,15 @@ struct JpIxDescriptor
 {
     uint16_t address = 0;
     std::vector<uint8_t> originData;
+    int pageNum = 0;
 };
+
+int lineNumToPageNum(int y, int height)
+{
+    int bankSize = height / 8;
+    int bankNum = y / bankSize;
+    return bankNum / 2;
+}
 
 #pragma pack(pop)
 
@@ -2306,15 +2314,14 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const int colorsHeight = imageHeight / 8;
 
     // . Create delta for JP_IX when shift to 1 line
-    for (int i = 0; i < 64; ++i)
+    for (int line = 0; line < 64; ++line)
     {
-        int line = i % 64;
-
         for (int i = 0; i < blocks64 + 2; ++i)
         {
             int l = (line + i * 64) % imageHeight;
 
             JpIxDescriptor d;
+            d.pageNum = lineNumToPageNum(line, imageHeight);
             d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
             d.originData = descriptors[l].rastrForMulticolor.endBlock;
             jpIxDescriptors.push_back(d);
@@ -2337,11 +2344,6 @@ int nextLineInBank(int line, int imageHeight)
         return bankNum * bankSize;
     else
         return line + 1;
-}
-
-int lineNumToPageNum(int y)
-{
-    return (y / 2) % kPagesForData;
 }
 
 int serializeMainData(
@@ -2386,7 +2388,7 @@ int serializeMainData(
     for (int y = 0; y < imageHeight; ++y)
     {
         const auto& line = data.data[y];
-        int pageNum = lineNumToPageNum(y);
+        int pageNum = lineNumToPageNum(y, imageHeight);
         lineOffset.push_back(serializedData[pageNum].size());
         line.serialize(serializedData[pageNum]);
     }
@@ -2406,35 +2408,41 @@ int serializeMainData(
         int relativeOffsetToStart = lineOffset[lineNum];
 
         // Do not swap DEC SP, LD REG, XX at this mode
-        int pageNum = lineNumToPageNum(lineNum);
+        int pageNum = lineNumToPageNum(lineNum, imageHeight);
         Z80Parser::swap2CommandIfNeed(serializedData[pageNum], relativeOffsetToStart, lockedBlocks);
     }
 
     for (int d = 0; d < imageHeight; ++d)
     {
+        if (d == 153)
+        {
+            int gg = 4;
+        }
+
         const int srcLine = d % imageHeight;
 
         LineDescriptor descriptor;
         int lineBank = srcLine % 8;
         int lineInBank = srcLine / 8;
         int lineNum = bankSize * lineBank + lineInBank;
-        int pageNum = lineNumToPageNum(lineNum);
 
         // Calculate timing for left/right parts in line.
 
         const auto& dataLine = data.data[lineNum];
+        int pageNum = lineNumToPageNum(lineNum, imageHeight);
 
-        int lineEndInBank = lineInBank + 8;
-        if (lineEndInBank > bankSize)
+        int lineEndInBank = lineInBank + 7;
+        if (lineEndInBank >= bankSize)
             lineEndInBank -= bankSize;
+
         int fullLineEndNum = lineEndInBank + lineBank * bankSize;
 
         int relativeOffsetToStart = lineOffset[lineNum];
-
-        int relativeOffsetToEnd = fullLineEndNum < imageHeight
-            ? lineOffset[fullLineEndNum]
-            : serializedData[pageNum].size();
-        if (lineEndInBank == bankSize)
+        
+        const auto& endLine = data.data[fullLineEndNum];
+        int relativeOffsetToEnd = lineOffset[fullLineEndNum] + endLine.data.size();
+        
+        if (lineEndInBank == bankSize-1)
         {
             // There is additional JP 'first bank line'  command at the end of latest line in bank.
             // overwrite this command (if exists) instead of first bytes of the next line in bank.
@@ -2548,7 +2556,7 @@ int serializeMainData(
 
     for (int d = 0; d < imageHeight; ++d)
     {
-        int pageNum = lineNumToPageNum(d);
+        int pageNum = lineNumToPageNum(d, imageHeight);
         auto& descriptor = descriptors[d];
         descriptor.rastrForMulticolor.setEndBlock(serializedData[pageNum].data() 
             + descriptor.rastrForMulticolor.lineEndPtr - kRastrCodeStartAddr);
@@ -3018,9 +3026,8 @@ int serializeJpIxDescriptors(
     for (int i = 0; i < jpIxDescr.size(); ++i)
     {
         const auto& d = jpIxDescr[i];
-        int pageNum = lineNumToPageNum(i);
-        jpIxDescriptorFiles[pageNum].write((const char*) &d.address, sizeof(uint16_t));
-        jpIxDescriptorFiles[pageNum].write((const char*) d.originData.data(), d.originData.size());
+        jpIxDescriptorFiles[d.pageNum].write((const char*) &d.address, sizeof(uint16_t));
+        jpIxDescriptorFiles[d.pageNum].write((const char*) d.originData.data(), d.originData.size());
     }
 
     return 0;
@@ -3154,14 +3161,14 @@ int main(int argc, char** argv)
         int line = bank * bankSize + bankSize - 1;
         int firstLineInBank = bank * bankSize;
 
-        int pageNum = lineNumToPageNum(line);
+        int pageNum = lineNumToPageNum(line, imageHeight);
         //int firstLineOffset = data.size(0, firstLineInBank);
         int firstLineOffset = 0;
         for (int i = 0; i < firstLineInBank; ++i)
         {
-            int page = lineNumToPageNum(line);
+            int page = lineNumToPageNum(i, imageHeight);
             if (page == pageNum)
-                firstLineOffset += data.size(i);
+                firstLineOffset += data.size(i, 1);
         }
         data.data[line].jp(firstLineOffset + kRastrCodeStartAddr);
     }
