@@ -15,6 +15,11 @@
  *    OUT (#fd), A
  **/
 
+        MACRO SET_PAGE page_number
+                LD A, #50 + page_number
+                OUT (#fd), A
+        ENDM
+
 screen_addr:    equ 16384
 color_addr:     equ 5800h
 screen_end:     equ 5b00h

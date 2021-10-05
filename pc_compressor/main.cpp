@@ -2271,6 +2271,7 @@ struct LineDescriptor
     DescriptorState rastrForMulticolor;
     // From the line middle to the end. Used to draw rastr during back ray
     DescriptorState rastrForOffscreen;
+    int pageNum = 0;
     // Multicolor drawing code
 };
 
@@ -2321,7 +2322,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             int l = (line + i * 64) % imageHeight;
 
             JpIxDescriptor d;
-            d.pageNum = lineNumToPageNum(line, imageHeight);
+            d.pageNum = descriptors[l].pageNum;
             d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
             d.originData = descriptors[l].rastrForMulticolor.endBlock;
             jpIxDescriptors.push_back(d);
@@ -2429,7 +2430,6 @@ int serializeMainData(
         // Calculate timing for left/right parts in line.
 
         const auto& dataLine = data.data[lineNum];
-        int pageNum = lineNumToPageNum(lineNum, imageHeight);
 
         int lineEndInBank = lineInBank + 7;
         if (lineEndInBank >= bankSize)
@@ -2458,11 +2458,12 @@ int serializeMainData(
         descriptor.rastrForMulticolor.af =  data.af;
         descriptor.rastrForOffscreen.af = data.af;
         descriptor.rastrForMulticolor.updatedHlValue = dataLine.updatedHlValue();
+        descriptor.pageNum = lineNumToPageNum(lineNum, imageHeight);
 
         if (flags & interlineRegisters)
         {
             linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(
-                dataLine, serializedData[pageNum], relativeOffsetToStart);
+                dataLine, serializedData[descriptor.pageNum], relativeOffsetToStart);
         }
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2475,7 +2476,7 @@ int serializeMainData(
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             data.af,
             *dataLine.inputRegisters,
-            serializedData[pageNum],
+            serializedData[descriptor.pageNum],
             relativeOffsetToStart, relativeOffsetToEnd,
             kRastrCodeStartAddr,
             //[ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &dataLine, &serializedData, &relativeOffsetToStart]
@@ -2491,7 +2492,7 @@ int serializeMainData(
                         if (descriptor.rastrForMulticolor.canProlongPreambulaFor(
                             ticksLimit - sum,
                             dataLine,
-                            serializedData[pageNum],
+                            serializedData[descriptor.pageNum],
                             relativeOffsetToStart))
                         {
                             return false; //< Continue
@@ -2508,12 +2509,12 @@ int serializeMainData(
                 return !success;
             });
 
-        parser.swap2CommandIfNeed(serializedData[pageNum], 
+        parser.swap2CommandIfNeed(serializedData[descriptor.pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
             data.af,
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
-            serializedData[pageNum],
+            serializedData[descriptor.pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             kRastrCodeStartAddr);
 
@@ -2542,8 +2543,8 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[pageNum], kRastrCodeStartAddr, &dataLine);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[pageNum], kRastrCodeStartAddr, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], kRastrCodeStartAddr, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], kRastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
