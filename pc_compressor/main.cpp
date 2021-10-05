@@ -33,7 +33,7 @@ static const int kMinDelay = 78;
 static const int kPagesForData = 4;
 
 // Pages 0,1, 3,4
-static const uint16_t kRastrCodeStartAddr = 0xc000;
+static const uint16_t rastrCodeStartAddrBase = 0xc000;
 
 // Page 7
 static const uint16_t kColorDataStartAddr = 0xc000 + 0x1b00;
@@ -2360,6 +2360,9 @@ int serializeMainData(
 
     using namespace std;
     const int imageHeight = data.data.size();
+    const int jpixTableSize = (imageHeight + 64) * 8;
+    const int rastrCodeStartAddr = rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
+
     std::array<ofstream, kPagesForData> mainDataFiles;
     for (int i = 0; i < kPagesForData; ++i)
     {
@@ -2478,7 +2481,7 @@ int serializeMainData(
             *dataLine.inputRegisters,
             serializedData[descriptor.pageNum],
             relativeOffsetToStart, relativeOffsetToEnd,
-            kRastrCodeStartAddr,
+            rastrCodeStartAddr,
             //[ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &dataLine, &serializedData, &relativeOffsetToStart]
             [&]
             (const Z80CodeInfo& info, const z80Command& command)
@@ -2516,7 +2519,7 @@ int serializeMainData(
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData[descriptor.pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
-            kRastrCodeStartAddr);
+            rastrCodeStartAddr);
 
         int spDeltaSum = descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset + (dataLine.stackMovingAtStart - dataLine.minX);
         if (spDeltaSum < -256)
@@ -2527,11 +2530,11 @@ int serializeMainData(
         }
 
 
-        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + kRastrCodeStartAddr;
-        descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + kRastrCodeStartAddr;
+        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + rastrCodeStartAddr;
+        descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + rastrCodeStartAddr;
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
-        descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + kRastrCodeStartAddr;
+        descriptor.rastrForOffscreen.lineEndPtr = relativeOffsetToEnd + rastrCodeStartAddr;
         descriptor.rastrForOffscreen.startSpDelta = -descriptor.rastrForMulticolor.codeInfo.spOffset;
         descriptor.rastrForOffscreen.startSpDelta -= dataLine.stackMovingAtStart - dataLine.minX;
 
@@ -2543,8 +2546,8 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], kRastrCodeStartAddr, &dataLine);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], kRastrCodeStartAddr, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(serializedDescriptors);
@@ -2560,9 +2563,9 @@ int serializeMainData(
         int pageNum = lineNumToPageNum(d, imageHeight);
         auto& descriptor = descriptors[d];
         descriptor.rastrForMulticolor.setEndBlock(serializedData[pageNum].data() 
-            + descriptor.rastrForMulticolor.lineEndPtr - kRastrCodeStartAddr);
+            + descriptor.rastrForMulticolor.lineEndPtr - rastrCodeStartAddr);
         descriptor.rastrForOffscreen.setEndBlock(serializedData[pageNum].data() 
-            + descriptor.rastrForOffscreen.lineEndPtr - kRastrCodeStartAddr);
+            + descriptor.rastrForOffscreen.lineEndPtr - rastrCodeStartAddr);
     }
 
     for (int i = 0; i < kPagesForData; ++i)
@@ -3171,7 +3174,10 @@ int main(int argc, char** argv)
             if (page == pageNum)
                 firstLineOffset += data.size(i, 1);
         }
-        data.data[line].jp(firstLineOffset + kRastrCodeStartAddr);
+
+        const int jpixTableSize = (imageHeight + 64) * 8;
+        const int rastrCodeStartAddr = rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
+        data.data[line].jp(firstLineOffset + rastrCodeStartAddr);
     }
 
     std::vector<LineDescriptor> descriptors;

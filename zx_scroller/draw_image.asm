@@ -540,27 +540,49 @@ after_interrupt:
         ldir
         ret
 
+        MACRO set_page_by_bank
+                ; a - bank number
+                rra
+                cp 2
+                ccf
+                adc 0x50
+                out (0xfd), a
+        ENDM                
+
 JP_IX_CODE      equ #e9dd
 
 jp_ix_record_size       equ 8
+data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 write_initial_jp_ix_table
                 // create banks helper (to avoid mul in runtime)
-                ld b, 64
-                ld hl, jpix_table + jp_ix_bank_size * 64
+                ld hl, jpix_table + jp_ix_bank_size * 64 / data_page_count - jp_ix_bank_size
                 ld de, -jp_ix_bank_size
                 ld sp, JPIX__BANKS_HELPER_END
-.helper:        add hl, de
+
+                ld c, 8
+.fill_64_rec:   ld b, data_page_count
+.fill_8_rec:
                 push hl
-                djnz .helper
+                add hl, de
+                push hl
+                sub hl, de
+                djnz .fill_8_rec
+                add hl, de
+                add hl, de
+                dec c
+                jr nz, .fill_64_rec
 
                 // main data
                 ld sp, jpix_table
                 ; skip several descriptors
                 ld c, 8
-.loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line
+.loop:          ld a, 8
+                sub c
+                set_page_by_bank
+
+                ld b, 6                         ; write 0, 64, 128-th descriptors for start line
                 ; read sp to de
-                
                 ld hl, 0
                 add hl, sp
                 ex de, hl
@@ -667,8 +689,6 @@ t4                      EQU t3
         ASSERT $ <= 25600
         ORG 25600
 generated_code:
-
-        INCBIN "resources/compressed_data.main"
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 color_code
         INCBIN "resources/compressed_data.color"
@@ -683,12 +703,31 @@ mc_descriptors
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 
-jpix_table
-        INCBIN "resources/compressed_data.jpix"
-
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
+
+jpix_table EQU 0xc000
+
+        ORG 0xc000
+        PAGE 0
+        INCBIN "resources/compressed_data.jpix0"
+        INCBIN "resources/compressed_data.main0"
+
+        ORG 0xc000
+        PAGE 1
+        INCBIN "resources/compressed_data.jpix1"
+        INCBIN "resources/compressed_data.main1"
+
+        ORG 0xc000
+        PAGE 3
+        INCBIN "resources/compressed_data.jpix2"
+        INCBIN "resources/compressed_data.main2"
+
+        ORG 0xc000
+        PAGE 4
+        INCBIN "resources/compressed_data.jpix3"
+        INCBIN "resources/compressed_data.main3"
 
 /*
 src_data
