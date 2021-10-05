@@ -31,6 +31,7 @@ static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 static const int kMinDelay = 78;
 static const int kPagesForData = 4;
+static const int kSetPageTicks = 18;
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -2132,15 +2133,19 @@ struct DescriptorState
         return { newCodeInfo.outputRegisters, regUsageCommandsTicks, regUsageCommandsSize };
     }
 
-    int expectedPreambulaSize(
+    int expectedPreambulaTicks(
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
-        int relativeOffsetToStart) const
+        int relativeOffsetToStart,
+        int lineNum) const
     {
         CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
         auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
         auto outRegs = getSerializedRegisters(registers, af);
-        return outRegs.drawTicks - omitedTicksFromMainCode;
+        auto result = outRegs.drawTicks - omitedTicksFromMainCode;
+        if (lineNum % 2 == 0)
+            result += kSetPageTicks;
+        return result;
     }
 
     void serializeOmitedData(
@@ -2173,11 +2178,26 @@ struct DescriptorState
             addJpIx(lineStartPtr + firstCommandsSize);
     }
 
+    void serializeSetPageCode(int pageNum)
+    {
+        if (pageNum >= 2)
+            ++pageNum; //< Pages are: 0,1, 3,4
+        std::vector<uint8_t> data;
+        data.push_back(0x3e);            // LD A, #50 + page_number
+        data.push_back(0x50 + pageNum);  // LD A, #50 + page_number
+        data.push_back(0xd3);            // OUT (#fd), A
+        data.push_back(0xfe);            // OUT (#fd), A
+        addToPreambule(data);
+    }
+
     void makePreambulaForMC(
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
-        const CompressedLine* line)
+        const CompressedLine* line,
+        int pageNum, int lineNum)
     {
+        if (lineNum % 2 == 0)
+            serializeSetPageCode(pageNum);
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -2465,8 +2485,8 @@ int serializeMainData(
 
         if (flags & interlineRegisters)
         {
-            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaSize(
-                dataLine, serializedData[descriptor.pageNum], relativeOffsetToStart);
+            linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaTicks(
+                dataLine, serializedData[descriptor.pageNum], relativeOffsetToStart, lineNum);
         }
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 
@@ -2546,7 +2566,7 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineNum);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();

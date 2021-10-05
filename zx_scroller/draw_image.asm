@@ -199,6 +199,16 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
+        MACRO set_page_by_bank
+                ; a - bank number
+                rra
+                cp 2
+                ccf
+                adc 0x50
+                out (0xfd), a
+        ENDM                
+
+filler  db 0, 0, 0, 0, 0, 0, 0  // align code data
 
 /*************** Main. ******************/
 main:
@@ -304,6 +314,10 @@ loop:
 loop1:
         prepare_rastr_drawing
         
+        ld a, 7
+        and c
+        set_page_by_bank
+
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
 
         // calculate ceil(bc,8) / 2
@@ -539,15 +553,6 @@ after_interrupt:
         LD   bc, #0200
         ldir
         ret
-
-        MACRO set_page_by_bank
-                ; a - bank number
-                rra
-                cp 2
-                ccf
-                adc 0x50
-                out (0xfd), a
-        ENDM                
 
 JP_IX_CODE      equ #e9dd
 
