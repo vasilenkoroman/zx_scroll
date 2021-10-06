@@ -1007,13 +1007,15 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
     context.maskColor = maskColors;
     context.sameBytesCount = sameBytesCount;
     //context.af = findBestByte(buffer, imageHeight, context.sameBytesCount);
-    context.af.h.value = 0;
 
     std::vector<std::future<std::vector<CompressedLine>>> compressors(8);
 
     for (int i = 0; i < 8; ++i)
     {
-
+        int pageNum = i / 2;
+        if (pageNum >= 2)
+            ++pageNum;
+        context.af.h.value = 0x50 + pageNum;
         std::vector<int > lines;
         for (int y = 0; y < imageHeight; y += 8)
             lines.push_back(y + i);
@@ -2137,13 +2139,13 @@ struct DescriptorState
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
         int relativeOffsetToStart,
-        int lineNum) const
+        int lineBank) const
     {
         CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
         auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
         auto outRegs = getSerializedRegisters(registers, af);
         auto result = outRegs.drawTicks - omitedTicksFromMainCode;
-        if (lineNum % 2 == 0)
+        if (lineBank % 2 == 0)
             result += kSetPageTicks;
         return result;
     }
@@ -2486,7 +2488,7 @@ int serializeMainData(
         if (flags & interlineRegisters)
         {
             linePreambulaTicks = descriptor.rastrForMulticolor.expectedPreambulaTicks(
-                dataLine, serializedData[descriptor.pageNum], relativeOffsetToStart, lineNum);
+                dataLine, serializedData[descriptor.pageNum], relativeOffsetToStart, lineBank);
         }
         ticksRest -= kJpFirstLineDelay; //< Jump from descriptor to the main code
 

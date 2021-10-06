@@ -15,10 +15,6 @@
  *    OUT (#fd), A
  **/
 
-        MACRO SET_PAGE page_number
-                LD A, #50 + page_number
-                OUT (#fd), A
-        ENDM
 
 screen_addr:    equ 16384
 color_addr:     equ 5800h
@@ -27,7 +23,11 @@ start:          equ 5e00h
 
 JPIX__REF_TABLE_START   EQU screen_end
 JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
-JPIX__BANKS_HELPER      EQU JPIX__REF_TABLE_END
+
+SET_PAGE_HELPER         EQU high(JPIX__REF_TABLE_END)*256 + 0x50
+SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
+
+JPIX__BANKS_HELPER      EQU SET_PAGE_HELPER_END
 JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
 
 DEBUG_MODE              EQU 0
@@ -41,7 +41,7 @@ stack_top       equ stack_bottom + STACK_SIZE * 2
     org start
 
         MACRO draw_colors
-        ; hl - line number / 4
+        ; hl - line number / 2
 
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
@@ -199,6 +199,11 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
+        MACRO SET_PAGE page_number
+                LD A, #50 + page_number
+                OUT (#fd), A
+        ENDM
+
         MACRO set_page_by_bank
                 ; a - bank number
                 rra
@@ -206,9 +211,17 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ccf
                 adc 0x50
                 out (0xfd), a
-        ENDM                
+        ENDM
 
-filler  db 0, 0, 0, 0, 0, 0, 0  // align code data
+        MACRO next_page
+                ld h, high(SET_PAGE_HELPER)     ; 7
+                ld l, a                         ; 4
+                ld a, (hl)                      ; 7
+                out (0xfd), a                   ; 11
+                ; total: 29
+        ENDM
+
+filler  db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -228,6 +241,7 @@ ticks_per_line                  equ  224
 
 
         call write_initial_jp_ix_table
+        call create_page_helper
 
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 17837 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
@@ -306,7 +320,6 @@ loop:
                 // total 666
         // ------------------------- update jpix table end
         exx
-        xor a
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_RASTR_LINE 23
         exx
@@ -314,10 +327,6 @@ loop:
 loop1:
         prepare_rastr_drawing
         
-        ld a, 7
-        and c
-        set_page_by_bank
-
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
 
         // calculate ceil(bc,8) / 2
@@ -332,46 +341,51 @@ loop1:
 
         draw_colors
 
-        xor a
+        // calculate bank number
+        ld a, c
+        and 7
+        set_page_by_bank
         scf
         //MACRO draw_offscreen_rastr
                 exx
-                IF (UNSTABLE_STACK_POS == 0)        
-                        ld sp, screen_addr + 6144
-                ENDIF                        
-                DRAW_OFFSCREEN_LINES 0,0
-                DRAW_OFFSCREEN_LINES 1,0
-                DRAW_OFFSCREEN_LINES 2,1
-                DRAW_OFFSCREEN_LINES 3,2
-                DRAW_OFFSCREEN_LINES 4,3
-                DRAW_OFFSCREEN_LINES 5,4
-                DRAW_OFFSCREEN_LINES 6,5
-                DRAW_OFFSCREEN_LINES 7,6
-
-                IF (UNSTABLE_STACK_POS == 0)        
-                        ld sp, screen_addr
-                ENDIF                        
-                DRAW_OFFSCREEN_LINES 16, 7
-                DRAW_OFFSCREEN_LINES 17,16
-                DRAW_OFFSCREEN_LINES 18,17
-                DRAW_OFFSCREEN_LINES 19,18
-                DRAW_OFFSCREEN_LINES 20,19
-                DRAW_OFFSCREEN_LINES 21,20
-                DRAW_OFFSCREEN_LINES 22,21
-                DRAW_OFFSCREEN_LINES 23,22
-
+/*
                 IF (UNSTABLE_STACK_POS == 0)        
                         ld sp, screen_addr + 4096
                 ENDIF                        
-                DRAW_OFFSCREEN_LINES 8, 23
-                DRAW_OFFSCREEN_LINES 9,8
-                DRAW_OFFSCREEN_LINES 10,9
-                DRAW_OFFSCREEN_LINES 11,10
-                DRAW_OFFSCREEN_LINES 12,11
-                DRAW_OFFSCREEN_LINES 13,12
-                DRAW_OFFSCREEN_LINES 14,13
-                DRAW_OFFSCREEN_LINES 15,14
-                
+*/
+                DRAW_OFFSCREEN_LINES 17, 17
+                DRAW_OFFSCREEN_LINES 16, 17
+                DRAW_OFFSCREEN_LINES 9, 16
+                DRAW_OFFSCREEN_LINES 8, 9
+                DRAW_OFFSCREEN_LINES 1, 8
+                DRAW_OFFSCREEN_LINES 0, 1
+
+                next_page
+
+                DRAW_OFFSCREEN_LINES 19, 0
+                DRAW_OFFSCREEN_LINES 18, 19
+                DRAW_OFFSCREEN_LINES 11, 18
+                DRAW_OFFSCREEN_LINES 10, 11
+                DRAW_OFFSCREEN_LINES 3, 10
+                DRAW_OFFSCREEN_LINES 2, 3
+
+                next_page
+
+                DRAW_OFFSCREEN_LINES 21, 2
+                DRAW_OFFSCREEN_LINES 20, 21
+                DRAW_OFFSCREEN_LINES 13, 20
+                DRAW_OFFSCREEN_LINES 12, 13
+                DRAW_OFFSCREEN_LINES 5, 12
+                DRAW_OFFSCREEN_LINES 4, 5
+
+                next_page
+
+                DRAW_OFFSCREEN_LINES 23, 4
+                DRAW_OFFSCREEN_LINES 22, 23
+                DRAW_OFFSCREEN_LINES 15, 22
+                DRAW_OFFSCREEN_LINES 14, 15
+                DRAW_OFFSCREEN_LINES 7, 14
+                DRAW_OFFSCREEN_LINES 6, 7
                 exx
         //ENDM
 
@@ -467,7 +481,6 @@ delay_end
         ENDIF                
 
         ; timing here on first frame: 91153
-        xor a   // current generator uses const A = 0
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
@@ -513,6 +526,20 @@ delay_end
         jp loop                        ; 12 ticks
 
 /*********************** routines *************/
+
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+        ret
 
 prepare_interruption_table:
 
