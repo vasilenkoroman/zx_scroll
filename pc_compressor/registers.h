@@ -213,14 +213,14 @@ public:
 
         switch (value)
         {
-        case 0x0042:
-            a.subReg(line, a);
-            setValue(value);
-            return true;
-        case 0x0045:
-            a.xorReg(line, a);
-            setValue(value);
-            return true;
+            case 0x0042:
+                a.subReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0044:
+                a.xorReg(line, a);
+                setValue(value);
+                return true;
         }
 
         const uint8_t hiByte = value >> 8;
@@ -234,46 +234,46 @@ public:
 
         switch (value)
         {
-        case 0x0040:
-            a.xorReg(line, a);
-            a.addReg(line, a);
-            setValue(value);
-            return true;
-        case 0x0041:
-            a.subReg(line, a);
-            f.scf(line);
-            setValue(value);
-            return true;
-        case 0x0044:
-            a.xorReg(line, a);
-            f.scf(line);
-            setValue(value);
-            return true;
-        case 0x0054:
-            a.xorReg(line, a);
-            a.andReg(line, a);
-            setValue(value);
-            return true;
-        case 0x0100:
-            a.xorReg(line, a);
-            a.incValue(line);
-            setValue(value);
-            return true;
-        case 0xffba:
-            a.xorReg(line, a);
-            a.decValue(line);
-            setValue(value);
-            return true;
-        case 0xff7e:
-            a.xorReg(line, a);
-            a.cpl(line);
-            setValue(value);
-            return true;
-        case 0xff7a:
-            a.subReg(line, a);
-            a.cpl(line);
-            setValue(value);
-            return true;
+            case 0x0040:
+                a.xorReg(line, a);
+                a.addReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0041:
+                a.subReg(line, a);
+                f.scf(line);
+                setValue(value);
+                return true;
+            case 0x0045:
+                a.xorReg(line, a);
+                f.scf(line);
+                setValue(value);
+                return true;
+            case 0x0054:
+                a.xorReg(line, a);
+                a.andReg(line, a);
+                setValue(value);
+                return true;
+            case 0x0100:
+                a.xorReg(line, a);
+                a.incValue(line);
+                setValue(value);
+                return true;
+            case 0xffba:
+                a.xorReg(line, a);
+                a.decValue(line);
+                setValue(value);
+                return true;
+            case 0xff7e:
+                a.xorReg(line, a);
+                a.cpl(line);
+                setValue(value);
+                return true;
+            case 0xff7a:
+                a.subReg(line, a);
+                a.cpl(line);
+                setValue(value);
+                return true;
         }
 
         if (lowByte == 0x44 || lowByte == 0x42)
