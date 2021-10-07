@@ -339,6 +339,7 @@ loop1:
         srl h : rra
         ld l, a
 
+        SET_PAGE 7
         draw_colors
 
         // calculate bank number
@@ -722,8 +723,6 @@ t4                      EQU t3
         ORG 25600
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
-color_code
-        INCBIN "resources/compressed_data.color"
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
@@ -760,6 +759,11 @@ jpix_table EQU 0xc000
         PAGE 4
         INCBIN "resources/compressed_data.jpix3"
         INCBIN "resources/compressed_data.main3"
+
+        ORG 0xc000 + 0x1b00
+        PAGE 7
+color_code
+        INCBIN "resources/compressed_data.color"
 
 /*
 src_data
