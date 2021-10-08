@@ -32,6 +32,7 @@ static const int kColorScrollDelta = 1;
 static const int kMinDelay = 78;
 static const int kPagesForData = 4;
 static const int kSetPageTicks = 18;
+static const int kPageNumPrefix = 0x50;
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -137,7 +138,6 @@ struct CompressedData
 {
     std::vector<int8_t> sameBytesCount;
     std::vector<CompressedLine> data;
-    Register16 af{"af"};
     int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
     int flags = 0;
 
@@ -429,7 +429,7 @@ bool compressLineMain(
         if (auto f = findRegister8(registers, 'f'))
             f->value.reset(); //< Interline registers is not supported for 'f'
     }
-
+    line.inputAf = std::make_shared<Register16>(context.af);
     return true;
 }
 
@@ -1015,7 +1015,7 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
         int pageNum = i / 2;
         if (pageNum >= 2)
             ++pageNum;
-        context.af.h.value = 0x50 + pageNum;
+        context.af.h.value = kPageNumPrefix + pageNum;
         std::vector<int > lines;
         for (int y = 0; y < imageHeight; y += 8)
             lines.push_back(y + i);
@@ -1027,7 +1027,6 @@ CompressedData compressImageAsync(int flags, uint8_t* buffer, std::vector<bool>*
         compressedData.data.insert(compressedData.data.end(),
             compressedLines.begin(), compressedLines.end());
     }
-    compressedData.af = context.af;
     return compressedData;
 }
 
@@ -1433,6 +1432,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     pushLine.maxDrawDelayTicks = t2 - drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
+    result.inputAf = std::make_shared<Register16>(context.af);
     return result;
 }
 
@@ -1517,7 +1517,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
         Z80Parser parser;
 
         auto timingInfo = parser.parseCode(
-            compressedData.af,
+            *line.inputAf,
             registers,
             line.data.buffer(),
             line.data.size(),
@@ -1634,7 +1634,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
             std::array<Register16, 1> registers = { Register16("bc")};
             Register16* bc = &registers[0];
 
-            auto info = Z80Parser::parseCode(compressedData.af, line.data.buffer(), line.data.size());
+            auto info = Z80Parser::parseCode(*line.inputAf, line.data.buffer(), line.data.size());
             CompressedLine sinkLine;
             int spPos = 16 + info.spOffset;
             if (spPos == 0)
@@ -1739,7 +1739,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
                     word = swapBytes(word);
 
                     CompressedLine tmpLine;
-                    bc->updateToValue(tmpLine, word, registers, compressedData.af);
+                    bc->updateToValue(tmpLine, word, registers, *line.inputAf);
                     int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
                     if (ticks != endLineDelay && ticks > endLineDelay - 4)
                         break;
@@ -1826,7 +1826,6 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
         compressedData.data.push_back(line);
     }
 
-    compressedData.af = context.af;
     compressedData.sameBytesCount = sameBytesCount;
     return compressedData;
 }
@@ -1853,7 +1852,6 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     compressedData.data = compressLines(context, lines);
     compressedData.sameBytesCount = sameBytesCount;
     compressedData.flags = flags;
-    compressedData.af = af2;
     return compressedData;
 }
 
@@ -2186,9 +2184,9 @@ struct DescriptorState
             ++pageNum; //< Pages are: 0,1, 3,4
         std::vector<uint8_t> data;
         data.push_back(0x3e);            // LD A, #50 + page_number
-        data.push_back(0x50 + pageNum);  // LD A, #50 + page_number
+        data.push_back(kPageNumPrefix + pageNum);  // LD A, #50 + page_number
         data.push_back(0xd3);            // OUT (#fd), A
-        data.push_back(0xfe);            // OUT (#fd), A
+        data.push_back(0xfd);            // OUT (#fd), A
         addToPreambule(data);
     }
 
@@ -2369,6 +2367,12 @@ int nextLineInBank(int line, int imageHeight)
         return line + 1;
 }
 
+int getRastrCodeStartAddr(int imageHeight)
+{
+    const int jpixTableSize = (imageHeight + 128) * 8;
+    return rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
+}
+
 int serializeMainData(
     const CompressedData& data,
     const CompressedData& multicolorData,
@@ -2382,8 +2386,7 @@ int serializeMainData(
 
     using namespace std;
     const int imageHeight = data.data.size();
-    const int jpixTableSize = (imageHeight + 64) * 8;
-    const int rastrCodeStartAddr = rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
+    const int rastrCodeStartAddr = getRastrCodeStartAddr(imageHeight);
 
     std::array<ofstream, kPagesForData> mainDataFiles;
     for (int i = 0; i < kPagesForData; ++i)
@@ -2480,8 +2483,8 @@ int serializeMainData(
         ticksRest -= kRtMcContextSwitchDelay;
         int linePreambulaTicks = 0;
 
-        descriptor.rastrForMulticolor.af =  data.af;
-        descriptor.rastrForOffscreen.af = data.af;
+        descriptor.rastrForMulticolor.af = *dataLine.inputAf;
+        descriptor.rastrForOffscreen.af = *dataLine.inputAf;
         descriptor.rastrForMulticolor.updatedHlValue = dataLine.updatedHlValue();
         descriptor.pageNum = lineNumToPageNum(lineNum, imageHeight);
 
@@ -2499,7 +2502,7 @@ int serializeMainData(
         int descriptorsDelta = 0;
 
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
-            data.af,
+            *dataLine.inputAf,
             *dataLine.inputRegisters,
             serializedData[descriptor.pageNum],
             relativeOffsetToStart, relativeOffsetToEnd,
@@ -2537,7 +2540,7 @@ int serializeMainData(
         parser.swap2CommandIfNeed(serializedData[descriptor.pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, lockedBlocks);
         descriptor.rastrForOffscreen.codeInfo = parser.parseCode(
-            data.af,
+            *dataLine.inputAf,
             descriptor.rastrForMulticolor.codeInfo.outputRegisters,
             serializedData[descriptor.pageNum],
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
@@ -2734,8 +2737,8 @@ void serializeAsmFile(
         return;
     }
 
-    phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
-    phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.af.value16() << std::endl;
+    //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
+    phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
@@ -3161,7 +3164,7 @@ int main(int argc, char** argv)
     std::vector<int8_t> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
     CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
-    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, multicolorData.af);
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
 
 
     const auto t2 = std::chrono::system_clock::now();
@@ -3197,9 +3200,7 @@ int main(int argc, char** argv)
                 firstLineOffset += data.size(i, 1);
         }
 
-        const int jpixTableSize = (imageHeight + 64) * 8;
-        const int rastrCodeStartAddr = rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
-        data.data[line].jp(firstLineOffset + rastrCodeStartAddr);
+        data.data[line].jp(firstLineOffset + getRastrCodeStartAddr(imageHeight));
     }
 
     std::vector<LineDescriptor> descriptors;
