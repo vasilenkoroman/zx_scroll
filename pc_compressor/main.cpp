@@ -2143,7 +2143,7 @@ struct DescriptorState
         auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
         auto outRegs = getSerializedRegisters(registers, af);
         auto result = outRegs.drawTicks - omitedTicksFromMainCode;
-        if (lineBank % 2 == 0)
+        if (lineBank % 2 == 1)
             result += kSetPageTicks;
         return result;
     }
@@ -2194,9 +2194,9 @@ struct DescriptorState
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         const CompressedLine* line,
-        int pageNum, int lineNum)
+        int pageNum, int bankNum)
     {
-        if (lineNum % 2 == 0)
+        if (bankNum % 2 == 1)
             serializeSetPageCode(pageNum);
 
         /*
@@ -2571,7 +2571,7 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineNum);
+        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();

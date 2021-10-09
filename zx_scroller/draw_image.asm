@@ -147,57 +147,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         // total ticks: 70 (86 with ret)
     ENDM                
 
-        MACRO prepare_rastr_drawing
-        ld hl, bc
-        add hl, hl // * 2
-        add hl, hl // * 4
-        ld sp, rastr_descriptors
-        add hl, sp
-        ld sp, hl
-
-        // Draw bottom 3-th of rastr during middle 3-th of colors
-        exx
-        pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR_15+1), hl
-        pop hl: ld (OFF_RASTR_1+1), hl:    pop hl: ld (RASTR_14+1), hl
-        pop hl: ld (OFF_RASTR_2+1), hl:    pop hl: ld (RASTR_13+1), hl
-        pop hl: ld (OFF_RASTR_3+1), hl:    pop hl: ld (RASTR_12+1), hl
-        pop hl: ld (OFF_RASTR_4+1), hl:    pop hl: ld (RASTR_11+1), hl
-        pop hl: ld (OFF_RASTR_5+1), hl:    pop hl: ld (RASTR_10+1), hl
-        pop hl: ld (OFF_RASTR_6+1), hl:    pop hl: ld (RASTR_9+1), hl
-        pop hl: ld (OFF_RASTR_7+1), hl:    pop hl: ld (RASTR_8+1), hl
-        exx
-
-        // Draw middle 3-th of rastr during top 3-th of colors
-
-        inc h
-        ld sp, hl
-
-        pop hl: ld (OFF_RASTR_8+1), hl:    pop hl: ld (RASTR_7+1), hl
-        pop hl: ld (OFF_RASTR_9+1), hl:    pop hl: ld (RASTR_6+1), hl
-        pop hl: ld (OFF_RASTR_10+1), hl:   pop hl: ld (RASTR_5+1), hl
-        pop hl: ld (OFF_RASTR_11+1), hl:   pop hl: ld (RASTR_4+1), hl
-        pop hl: ld (OFF_RASTR_12+1), hl:   pop hl: ld (RASTR_3+1), hl
-        pop hl: ld (OFF_RASTR_13+1), hl:   pop hl: ld (RASTR_2+1), hl
-        pop hl: ld (OFF_RASTR_14+1), hl:   pop hl: ld (RASTR_1+1), hl
-        pop hl: ld (OFF_RASTR_15+1), hl:   pop hl: ld (RASTR_0+1), hl
-
-        // Draw top 3-th of rastr during bottom 3-th of colors
-        ; shift to 63 for MC rastr instead of 64 to move on next frame
-        ld hl, (63-8) * 4 + 2
-        add hl, sp
-        ld sp, hl
-
-                                            pop hl: ld (RASTR_23+1), hl
-        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_22+1), hl
-        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_21+1), hl
-        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_20+1), hl
-        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_19+1), hl
-        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_18+1), hl
-        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_17+1), hl
-        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_16+1), hl
-        pop hl: ld (OFF_RASTR_23+1), hl:    
-
-        ENDM
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -226,15 +175,71 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ; total: 29
         ENDM
 
-filler  db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0   // align code data
+/************* Routines **********************/
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+        ret
+
+prepare_interruption_table:
+
+        //save data
+        LD   hl, #FE00
+        LD   de, screen_end + 256
+        LD   bc, #0200
+        ldir
+
+        // make interrupt table
+        ld A, 18h       ; JR instruction code
+        ld  (65535), a
+
+        ld   a, 0c3h    ; JP instruction code
+        ld   (65524), a
+        ld hl, after_interrupt
+        ld   (65525), hl
+
+        LD   hl, #FE00
+        LD   de, #FE01
+        LD   bc, #0100
+        LD   (hl), #FF
+        LD   a, h
+        LDIR
+        ld i, a
+        im 2
+
+        ei
+        halt
+after_interrupt:
+        di                              ; 4 ticks
+        ; remove interrupt data from stack
+        pop af                          ; 10 ticks
+
+        ; restore data
+        LD   de, #FE00
+        LD   hl, screen_end + 256
+        LD   bc, #0200
+        ldir
+        ret
+
+
+filler  defs 5, 0   // align code data
 
 /*************** Main. ******************/
 main:
         di
         ld sp, stack_top
 
-        //call copy_image
-        //call copy_colors
+        call copy_image
+        call copy_colors
 
         call prepare_interruption_table
         ; Pentagon timings
@@ -324,13 +329,76 @@ loop:
                 .6 restore_jp_ix
                 // total 666
         // ------------------------- update jpix table end
+loop1:
+        //prepare_rastr_drawing
+        //MACRO prepare_rastr_drawing
+        ld hl, bc
+        add hl, hl // * 2
+        add hl, hl // * 4
+        ld sp, rastr_descriptors
+        add hl, sp
+        ld sp, hl
+
+        // Draw bottom 3-th of rastr during middle 3-th of colors
         exx
-        scf     // aligned data uses ret nc. prevent these ret
-        DRAW_RASTR_LINE 23
+        pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR_15+1), hl
+        pop hl: ld (OFF_RASTR_1+1), hl:    pop hl: ld (RASTR_14+1), hl
+        pop hl: ld (OFF_RASTR_2+1), hl:    pop hl: ld (RASTR_13+1), hl
+        pop hl: ld (OFF_RASTR_3+1), hl:    pop hl: ld (RASTR_12+1), hl
+        pop hl: ld (OFF_RASTR_4+1), hl:    pop hl: ld (RASTR_11+1), hl
+        pop hl: ld (OFF_RASTR_5+1), hl:    pop hl: ld (RASTR_10+1), hl
+        pop hl: ld (OFF_RASTR_6+1), hl:    pop hl: ld (RASTR_9+1), hl
+        pop hl: ld (OFF_RASTR_7+1), hl:    pop hl: ld (RASTR_8+1), hl
         exx
 
-loop1:
-        prepare_rastr_drawing
+        // Draw middle 3-th of rastr during top 3-th of colors
+
+        inc h
+        ld sp, hl
+
+        pop hl: ld (OFF_RASTR_8+1), hl:    pop hl: ld (RASTR_7+1), hl
+        pop hl: ld (OFF_RASTR_9+1), hl:    pop hl: ld (RASTR_6+1), hl
+        pop hl: ld (OFF_RASTR_10+1), hl:   pop hl: ld (RASTR_5+1), hl
+        pop hl: ld (OFF_RASTR_11+1), hl:   pop hl: ld (RASTR_4+1), hl
+        pop hl: ld (OFF_RASTR_12+1), hl:   pop hl: ld (RASTR_3+1), hl
+        pop hl: ld (OFF_RASTR_13+1), hl:   pop hl: ld (RASTR_2+1), hl
+        pop hl: ld (OFF_RASTR_14+1), hl:   pop hl: ld (RASTR_1+1), hl
+        pop hl: ld (OFF_RASTR_15+1), hl:   pop hl: ld (RASTR_0+1), hl
+
+        // Draw top 3-th of rastr during bottom 3-th of colors
+        ; shift to 63 for MC rastr instead of 64 to move on next frame
+        ld hl, (63-8) * 4 + 2
+        add hl, sp
+        ld sp, hl
+
+        // Swap odd/even bank drawing if need. Always start drawing from odd bank number
+        // because it has set_page command in descriptor (even banks don't have it).
+        // Also, draw in order 0..7 instead of 7..0. It can be used on this third because there is no ray conflict here.
+        // It need to finish drawing on the last page and followed update_jpix routine will use same page.
+        bit 0, c
+        jr nc, swap_line_inside_bank
+                                            pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_16+1), hl
+        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (OFF_RASTR_23+1), hl:    
+        jp swap_common
+swap_line_inside_bank
+                                            pop hl: ld (RASTR_22+1), hl
+        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_17+1), hl
+        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_16+1), hl
+        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_19+1), hl
+        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_18+1), hl
+        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_21+1), hl
+        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_20+1), hl
+        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (OFF_RASTR_23+1), hl:    
+swap_common:
+        //ENDM
         
         // -------------------------------- DRAW_MULTICOLOR_AND_RASTR_LINES -----------------------------------------
 
@@ -394,7 +462,6 @@ loop1:
                 DRAW_OFFSCREEN_LINES 6, 7
                 exx
         //ENDM
-
 
         ld (stack_bottom), bc
 
@@ -513,8 +580,7 @@ delay_end
         DRAW_MULTICOLOR_AND_RASTR_LINE 20
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
-        ; draw rastr23 later, after updating JP_IX table
-        DRAW_MULTICOLOR_LINE 23
+        DRAW_MULTICOLOR_AND_RASTR_LINE 23
 
         IF (DEBUG_MODE == 1)
                 ld a, 2                         ; 7 ticks
@@ -525,67 +591,13 @@ delay_end
 
         dec bc
         ; compare to -1
-        ld a, b
-        inc a
+        ld l, b
+        inc l
 
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
 /*********************** routines *************/
-
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-        ret
-
-prepare_interruption_table:
-
-        //save data
-        LD   hl, #FE00
-        LD   de, screen_end + 256
-        LD   bc, #0200
-        ldir
-
-        // make interrupt table
-        ld A, 18h       ; JR instruction code
-        ld  (65535), a
-
-        ld   a, 0c3h    ; JP instruction code
-        ld   (65524), a
-        ld hl, after_interrupt
-        ld   (65525), hl
-
-        LD   hl, #FE00
-        LD   de, #FE01
-        LD   bc, #0100
-        LD   (hl), #FF
-        LD   a, h
-        LDIR
-        ld i, a
-        im 2
-
-        ei
-        halt
-after_interrupt:
-        di                              ; 4 ticks
-        ; remove interrupt data from stack
-        pop af                          ; 10 ticks
-
-        ; restore data
-        LD   de, #FE00
-        LD   hl, screen_end + 256
-        LD   bc, #0200
-        ldir
-        ret
 
 JP_IX_CODE      equ #e9dd
 
@@ -657,8 +669,6 @@ write_initial_jp_ix_table
                 ld sp, stack_top - 2
                 ret
 
-
-/*
 copy_image:
         ld hl, src_data
         ld de, 16384
@@ -671,7 +681,6 @@ copy_colors:
         ld bc, 768
         ldir
         ret
-*/        
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret
@@ -729,8 +738,8 @@ t4                      EQU t3
 	IF (DEBUG_MODE == 1)
         	ORG 28000
 	ENDIF	
-        ASSERT $ <= 25600
-        ORG 25600
+        ASSERT $ <= 25700
+        ORG 25700
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
@@ -774,12 +783,10 @@ color_code
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 
-/*
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
-*/        
         
 data_end:
 
