@@ -204,13 +204,18 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
-        MACRO set_page_by_bank
+        MACRO set_logical_page
                 ; a - bank number
-                rra
                 cp 2
                 ccf
                 adc 0x50
                 out (0xfd), a
+        ENDM
+
+        MACRO set_page_by_bank
+                ; a - bank number
+                rra
+                set_logical_page
         ENDM
 
         MACRO next_page
@@ -240,8 +245,8 @@ screen_start_tick               equ  17988
 ticks_per_line                  equ  224
 
 
-        call write_initial_jp_ix_table
         call create_page_helper
+        call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 17837 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
@@ -587,6 +592,7 @@ JP_IX_CODE      equ #e9dd
 jp_ix_record_size       equ 8
 data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
+
 write_initial_jp_ix_table
                 // create banks helper (to avoid mul in runtime)
                 ld hl, jpix_table + jp_ix_bank_size * 64 / data_page_count - jp_ix_bank_size
@@ -607,42 +613,46 @@ write_initial_jp_ix_table
                 jr nz, .fill_64_rec
 
                 // main data
-                ld sp, jpix_table
-                ; skip several descriptors
-                ld c, 8
-.loop:          ld a, 8
-                sub c
-                set_page_by_bank
+                ld ix, JPIX__REF_TABLE_START
+                ld iyl, 4
+                ld a, 0x54
+.main_loop:
+                next_page
 
-                ld b, 6                         ; write 0, 64, 128-th descriptors for start line
-                ; read sp to de
+                ld c, 2                         ; 2 steps on the same page
+                ld sp, jpix_table
+.rep_same_page:          
+                ; fill JPIX_REF_TABLE
+                ; 1. read sp to de
                 ld hl, 0
                 add hl, sp
                 ex de, hl
 
-                ; fill JPIX_REF_TABLE
-                ld a, 8
-                sub c
-                rla
-                ld h, high(JPIX__REF_TABLE_START)
-                ld l, a
-                ld (hl), e
-                inc l
-                ld (hl), d
+                ; 2. fill n-th elem for ref table
+                ld (ix), e
+                inc ixl
+                ld (ix), d
+                inc ixl
 
                 ld de, JP_IX_CODE
-.rep:           
+                ld b, 6                         ; write 0, 64, 128-th descriptors for start line
+.rep_bank:           
                 pop hl                          ; address
                 ld (hl), e
                 inc hl
                 ld (hl), d
                 pop hl                          ; skip restore data
-                djnz .rep
+                djnz .rep_bank
+
+                ; skip several descriptors
                 ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
                 add hl, sp
                 ld sp, hl
                 dec c
-                jr nz, .loop
+                jr nz, .rep_same_page
+                
+                dec iyl
+                jr nz, .main_loop
 
                 ld sp, stack_top - 2
                 ret
@@ -731,9 +741,6 @@ rastr_descriptors
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 
-color_descriptor
-        INCBIN "resources/compressed_data.color_descriptor"
-
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
@@ -764,6 +771,8 @@ jpix_table EQU 0xc000
         PAGE 7
 color_code
         INCBIN "resources/compressed_data.color"
+color_descriptor
+        INCBIN "resources/compressed_data.color_descriptor"
 
 /*
 src_data
