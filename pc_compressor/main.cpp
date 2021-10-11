@@ -2326,29 +2326,41 @@ int lineNumToPageNum(int y, int height)
 std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     const std::vector<LineDescriptor>& descriptors)
 {
-
     std::vector<JpIxDescriptor> jpIxDescriptors;
 
-    const int imageHeight = descriptors.size();
-    const int blocks64 = imageHeight / 64;
+    int imageHeight = descriptors.size();
     const int bankSize = imageHeight / 8;
     const int colorsHeight = imageHeight / 8;
 
     // . Create delta for JP_IX when shift to 1 line
-    for (int line = 0; line < 64; ++line)
+    for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
     {
-        for (int i = 0; i < blocks64 + 2; ++i)
+        int line = screenLine % imageHeight;
+        for (int i = 0; i < 3; ++i)
         {
             int l = (line + i * 64) % imageHeight;
 
             JpIxDescriptor d;
             d.pageNum = descriptors[l].pageNum;
-            d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
-            d.originData = descriptors[l].rastrForMulticolor.endBlock;
-            jpIxDescriptors.push_back(d);
 
             d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
             d.originData = descriptors[l].rastrForOffscreen.endBlock;
+            jpIxDescriptors.push_back(d);
+
+            if (i == 2)
+            {
+                // Shift to the next frame
+                int line1 = line > 0 ? line - 1 : imageHeight - 1;
+                int l1 = (line1 + i * 64) % imageHeight;
+                d.address = descriptors[l1].rastrForMulticolor.lineEndPtr;
+                d.originData = descriptors[l1].rastrForMulticolor.endBlock;
+
+            }
+            else
+            {
+                d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
+                d.originData = descriptors[l].rastrForMulticolor.endBlock;
+            }
             jpIxDescriptors.push_back(d);
         }
     }
@@ -2369,7 +2381,7 @@ int nextLineInBank(int line, int imageHeight)
 
 int getRastrCodeStartAddr(int imageHeight)
 {
-    const int jpixTableSize = (imageHeight + 128) * 8;
+    const int jpixTableSize = (imageHeight + 8) * 24;
     return rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
 }
 

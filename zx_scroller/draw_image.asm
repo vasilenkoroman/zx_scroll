@@ -231,7 +231,7 @@ after_interrupt:
         ret
 
 
-filler  defs 5, 0   // align code data
+filler  defs 12, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -278,56 +278,64 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
 loop:  
+jp_ix_line_delta EQU 8 * 6 * 4
         // --------------------- update_jp_ix_table --------------------------------
         //MACRO update_jp_ix_table
                 // bc - screen address to draw
 
                 ; a = bank number
-                ld a, 0x3f
-                and c
-
-                rla                             ; 4
-                add low(JPIX__BANKS_HELPER)     ; 7
+                // set bits that match page number to 0
+                ld a, ~6                        ; 7
+                and c                           ; 4
+                bit 0, a                        ; 8
+                jr z, no                        ; 7
+                add 3                           ; 7
+no:
                 ld l, a                         ; 4
-                ld h, high(JPIX__BANKS_HELPER)  ; 7
-                ld sp, hl                       ; 6
-                pop hl  ; hl = bank offset      ; 10
-                ; ticks: 38
+                ld h, b                         ; 4
+                ; bit 5 will be 0xc0 after mul to 6
+                set 5, h                        ; 8
+                // calcuate  hl * 6
+                add hl, hl      ; *2            ; 11
+                ld de, hl                       ; 8
+                add hl, hl      ; *4            ; 11
+                add hl, de      ; *6            ; 11
+                // total: 68
 
-                ; de =  offset in bank (bc/8)
-                ld a, 0xc0
-                and c
-                ld d, b
-                rr d: rra
-                rr d: rra
-                rr d: rra
-                ld e, a
-                ; hl - pointer to new record in JPIX table
-                add hl, de
-
-                ; prepare  N-th element for jpix_table_ref in a
-                ld a, 7                                 ; 4
-                and c                                   ; 7
-                rla                                     ; 4
+                ld sp, hl
 
                 // 1. write new JP_IX
-                ld sp, hl
-                exx
                 ld de, JP_IX_CODE
                 .5 write_jp_ix_data 1
-                write_jp_ix_data 0
-
+                //write_jp_ix_data 0
+                pop hl ; reffers to the next bank
+                
                 // 2. restore data
-                ; hl = jpix_table_ref
-                ld h, high(JPIX__REF_TABLE_START)       ; 7
-                ld l, a                                 ; 4
-                ld sp, hl                               ; 6
-                ; put new pointer to jpix_table_ref, get old pointer to restore data in hl
-                exx                                     ; 4
-                ex (sp), hl                             ; 19
-                ld sp, hl                               ; 6
-                .6 restore_jp_ix
-                // total 666
+                exx
+                ld hl, jp_ix_line_delta - 6*4-2
+                add hl, sp
+                ld sp, hl
+                .5 restore_jp_ix
+                pop hl ; address        (next bank)
+                pop de ; restore data   (next bank)
+                
+                // last MC data reffers to the next page
+                ld a, c
+                dec a
+                and 7
+                set_page_by_bank
+                
+                ld (hl), e
+                inc hl
+                ld (hl), d
+
+                exx
+                ld (hl), e
+                inc hl
+                ld (hl), d
+
+                // total: 659/657
+
         // ------------------------- update jpix table end
 loop1:
         //prepare_rastr_drawing
@@ -606,68 +614,39 @@ data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
 write_initial_jp_ix_table
-                // create banks helper (to avoid mul in runtime)
-                ld hl, jpix_table + jp_ix_bank_size * 64 / data_page_count - jp_ix_bank_size
-                ld de, -jp_ix_bank_size
-                ld sp, JPIX__BANKS_HELPER_END
+        ld sp, jpix_table
+        ld de, JP_IX_CODE
 
-                ld c, 8
-.fill_64_rec:   ld b, data_page_count
-.fill_8_rec:
-                push hl
-                add hl, de
-                push hl
-                sub hl, de
-                djnz .fill_8_rec
-                add hl, de
-                add hl, de
-                dec c
-                jr nz, .fill_64_rec
+        ld a, 0
+page_loop:
+        ld b, 5
+        ld c, a
+        and a
+        set_page_by_bank
+.rep:   pop hl ; address
+        ld (hl), e
+        inc hl
+        ld (hl), d
+        pop hl ; skip restore data
+        djnz .rep
+        pop hl
+        // write to the prev page
+        ld a, c
+        dec a
+        and 7
+        set_page_by_bank
+        ld (hl), e
+        inc hl
+        ld (hl), d
+        pop hl ; skip restore data
 
-                // main data
-                ld ix, JPIX__REF_TABLE_START
-                ld iyl, 4
-                ld a, 0x54
-.main_loop:
-                next_page
+        ld a, c
+        inc a
+        cp 8
+        jr nz, page_loop
 
-                ld c, 2                         ; 2 steps on the same page
-                ld sp, jpix_table
-.rep_same_page:          
-                ; fill JPIX_REF_TABLE
-                ; 1. read sp to de
-                ld hl, 0
-                add hl, sp
-                ex de, hl
-
-                ; 2. fill n-th elem for ref table
-                ld (ix), e
-                inc ixl
-                ld (ix), d
-                inc ixl
-
-                ld de, JP_IX_CODE
-                ld b, 6                         ; write 0, 64, 128-th descriptors for start line
-.rep_bank:           
-                pop hl                          ; address
-                ld (hl), e
-                inc hl
-                ld (hl), d
-                pop hl                          ; skip restore data
-                djnz .rep_bank
-
-                ; skip several descriptors
-                ld hl, (imageHeight/64 - 3 + 2) * jp_ix_record_size
-                add hl, sp
-                ld sp, hl
-                dec c
-                jr nz, .rep_same_page
-                
-                dec iyl
-                jr nz, .main_loop
-
-                ld sp, stack_top - 2
-                ret
+        ld sp, stack_top - 2
+        ret
 
 copy_image:
         ld hl, src_data
