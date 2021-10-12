@@ -234,6 +234,68 @@ after_interrupt:
         ret
 
 
+/************** delay routine *************/
+        MACRO DO_DELAY
+
+//d1      equ     17 + 15+21+11+15+14
+d1      equ     15+21+11+15+14 + 7 - 5
+d2      equ     16
+d3      equ     20+10+11+12
+
+base
+delay   xor     a               ; 4
+        or      h               ; 4
+        jr      nz,wait1        ; 12/7  20/15
+        ld      a,l             ; 4
+        sub     d1              ; 7
+        ld      hl,high(base)*256 + d2      ; 10    21
+wait2   sub     l               ; 4
+        jr      nc,wait2        ; 12/7  16/11
+        sub (256-16) - low(table)
+        ld      l,a             ; 4
+        ld      l,(hl)          ; 7
+        jp      (hl)            ; 4     15
+
+table
+        db      low(t09), low(t10), low(t11), low(t12)
+        db      low(t13), low(t14), low(t15), low(t16)
+        db      low(t17), low(t18), low(t19), low(t20)
+        db      low(t21), low(t22), low(t23), low(t24)
+        db      low(t25), low(t26), low(t27)
+table_end
+
+wait1   ld      de,-d3          ; 10
+        add     hl,de           ; 11
+        jr      delay           ; 12    33
+
+t24     nop
+t20     nop
+t16     nop
+t12     jr delay_end
+
+t27     nop
+t23     nop
+t19     nop
+t15     nop
+t11     ld l, low(delay_end)
+        jp (hl)
+
+t26     nop
+t22     nop
+t18     nop
+t14     nop
+t10     jp delay_end
+
+t25     nop
+t21     nop
+t17     nop
+t13     nop
+t09     ld a, r
+delay_end
+        ASSERT high(delay_end) == high(base)
+        ENDM
+/************** end delay routine *************/        
+
 filler  defs 8, 0   // align code data
 
 /*************** Main. ******************/
@@ -559,65 +621,7 @@ bank_drawing_common:
         ld sp, hl
         pop hl
         
-/************** delay routine *************/
-
-//d1      equ     17 + 15+21+11+15+14
-d1      equ     15+21+11+15+14 + 7 - 5
-d2      equ     16
-d3      equ     20+10+11+12
-
-base
-delay   xor     a               ; 4
-        or      h               ; 4
-        jr      nz,wait1        ; 12/7  20/15
-        ld      a,l             ; 4
-        sub     d1              ; 7
-        ld      hl,high(base)*256 + d2      ; 10    21
-wait2   sub     l               ; 4
-        jr      nc,wait2        ; 12/7  16/11
-        sub (256-16) - low(table)
-        ld      l,a             ; 4
-        ld      l,(hl)          ; 7
-        jp      (hl)            ; 4     15
-
-table
-        db      low(t09), low(t10), low(t11), low(t12)
-        db      low(t13), low(t14), low(t15), low(t16)
-        db      low(t17), low(t18), low(t19), low(t20)
-        db      low(t21), low(t22), low(t23), low(t24)
-        db      low(t25), low(t26), low(t27)
-table_end
-
-wait1   ld      de,-d3          ; 10
-        add     hl,de           ; 11
-        jr      delay           ; 12    33
-
-t24     nop
-t20     nop
-t16     nop
-t12     jr delay_end
-
-t27     nop
-t23     nop
-t19     nop
-t15     nop
-t11     ld l, low(delay_end)
-        jp (hl)
-
-t26     nop
-t22     nop
-t18     nop
-t14     nop
-t10     jp delay_end
-
-t25     nop
-t21     nop
-t17     nop
-t13     nop
-t09     ld a, r
-delay_end
-        ASSERT high(delay_end) == high(base)
-/************** end delay routine *************/        
+        DO_DELAY
 
         // calculate floor(bc,8) / 4
 
