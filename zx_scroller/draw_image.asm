@@ -707,11 +707,14 @@ data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
 write_initial_jp_ix_table
-        ld sp, jpix_table
         ld de, JP_IX_CODE
 
         ld a, 0
 page_loop:
+        bit 0, a
+        jr nz, continue_page        
+        ld sp, jpix_table
+continue_page:
         ld b, 5
         ld c, a
         and a
