@@ -281,7 +281,7 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset       ; 10 ticks
 loop:  
-jp_ix_line_delta EQU 8 * 6 * 4
+jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
         //MACRO update_jp_ix_table
                 // bc - screen address to draw
@@ -306,6 +306,7 @@ no:
                 // total: 68
 
                 ld sp, hl
+                ld a, c
 
                 // 1. write new JP_IX
                 ld de, JP_IX_CODE
@@ -315,7 +316,7 @@ no:
                 
                 // 2. restore data
                 exx
-                ld hl, jp_ix_line_delta - 6*4-2
+                ld hl, jp_ix_line_delta_in_bank - (6*4-2)
                 add hl, sp
                 ld sp, hl
                 .5 restore_jp_ix
@@ -323,7 +324,6 @@ no:
                 pop de ; restore data   (next bank)
                 
                 // last MC data reffers to the next page
-                ld a, c
                 dec a
                 and 7
                 set_page_by_bank
