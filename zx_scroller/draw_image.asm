@@ -553,13 +553,13 @@ odd_bank_drawing:
                 add hl, sp
                 ld sp, hl
 
-                                                     pop hl: ld (RASTR_23+1), hl
+                                                     pop hl: ld (RASTR_17+1), hl
                 pop hl: ld (OFF_RASTR2_16+1), hl:    pop hl: ld (RASTR_16+1), hl
-                pop hl: ld (OFF_RASTR2_17+1), hl:    pop hl: ld (RASTR_17+1), hl
+                pop hl: ld (OFF_RASTR2_17+1), hl:    pop hl: ld (RASTR_19+1), hl
                 pop hl: ld (OFF_RASTR2_18+1), hl:    pop hl: ld (RASTR_18+1), hl
-                pop hl: ld (OFF_RASTR2_19+1), hl:    pop hl: ld (RASTR_19+1), hl
+                pop hl: ld (OFF_RASTR2_19+1), hl:    pop hl: ld (RASTR_21+1), hl
                 pop hl: ld (OFF_RASTR2_20+1), hl:    pop hl: ld (RASTR_20+1), hl
-                pop hl: ld (OFF_RASTR2_21+1), hl:    pop hl: ld (RASTR_21+1), hl
+                pop hl: ld (OFF_RASTR2_21+1), hl:    pop hl: ld (RASTR_23+1), hl
                 pop hl: ld (OFF_RASTR2_22+1), hl:    pop hl: ld (RASTR_22+1), hl
                 pop hl: ld (OFF_RASTR2_23+1), hl:    
 
@@ -662,8 +662,8 @@ bank_drawing_common:
         DRAW_MULTICOLOR_AND_RASTR_LINE 12
         DRAW_MULTICOLOR_AND_RASTR_LINE 13
         DRAW_MULTICOLOR_AND_RASTR_LINE 14
-
         DRAW_MULTICOLOR_AND_RASTR_LINE 15
+
         DRAW_MULTICOLOR_AND_RASTR_LINE 16
         DRAW_MULTICOLOR_AND_RASTR_LINE 17
         DRAW_MULTICOLOR_AND_RASTR_LINE 18

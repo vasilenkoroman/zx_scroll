@@ -60,7 +60,7 @@ static const int kRtMcContextSwitchDelay = 97 + 10; // context switch + ld hl in
 static const int kTicksOnScreenPerByte = 4;
 static const int kStackMovingTimeForMc = 10;
 
-static const std::vector<uint8_t> kLdSpIy = {0xFD, 0xF9};
+static const std::vector<uint8_t> kLdSpIy = { 0xFD, 0xF9 };
 
 /**
  * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
@@ -81,7 +81,7 @@ struct Context
     int minX = 0;
     int lastOddRepPosition = 32;
     int borderPoint = 0;
-    Register16 af{"af"};
+    Register16 af{ "af" };
 
     void removeEdge()
     {
@@ -164,15 +164,15 @@ public:
 
 void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileName)
 {
-    unsigned char *img = NULL;
-    int filesize = 54 + 3*w*h;  //w is your image width, h is image height, both int
+    unsigned char* img = NULL;
+    int filesize = 54 + 3 * w * h;  //w is your image width, h is image height, both int
 
-    img = (unsigned char *) malloc(3 * w * h);
+    img = (unsigned char*)malloc(3 * w * h);
     memset(img, 0, 3 * w * h);
 
-    for(int x = 0; x < w; ++x)
+    for (int x = 0; x < w; ++x)
     {
-        for(int y = 0; y < h; y++)
+        for (int y = 0; y < h; y++)
         {
 
             uint8_t data = buffer[y * 32 + x / 8];
@@ -186,9 +186,9 @@ void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileNa
         }
     }
 
-    unsigned char bmpfileheader[14] = {'B','M', 0,0,0,0, 0,0, 0,0, 54,0,0,0};
-    unsigned char bmpinfoheader[40] = {40,0,0,0, 0,0,0,0, 0,0,0,0, 1,0, 24,0};
-    unsigned char bmppad[3] = {0,0,0};
+    unsigned char bmpfileheader[14] = { 'B','M', 0,0,0,0, 0,0, 0,0, 54,0,0,0 };
+    unsigned char bmpinfoheader[40] = { 40,0,0,0, 0,0,0,0, 0,0,0,0, 1,0, 24,0 };
+    unsigned char bmppad[3] = { 0,0,0 };
 
     memcpy(bmpfileheader + 2, &filesize, 4);
     memcpy(bmpinfoheader + 4, &w, 4);
@@ -197,13 +197,13 @@ void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileNa
     std::ofstream imageFile;
     imageFile.open(bmpFileName, std::ios::binary);
 
-    imageFile.write((char*) &bmpfileheader, sizeof(bmpfileheader));
-    imageFile.write((char*) &bmpinfoheader, sizeof(bmpinfoheader));
-    for(int i = 0; i < h; i++)
+    imageFile.write((char*)&bmpfileheader, sizeof(bmpfileheader));
+    imageFile.write((char*)&bmpinfoheader, sizeof(bmpinfoheader));
+    for (int i = 0; i < h; i++)
     {
-        imageFile.write((char*) img + w * (h-i-1)*3 , 3 * w);
+        imageFile.write((char*)img + w * (h - i - 1) * 3, 3 * w);
         int bytesRest = 4 - (w * 3) % 4;
-        imageFile.write((char*) &bmppad, bytesRest % 4);
+        imageFile.write((char*)&bmppad, bytesRest % 4);
     }
 
     free(img);
@@ -245,7 +245,7 @@ void deinterlaceBuffer(std::vector<uint8_t>& buffer)
 {
     int imageHeight = buffer.size() / 32;
     std::vector<uint8_t> tempBuffer(buffer.size());
-    for (int srcY = 0; srcY < imageHeight; ++ srcY)
+    for (int srcY = 0; srcY < imageHeight; ++srcY)
     {
         int dstY = (srcY % 8) * 8 + (srcY % 64) / 8 + (srcY / 64) * 64;
         memcpy(tempBuffer.data() + dstY * lineSize,
@@ -278,7 +278,7 @@ int sameVerticalWorlds(uint8_t* buffer, int x, int y)
 {
     if (y == 191 || y == 0)
         return 0;
-    const uint16_t* buffer16 = (uint16_t*) buffer;
+    const uint16_t* buffer16 = (uint16_t*)buffer;
 
     int result = 0;
     for (; x < 16; ++x)
@@ -366,7 +366,7 @@ void updateTransitiveRegUsage(T& data)
         }
 #ifdef VERBOSE
         if (line.regUseMask != before)
-            std::cout << "line #" << lineNum << " extend reg us mask from " << (int) before << " to " << (int ) line.regUseMask << std::endl;
+            std::cout << "line #" << lineNum << " extend reg us mask from " << (int)before << " to " << (int)line.regUseMask << std::endl;
 #endif
     }
 }
@@ -400,7 +400,7 @@ bool compressLineMain(
 
     int bestTicks = std::numeric_limits<int>::max();
     TryN* bestTry = nullptr;
-    for (auto& option: extraCompressOptions)
+    for (auto& option : extraCompressOptions)
     {
         if (!useUpdateViaHlTry && (option.extraFlags & updateViaHl))
             continue;
@@ -419,7 +419,7 @@ bool compressLineMain(
 
     line = bestTry->line;
     line.inputRegisters = std::make_shared<std::vector<Register16>>();
-    for (const auto& reg16: registers)
+    for (const auto& reg16 : registers)
         line.inputRegisters->push_back(reg16);
     //context = bestTry->context;
     context = bestTry->context;
@@ -631,7 +631,7 @@ bool willWriteByteViaHl(
     if (context.sameBytesCount->at(index))
         return false;
 
-    if (newX < context.maxX -1)
+    if (newX < context.maxX - 1)
     {
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
@@ -651,7 +651,7 @@ bool willWriteByteViaHl(
 template <int N>
 bool compressLine(
     const Context& context,
-    CompressedLine&  result,
+    CompressedLine& result,
     std::array<Register16, N>& registers,
     int x)
 {
@@ -669,8 +669,8 @@ bool compressLine(
             if (x + verticalRepCount == 31)
                 --verticalRepCount;
             else
-            if (!canUseOddPos)
-                verticalRepCount &= ~1;
+                if (!canUseOddPos)
+                    verticalRepCount &= ~1;
         }
 
         if (x == context.borderPoint)
@@ -684,11 +684,11 @@ bool compressLine(
             }
         }
 
-        uint16_t* buffer16 = (uint16_t*) (context.buffer + index);
+        uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
         word = swapBytes(word);
 
-        assert(x < context.maxX+1);
+        assert(x < context.maxX + 1);
 
         if (context.borderPoint && x < context.borderPoint)
         {
@@ -697,7 +697,7 @@ bool compressLine(
             if (x + verticalRepCount >= context.borderPoint)
             {
                 const int prevVerticalRepCount = verticalRepCount;
-                verticalRepCount -= context.borderPoint -x;
+                verticalRepCount -= context.borderPoint - x;
                 x = context.borderPoint;
                 if (verticalRepCount > 3)
                 {
@@ -1141,14 +1141,14 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
     {
         for (int x = 0; x < 32; x += 2)
         {
-            std::cout << "Check block " << y << ":" << x  << std::endl;
+            std::cout << "Check block " << y << ":" << x << std::endl;
 
             int lineNum = y * 8;
 
             inversBlock(buffer, colorBuffer, x, y);
             auto candidateLeft = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
-            inversBlock(buffer, colorBuffer, x+1, y);
+            inversBlock(buffer, colorBuffer, x + 1, y);
             auto candidateBoth = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
 
             inversBlock(buffer, colorBuffer, x, y);
@@ -1161,8 +1161,8 @@ CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int im
                 && candidateLeft.ticks() < candidateRight.ticks())
             {
                 result = candidateLeft;
-                std::cout << "reduce ticks to = " << result.ticks() << std::endl;colorBuffer,
-                inversBlock(buffer, colorBuffer, x, y);
+                std::cout << "reduce ticks to = " << result.ticks() << std::endl; colorBuffer,
+                    inversBlock(buffer, colorBuffer, x, y);
             }
             else if (candidateBoth.ticks() < resultTicks
                 && candidateBoth.ticks() < candidateLeft.ticks()
@@ -1197,9 +1197,9 @@ void finilizeLine(
 
     auto doAddIY =
         [&](int value)
-        {
-            iy.decValue(result, value);
-        };
+    {
+        iy.decValue(result, value);
+    };
 
 
     // Left part is exists
@@ -1291,7 +1291,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl")};
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     CompressedLine line1;
 
     // This code calculate expected position for register values.
@@ -1313,14 +1313,14 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     auto hasSameValue =
         [](const auto& registers, uint16_t word)
+    {
+        for (auto& reg : registers)
         {
-            for (auto& reg: registers)
-            {
-                if (reg.hasValue16(word))
-                    return true;
-            }
-            return false;
-        };
+            if (reg.hasValue16(word))
+                return true;
+        }
+        return false;
+    };
 
     std::array<Register16, 6> registers6 = {
         Register16("bc"), Register16("de"), Register16("hl"),
@@ -1358,9 +1358,9 @@ CompressedLine  compressMultiColorsLine(Context context)
                         }
                         else
                         {
-                            auto prevRegs =  i < 3
+                            auto prevRegs = i < 3
                                 ? std::array<Register16, 3> { registers6[0], registers6[1], registers6[2] }
-                                : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
+                            : std::array<Register16, 3> { registers6[3], registers6[4], registers6[5] };
                             registers6[i].updateToValue(line, inputReg->value16(), prevRegs, context.af);
                         }
                         break;
@@ -1371,10 +1371,10 @@ CompressedLine  compressMultiColorsLine(Context context)
             return false; //< Don't break.
         });
 
-        CompressedLine loadLine;
-        loadLine += loadLineAlt;
-        loadLine.exx();
-        loadLine += loadLineMain;
+    CompressedLine loadLine;
+    loadLine += loadLineAlt;
+    loadLine.exx();
+    loadLine += loadLineMain;
 
     // 2.4 start compressor with prepared register values
 
@@ -1396,7 +1396,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     int drawTicks = getDrawTicks(pushLine);
 
-    if (drawTicks > t2 && pushLine.splitPosHint >= 0)
+    if (drawTicks > t2&& pushLine.splitPosHint >= 0)
     {
         context.flags |= hurryUpViaIY;
         CompressedLine pushLine2;
@@ -1425,7 +1425,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     if (drawTicks > t2)
     {
         // TODO: implement me
-        std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2  << " ticks for multicolor" << std::endl;
+        std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for multicolor" << std::endl;
         //assert(0);
         //abort();
     }
@@ -1591,7 +1591,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
     }
 
 #ifdef LOG_INFO
-    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks<<  ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
+    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
 
     std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 #endif
@@ -1631,7 +1631,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
         if (endLineDelay >= 45 + 10 && (flags & sinkMcTicksToRastr))
         {
             static Register16 sp("sp");
-            std::array<Register16, 1> registers = { Register16("bc")};
+            std::array<Register16, 1> registers = { Register16("bc") };
             Register16* bc = &registers[0];
 
             auto info = Z80Parser::parseCode(*line.inputAf, line.data.buffer(), line.data.size());
@@ -1666,17 +1666,17 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
             sinkLine.data.push_back(0x90); // Move from attr to rastr delta
             sinkLine.data.push_back(0x39); // ADD HL, SP
 
-            sinkLine.append({ 0xcb, 0x04});  // RLC H
+            sinkLine.append({ 0xcb, 0x04 });  // RLC H
             sinkLine.append({ 0xcb, 0x04 }); // RLC H
             sinkLine.append({ 0xcb, 0x04 }); // RLC H
 
             bool hasData = false;
             bool hasLdSpHl = false;
 
-            while(x <31 && sinkLine.drawTicks <= endLineDelay - 10)
+            while (x < 31 && sinkLine.drawTicks <= endLineDelay - 10)
             {
                 int ticksRest = endLineDelay - sinkLine.drawTicks;
-                int index = rastrY * 32  + x;
+                int index = rastrY * 32 + x;
 
                 int minTicksForPush = 21;
                 if (!hasLdSpHl)
@@ -1809,7 +1809,7 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.af.isAltAf = true;
 
     CompressedData compressedData;
-    for (int y = 0; y < imageHeight; y ++)
+    for (int y = 0; y < imageHeight; y++)
     {
         context.y = y;
         auto line = compressMultiColorsLine(context);
@@ -1883,7 +1883,7 @@ struct DescriptorState
 
     int extraDelay = 0;             //< Alignment delay when serialize preambula.
     int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
-    Register16 af{"af"};
+    Register16 af{ "af" };
     std::optional<uint16_t> updatedHlValue;
 
     void setEndBlock(const uint8_t* ptr)
@@ -1946,7 +1946,7 @@ struct DescriptorState
         if (delay == 3)
         {
             // Try to change LD REG8,REG8 to LD REG8, X
-            for (const auto& command: parsedRegs.commands)
+            for (const auto& command : parsedRegs.commands)
             {
                 if (command.opCode >= 0x40 && command.opCode <= 0x6f && delay == 3)
                 {
@@ -1967,10 +1967,10 @@ struct DescriptorState
         if (delay == 2)
         {
             // Try to change 2 LD REG8,REG8 to LD REG16, XX
-            for (int i = 0; i < (int) parsedRegs.commands.size() - 1; ++i)
+            for (int i = 0; i < (int)parsedRegs.commands.size() - 1; ++i)
             {
                 const auto& command = parsedRegs.commands[i];
-                const auto& nextCommand = parsedRegs.commands[i+1];
+                const auto& nextCommand = parsedRegs.commands[i + 1];
                 if (command.opCode >= 0x40 && command.opCode <= 0x6f
                     && nextCommand.opCode >= 0x40 && nextCommand.opCode <= 0x6f
                     && delay == 2)
@@ -1989,7 +1989,7 @@ struct DescriptorState
                         auto regFrom1 = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex1, &af.h);
                         auto regFrom2 = findRegisterByIndex(parsedRegs.outputRegisters, regFromIndex2, &af.h);
 
-                        const uint16_t word = ((uint16_t) *regFrom1->value << 8) + *regFrom2->value;
+                        const uint16_t word = ((uint16_t)*regFrom1->value << 8) + *regFrom2->value;
 
                         std::string reg16Name = std::string() + regTo1->name + regTo2->name;
                         auto reg16 = findRegister(parsedRegs.outputRegisters, reg16Name);
@@ -2389,8 +2389,8 @@ int serializeMainData(
     const CompressedData& data,
     const CompressedData& multicolorData,
     std::vector<LineDescriptor>& descriptors,
-    const std::string& inputFileName, 
-    uint16_t reachDescriptorsBase, 
+    const std::string& inputFileName,
+    uint16_t reachDescriptorsBase,
     int flags,
     int mcDrawTicks)
 {
@@ -2478,11 +2478,11 @@ int serializeMainData(
         int fullLineEndNum = lineEndInBank + lineBank * bankSize;
 
         int relativeOffsetToStart = lineOffset[lineNum];
-        
+
         const auto& endLine = data.data[fullLineEndNum];
         int relativeOffsetToEnd = lineOffset[fullLineEndNum] + endLine.data.size();
-        
-        if (lineEndInBank == bankSize-1)
+
+        if (lineEndInBank == bankSize - 1)
         {
             // There is additional JP 'first bank line'  command at the end of latest line in bank.
             // overwrite this command (if exists) instead of first bytes of the next line in bank.
@@ -2521,7 +2521,7 @@ int serializeMainData(
             rastrCodeStartAddr,
             //[ticksLimit, &extraCommandsIncluded, &descriptorsDelta, &dataLine, &serializedData, &relativeOffsetToStart]
             [&]
-            (const Z80CodeInfo& info, const z80Command& command)
+        (const Z80CodeInfo& info, const z80Command& command)
             {
                 int sum = info.ticks + command.ticks;
                 bool success = sum == ticksLimit || sum < ticksLimit - 3;
@@ -2567,7 +2567,7 @@ int serializeMainData(
         }
 
 
-        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart  + rastrCodeStartAddr;
+        descriptor.rastrForMulticolor.lineStartPtr = relativeOffsetToStart + rastrCodeStartAddr;
         descriptor.rastrForMulticolor.lineEndPtr = descriptor.rastrForMulticolor.codeInfo.endOffset + rastrCodeStartAddr;
 
         descriptor.rastrForOffscreen.lineStartPtr = descriptor.rastrForMulticolor.lineEndPtr;
@@ -2597,11 +2597,15 @@ int serializeMainData(
 
     for (int d = 0; d < imageHeight; ++d)
     {
-        int pageNum = lineNumToPageNum(d, imageHeight);
+        int lineBank = d % 8;
+        int lineInBank = d / 8;
+        int lineNum = bankSize * lineBank + lineInBank;
+
+        int pageNum = lineNumToPageNum(lineNum, imageHeight);
         auto& descriptor = descriptors[d];
-        descriptor.rastrForMulticolor.setEndBlock(serializedData[pageNum].data() 
+        descriptor.rastrForMulticolor.setEndBlock(serializedData[pageNum].data()
             + descriptor.rastrForMulticolor.lineEndPtr - rastrCodeStartAddr);
-        descriptor.rastrForOffscreen.setEndBlock(serializedData[pageNum].data() 
+        descriptor.rastrForOffscreen.setEndBlock(serializedData[pageNum].data()
             + descriptor.rastrForOffscreen.lineEndPtr - rastrCodeStartAddr);
     }
 
@@ -2800,8 +2804,8 @@ int serializeMultiColorData(
     // Resolve LD HL, PREV_LINE_ADDR
     for (int y = 0; y < colorImageHeight; ++y)
     {
-        int prevLineOffset = y > 0 ? lineOffset[y - 1] : lineOffset[lineOffset.size()-1];
-        uint16_t* ldHlPtr = (uint16_t*) (ldHlOffset[y] + serializedData.data());
+        int prevLineOffset = y > 0 ? lineOffset[y - 1] : lineOffset[lineOffset.size() - 1];
+        uint16_t* ldHlPtr = (uint16_t*)(ldHlOffset[y] + serializedData.data());
         *ldHlPtr = prevLineOffset + codeOffset;
     }
 
@@ -2940,7 +2944,7 @@ int getColorTicksForWholeFrame(
 
     for (int i = 0; i < 24; ++i)
     {
-        int l  = (lineNum + i) % imageHeight;
+        int l = (lineNum + i) % imageHeight;
         const auto& line = data.data[l];
         result += line.drawTicks;
     }
@@ -3022,16 +3026,16 @@ int serializeTimingData(
         }
         else
         {
-            #ifdef LOG_DEBUG
+#ifdef LOG_DEBUG
             std::cout << "INFO: Ticks rest at line #" << line << ". free=" << freeTicks
                 << " color=" << colorTicks
                 << ". preambula=" << offscreenTicks.preambulaTicks << ".\t" << offscreenTicks.getPreambulaDetail()
                 << ". off rastr=" << offscreenTicks.payloadTicks
                 << std::endl;
-            #endif
+#endif
         }
         worseLineTicks = std::min(worseLineTicks, freeTicks);
-        const uint16_t freeTicks16 = (uint16_t) freeTicks;
+        const uint16_t freeTicks16 = (uint16_t)freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
 
         if (line == 0)
@@ -3040,7 +3044,7 @@ int serializeTimingData(
     std::cout << "worse line free ticks=" << worseLineTicks << ". ";
     if (kMinDelay - worseLineTicks > 0)
         std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
-    std::cout <<  std::endl;
+    std::cout << std::endl;
 
     return firstLineDelay;
 }
@@ -3067,8 +3071,8 @@ int serializeJpIxDescriptors(
     for (int i = 0; i < jpIxDescr.size(); ++i)
     {
         const auto& d = jpIxDescr[i];
-        jpIxDescriptorFiles[d.pageNum].write((const char*) &d.address, sizeof(uint16_t));
-        jpIxDescriptorFiles[d.pageNum].write((const char*) d.originData.data(), d.originData.size());
+        jpIxDescriptorFiles[d.pageNum].write((const char*)&d.address, sizeof(uint16_t));
+        jpIxDescriptorFiles[d.pageNum].write((const char*)d.originData.data(), d.originData.size());
     }
 
     return 0;
@@ -3148,8 +3152,8 @@ int main(int argc, char** argv)
             return -1;
         }
 
-        fileIn.read((char*) bufferPtr, 6144);
-        fileIn.read((char*) colorBufferPtr, 768);
+        fileIn.read((char*)bufferPtr, 6144);
+        fileIn.read((char*)colorBufferPtr, 768);
         inverseImageIfNeed(bufferPtr, colorBufferPtr);
 
         bufferPtr += 6144;
@@ -3181,7 +3185,7 @@ int main(int argc, char** argv)
 
     const auto t2 = std::chrono::system_clock::now();
 
-    std::cout << "compression time= " <<  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
+    std::cout << "compression time= " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
 
     static const int uncompressedTicks = 21 * 16 * imageHeight;
     static const int uncompressedColorTicks = uncompressedTicks / 8;
@@ -3190,9 +3194,9 @@ int main(int argc, char** argv)
         << ", data size:" << data.size() << std::endl;
 
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
-        << colorData.ticks() << ", ratio: " << colorData.ticks() / (float) uncompressedColorTicks << std::endl;
+        << colorData.ticks() << ", ratio: " << colorData.ticks() / (float)uncompressedColorTicks << std::endl;
     std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks: "
-        << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float) uncompressedColorTicks << std::endl;
+        << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float)uncompressedColorTicks << std::endl;
     std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
 
     // put JP to the latest line for every bank
