@@ -142,27 +142,40 @@ MC_LINE_N?      ld ix, $ + 5                            ; 14
                 // total ticks: 50 (58 with ret)
     ENDM                
 
-    MACRO DRAW_RASTR_LINE N?:
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld ix, $ + 7                                           ; 14
-RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
-                // total ticks: 34 (42 with ret)
+    MACRO DRAW_MULTICOLOR_LINE2 N?:
+                IF (N? != 0)
+                        exx                                     ; 4
+                ENDIF                        
+                ld sp, color_addr + N? * 32 + 16        ; 10
+                ld iy, color_addr + N? * 32 + 32        ; 14
+MC_LINE2_N?     ld ix, $ + 5                            ; 14
+                jp hl                                   ; 4
+                IF (N? != 23)
+                        exx                             ; 4
+                ENDIF                        
+                // total ticks: 50 (58 with ret)
     ENDM                
 
-    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?, N2?:
                 DRAW_MULTICOLOR_LINE  N?
         
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-		IF (DEBUG_MODE == 1)
-                        ld ix, $ + 7                                   ; 14
-		ELSE
-                        ASSERT(high($+6) == high(MC_LINE_N? + 5))
-                        ld ixl, low($ + 6)                             ; 11
-                ENDIF                        
+                //ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256
+                ASSERT(high($+6) == high(MC_LINE_N? + 5))
+                ld ixl, low($ + 6)                             ; 11
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
         // total ticks: 70 (86 with ret)
     ENDM                
 
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE2 N?:
+                DRAW_MULTICOLOR_LINE2  N?
+        
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+                ASSERT(high($+6) == high(MC_LINE2_N? + 5))
+                ld ixl, low($ + 6)                             ; 11
+RASTR2_N?       jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
+        // total ticks: 70 (86 with ret)
+    ENDM                
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -296,7 +309,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 8, 0   // align code data
+filler  defs 4, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -523,14 +536,14 @@ odd_bank_drawing:
 
                 // Draw bottom 3-th of rastr during middle 3-th of colors
                 exx
-                pop hl: ld (OFF_RASTR2_0+1), hl:    pop hl: ld (RASTR_15+1), hl
-                pop hl: ld (OFF_RASTR2_1+1), hl:    pop hl: ld (RASTR_14+1), hl
-                pop hl: ld (OFF_RASTR2_2+1), hl:    pop hl: ld (RASTR_13+1), hl
-                pop hl: ld (OFF_RASTR2_3+1), hl:    pop hl: ld (RASTR_12+1), hl
-                pop hl: ld (OFF_RASTR2_4+1), hl:    pop hl: ld (RASTR_11+1), hl
-                pop hl: ld (OFF_RASTR2_5+1), hl:    pop hl: ld (RASTR_10+1), hl
-                pop hl: ld (OFF_RASTR2_6+1), hl:    pop hl: ld (RASTR_9+1), hl
-                pop hl: ld (OFF_RASTR2_7+1), hl:    pop hl: ld (RASTR_8+1), hl
+                pop hl: ld (OFF_RASTR2_0+1), hl:    pop hl: ld (RASTR2_15+1), hl
+                pop hl: ld (OFF_RASTR2_1+1), hl:    pop hl: ld (RASTR2_14+1), hl
+                pop hl: ld (OFF_RASTR2_2+1), hl:    pop hl: ld (RASTR2_13+1), hl
+                pop hl: ld (OFF_RASTR2_3+1), hl:    pop hl: ld (RASTR2_12+1), hl
+                pop hl: ld (OFF_RASTR2_4+1), hl:    pop hl: ld (RASTR2_11+1), hl
+                pop hl: ld (OFF_RASTR2_5+1), hl:    pop hl: ld (RASTR2_10+1), hl
+                pop hl: ld (OFF_RASTR2_6+1), hl:    pop hl: ld (RASTR2_9+1), hl
+                pop hl: ld (OFF_RASTR2_7+1), hl:    pop hl: ld (RASTR2_8+1), hl
                 exx
 
                 // Draw middle 3-th of rastr during top 3-th of colors
@@ -538,14 +551,14 @@ odd_bank_drawing:
                 inc h
                 ld sp, hl
 
-                pop hl: ld (OFF_RASTR2_8+1), hl:    pop hl: ld (RASTR_7+1), hl
-                pop hl: ld (OFF_RASTR2_9+1), hl:    pop hl: ld (RASTR_6+1), hl
-                pop hl: ld (OFF_RASTR2_10+1), hl:   pop hl: ld (RASTR_5+1), hl
-                pop hl: ld (OFF_RASTR2_11+1), hl:   pop hl: ld (RASTR_4+1), hl
-                pop hl: ld (OFF_RASTR2_12+1), hl:   pop hl: ld (RASTR_3+1), hl
-                pop hl: ld (OFF_RASTR2_13+1), hl:   pop hl: ld (RASTR_2+1), hl
-                pop hl: ld (OFF_RASTR2_14+1), hl:   pop hl: ld (RASTR_1+1), hl
-                pop hl: ld (OFF_RASTR2_15+1), hl:   pop hl: ld (RASTR_0+1), hl
+                pop hl: ld (OFF_RASTR2_8+1), hl:    pop hl: ld (RASTR2_7+1), hl
+                pop hl: ld (OFF_RASTR2_9+1), hl:    pop hl: ld (RASTR2_6+1), hl
+                pop hl: ld (OFF_RASTR2_10+1), hl:   pop hl: ld (RASTR2_5+1), hl
+                pop hl: ld (OFF_RASTR2_11+1), hl:   pop hl: ld (RASTR2_4+1), hl
+                pop hl: ld (OFF_RASTR2_12+1), hl:   pop hl: ld (RASTR2_3+1), hl
+                pop hl: ld (OFF_RASTR2_13+1), hl:   pop hl: ld (RASTR2_2+1), hl
+                pop hl: ld (OFF_RASTR2_14+1), hl:   pop hl: ld (RASTR2_1+1), hl
+                pop hl: ld (OFF_RASTR2_15+1), hl:   pop hl: ld (RASTR2_0+1), hl
 
                 // Draw top 3-th of rastr during bottom 3-th of colors
                 ; shift to 63 for MC rastr instead of 64 to move on next frame
@@ -553,14 +566,14 @@ odd_bank_drawing:
                 add hl, sp
                 ld sp, hl
 
-                                                     pop hl: ld (RASTR_23+1), hl
-                pop hl: ld (OFF_RASTR2_16+1), hl:    pop hl: ld (RASTR_22+1), hl
-                pop hl: ld (OFF_RASTR2_17+1), hl:    pop hl: ld (RASTR_21+1), hl
-                pop hl: ld (OFF_RASTR2_18+1), hl:    pop hl: ld (RASTR_20+1), hl
-                pop hl: ld (OFF_RASTR2_19+1), hl:    pop hl: ld (RASTR_19+1), hl
-                pop hl: ld (OFF_RASTR2_20+1), hl:    pop hl: ld (RASTR_18+1), hl
-                pop hl: ld (OFF_RASTR2_21+1), hl:    pop hl: ld (RASTR_17+1), hl
-                pop hl: ld (OFF_RASTR2_22+1), hl:    pop hl: ld (RASTR_16+1), hl
+                                                     pop hl: ld (RASTR2_23+1), hl
+                pop hl: ld (OFF_RASTR2_16+1), hl:    pop hl: ld (RASTR2_22+1), hl
+                pop hl: ld (OFF_RASTR2_17+1), hl:    pop hl: ld (RASTR2_21+1), hl
+                pop hl: ld (OFF_RASTR2_18+1), hl:    pop hl: ld (RASTR2_20+1), hl
+                pop hl: ld (OFF_RASTR2_19+1), hl:    pop hl: ld (RASTR2_19+1), hl
+                pop hl: ld (OFF_RASTR2_20+1), hl:    pop hl: ld (RASTR2_18+1), hl
+                pop hl: ld (OFF_RASTR2_21+1), hl:    pop hl: ld (RASTR2_17+1), hl
+                pop hl: ld (OFF_RASTR2_22+1), hl:    pop hl: ld (RASTR2_16+1), hl
                 pop hl: ld (OFF_RASTR2_23+1), hl:    
 
                 // -------------------------------- (odd) DRAW_RASTR_LINES -----------------------------------------
@@ -623,63 +636,55 @@ bank_drawing_common:
         
         DO_DELAY
 
-        // calculate floor(bc,8) / 4
-
-        ld a, ~7
-        and c
-        srl b : rra
-        srl b : rra
-        ld c, a
-
         // calculate address of the MC descriptors
         // Draw from 0 to 23 is backward direction
         ld hl, mc_descriptors + 23*2
+
+        // calculate floor(bc,8) / 4
+        ld a, ~6
+        and c
+        srl b : rra
+
+        jp c, odd_mc_drawing
+
+        srl b : rra
+        ld c, a
+
         // prepare in HL' multicolor address to execute
         add hl, bc
         ld sp, hl
         pop hl
-        
-        IF (DEBUG_MODE == 1)
-                ld a, 1                         ; 7 ticks
-                out 0xfe,a                      ; 11 ticks
-        ENDIF                
 
         ; timing here on first frame: 91153
         scf     // aligned data uses ret nc. prevent these ret
-        DRAW_MULTICOLOR_AND_RASTR_LINE 0
-        DRAW_MULTICOLOR_AND_RASTR_LINE 1
-        DRAW_MULTICOLOR_AND_RASTR_LINE 2
-        DRAW_MULTICOLOR_AND_RASTR_LINE 3
-        DRAW_MULTICOLOR_AND_RASTR_LINE 4
-        DRAW_MULTICOLOR_AND_RASTR_LINE 5
-        DRAW_MULTICOLOR_AND_RASTR_LINE 6
-        DRAW_MULTICOLOR_AND_RASTR_LINE 7
+        DRAW_MULTICOLOR_AND_RASTR_LINE 0, 0
+        DRAW_MULTICOLOR_AND_RASTR_LINE 1, 1
+        DRAW_MULTICOLOR_AND_RASTR_LINE 2, 2
+        DRAW_MULTICOLOR_AND_RASTR_LINE 3, 3
+        DRAW_MULTICOLOR_AND_RASTR_LINE 4, 4
+        DRAW_MULTICOLOR_AND_RASTR_LINE 5, 5
+        DRAW_MULTICOLOR_AND_RASTR_LINE 6, 6
+        DRAW_MULTICOLOR_AND_RASTR_LINE 7, 7
         
-        DRAW_MULTICOLOR_AND_RASTR_LINE 8
-        DRAW_MULTICOLOR_AND_RASTR_LINE 9
-        DRAW_MULTICOLOR_AND_RASTR_LINE 10
-        DRAW_MULTICOLOR_AND_RASTR_LINE 11
-        DRAW_MULTICOLOR_AND_RASTR_LINE 12
-        DRAW_MULTICOLOR_AND_RASTR_LINE 13
-        DRAW_MULTICOLOR_AND_RASTR_LINE 14
-        DRAW_MULTICOLOR_AND_RASTR_LINE 15
+        DRAW_MULTICOLOR_AND_RASTR_LINE 8,  0
+        DRAW_MULTICOLOR_AND_RASTR_LINE 9,  1
+        DRAW_MULTICOLOR_AND_RASTR_LINE 10, 2
+        DRAW_MULTICOLOR_AND_RASTR_LINE 11, 3
+        DRAW_MULTICOLOR_AND_RASTR_LINE 12, 4
+        DRAW_MULTICOLOR_AND_RASTR_LINE 13, 5
+        DRAW_MULTICOLOR_AND_RASTR_LINE 14, 6
+        DRAW_MULTICOLOR_AND_RASTR_LINE 15, 7
 
-        DRAW_MULTICOLOR_AND_RASTR_LINE 16
-        DRAW_MULTICOLOR_AND_RASTR_LINE 17
-        DRAW_MULTICOLOR_AND_RASTR_LINE 18
-        DRAW_MULTICOLOR_AND_RASTR_LINE 19
-        DRAW_MULTICOLOR_AND_RASTR_LINE 20
-        DRAW_MULTICOLOR_AND_RASTR_LINE 21
-        DRAW_MULTICOLOR_AND_RASTR_LINE 22
-        DRAW_MULTICOLOR_AND_RASTR_LINE 23
+        DRAW_MULTICOLOR_AND_RASTR_LINE 16, 1
+        DRAW_MULTICOLOR_AND_RASTR_LINE 17, 2
+        DRAW_MULTICOLOR_AND_RASTR_LINE 18, 3
+        DRAW_MULTICOLOR_AND_RASTR_LINE 19, 4
+        DRAW_MULTICOLOR_AND_RASTR_LINE 20, 5
+        DRAW_MULTICOLOR_AND_RASTR_LINE 21, 6
+        DRAW_MULTICOLOR_AND_RASTR_LINE 22, 7
+        DRAW_MULTICOLOR_AND_RASTR_LINE 23, 0
 
-        IF (DEBUG_MODE == 1)
-                ld a, 2                         ; 7 ticks
-                out 0xfe,a                      ; 11 ticks
-        ENDIF                
         ld bc, (stack_bottom)
-        // -------------------------- DRAW_MULTICOLOR_AND_RASTR_LINEs_done ------------------------------
-
         dec bc
         ; compare to -1
         ld l, b
@@ -687,6 +692,51 @@ bank_drawing_common:
 
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
+
+filler2  defs 14, 0   // align code data
+
+odd_mc_drawing        
+        srl b : rra
+        ld c, a
+       
+        // prepare in HL' multicolor address to execute
+        add hl, bc
+        ld sp, hl
+        pop hl
+
+        ; timing here on first frame: 91153
+        scf     // aligned data uses ret nc. prevent these ret
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 0
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 1
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 2
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 3
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 4
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 5
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 6
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 7
+        
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 8
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 9
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 10
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 11
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 12
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 13
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 14
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 15
+
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 16
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 17
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 18
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 19
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 20
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 21
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 22
+        DRAW_MULTICOLOR_AND_RASTR_LINE2 23
+
+        ld bc, (stack_bottom)
+        dec bc
+        jp loop                        ; 12 ticks
+
 
 /*********************** routines *************/
 
@@ -817,8 +867,8 @@ t4                      EQU t3
 	IF (DEBUG_MODE == 1)
         	ORG 28000
 	ENDIF	
-        ASSERT $ <= 26100
-        ORG 26100
+        ASSERT $ <= 26600
+        ORG 26600
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
