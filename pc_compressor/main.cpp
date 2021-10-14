@@ -2336,7 +2336,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     for (int screenLine = 0; screenLine < imageHeight + 8; ++screenLine)
     {
         int line = screenLine % imageHeight;
-        for (int i = 0; i < 3; ++i)
+        for (int i: { 1, 2, 0 })
         {
             int l = (line + i * 64) % imageHeight;
 
@@ -2346,6 +2346,15 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
             d.originData = descriptors[l].rastrForOffscreen.endBlock;
             jpIxDescriptors.push_back(d);
+        }
+
+        // 3 rastr for MC descriptors
+        for (int i = 0; i < 3; ++i)
+        {
+            int l = (line + i * 64) % imageHeight;
+
+            JpIxDescriptor d;
+            d.pageNum = descriptors[l].pageNum;
 
             if (i == 2)
             {

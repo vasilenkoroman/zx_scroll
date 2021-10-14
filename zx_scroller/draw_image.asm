@@ -117,9 +117,9 @@ OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
         ENDM
         MACRO write_jp_ix_data skipRestoreData
                 pop hl ; address
-                ld (hl), e
+                ld (hl), c
                 inc hl
-                ld (hl), d
+                ld (hl), b
                 IF (skipRestoreData == 1)
                         pop hl ; skip restore address
                 ENDIF                        
@@ -309,15 +309,15 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 4, 0   // align code data
+filler  defs 14, 0   // align code data
 
 /*************** Main. ******************/
 main:
         di
         ld sp, stack_top
 
-        call copy_image
-        call copy_colors
+        //call copy_image
+        //call copy_colors
 
         call prepare_interruption_table
         ; Pentagon timings
@@ -382,19 +382,31 @@ no:
 
                 ld sp, hl
                 ld a, c
+                exx
 
                 // 1. write new JP_IX
-                ld de, JP_IX_CODE
+                ld bc, JP_IX_CODE
                 .5 write_jp_ix_data 1
                 //write_jp_ix_data 0
-                pop hl ; reffers to the next bank
+                pop de ; reffers to the next bank
                 
                 // 2. restore data
+                and 7
+                rla
+                ; hl = jpix_table_ref
+                ld h, high(JPIX__REF_TABLE_START)       ; 7
+                ld l, a                                 ; 4
+                rra
+                ld sp, hl                               ; 6
+                ex de, hl
+
+                ; put new pointer to jpix_table_ref, get old pointer to restore data in hl
                 exx
-                ld hl, jp_ix_line_delta_in_bank - (6*4-2)
-                add hl, sp
-                ld sp, hl
-                .5 restore_jp_ix
+                ex (sp), hl                             ; 19
+                ld sp, hl                               ; 6
+
+                pop hl: pop hl
+                .4 restore_jp_ix
                 pop hl ; address        (next bank)
                 pop de ; restore data   (next bank)
                 
@@ -407,10 +419,12 @@ no:
                 inc hl
                 ld (hl), d
 
+                // write last data (in alt regs)
                 exx
-                ld (hl), e
+                ld (hl), c
                 inc hl
-                ld (hl), d
+                ld (hl), b
+                exx
 
                 // total: 659/657
 
@@ -624,6 +638,17 @@ odd_bank_drawing:
                 out (0xfd), a
 bank_drawing_common:
 
+        // restore data from off rastr drawing
+        ld h, high(JPIX__REF_TABLE_START)
+        ld a, c
+        dec a
+        and 7
+        rla
+        ld l, a
+        ld sp, hl
+        pop hl
+        ld sp, hl
+        .1 restore_jp_ix
 
         ld (stack_bottom), bc
 
@@ -693,7 +718,7 @@ bank_drawing_common:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-filler2  defs 14, 0   // align code data
+filler2  defs 12, 0   // align code data
 
 odd_mc_drawing        
         srl b : rra
@@ -761,8 +786,6 @@ data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
 write_initial_jp_ix_table
-        ld de, JP_IX_CODE
-
         ld a, 0
 page_loop:
         bit 0, a
@@ -771,8 +794,24 @@ page_loop:
 continue_page:
         ld b, 5
         ld c, a
+        
+        ; fill JPIX_REF_TABLE
+        ld hl, 0
+        add hl, sp
+        ex de, hl
+
+        ld h, high(JPIX__REF_TABLE_START)
+        rla
+        ld l, a
+        rra
+        ld (hl), e
+        inc l
+        ld (hl), d
+
         and a
         set_page_by_bank
+
+        ld de, JP_IX_CODE
 .rep:   pop hl ; address
         ld (hl), e
         inc hl
@@ -798,6 +837,7 @@ continue_page:
         ld sp, stack_top - 2
         ret
 
+/*
 copy_image:
         ld hl, src_data
         ld de, 16384
@@ -810,6 +850,7 @@ copy_colors:
         ld bc, 768
         ldir
         ret
+*/        
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret
@@ -867,8 +908,8 @@ t4                      EQU t3
 	IF (DEBUG_MODE == 1)
         	ORG 28000
 	ENDIF	
-        ASSERT $ <= 26600
-        ORG 26600
+        ASSERT $ <= 26700
+        ORG 26700
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
@@ -912,11 +953,12 @@ color_descriptor
 rastr_descriptors
         INCBIN "resources/compressed_data.rastr.descriptors"
 
+/*
 src_data
         INCBIN "resources/samanasuke.bin", 0, 6144
 color_data:
         INCBIN "resources/samanasuke.bin", 6144, 768
-        
+*/        
 data_end:
 
 imageHeight     equ (timings_data_end - timings_data) / 2
