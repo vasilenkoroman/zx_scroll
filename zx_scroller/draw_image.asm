@@ -26,17 +26,17 @@ JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
 UPDATE_JPIX_WRITE       EQU JPIX__REF_TABLE_END
 UPDATE_JPIX_RESTORE     EQU JPIX__REF_TABLE_END + 2
 
-SET_PAGE_HELPER         EQU high(JPIX__REF_TABLE_END)*256 + 0x50
+STACK_SIZE:     equ 4  ; in words
+stack_bottom    equ UPDATE_JPIX_RESTORE + 2
+stack_top       equ stack_bottom + STACK_SIZE * 2
+
+SET_PAGE_HELPER         EQU screen_end + 0x50
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
 
-JPIX__BANKS_HELPER      EQU SET_PAGE_HELPER_END
+JPIX__BANKS_HELPER      EQU screen_end + 256
 JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
 
 DEBUG_MODE              EQU 0
-
-STACK_SIZE:     equ 4  ; in words
-stack_bottom    equ JPIX__BANKS_HELPER_END
-stack_top       equ stack_bottom + STACK_SIZE * 2
 
         INCLUDE "resources/compressed_data.asm"
 
@@ -119,9 +119,9 @@ OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
         ENDM
         MACRO write_jp_ix_data skipRestoreData
                 pop hl ; address
-                ld (hl), c
+                ld (hl), e
                 inc hl
-                ld (hl), b
+                ld (hl), d
                 IF (skipRestoreData == 1)
                         pop hl ; skip restore address
                 ENDIF                        
@@ -603,7 +603,6 @@ bank_drawing_common:
                 and c
                 rla                             ; 4
 
-                add low(JPIX__BANKS_HELPER)     ; 7
                 ld l, a                         ; 4
                 ld h, high(JPIX__BANKS_HELPER)  ; 7
                 ld sp, hl                       ; 6
@@ -803,10 +802,14 @@ page_loop:
                 add hl, sp
                 ex de, hl
 
+                ld h, a
+                dec a
+                and 7
                 rla
-                ld h, high(JPIX__REF_TABLE_START)
                 ld l, a
-                rra
+                ld a, h
+                ld h, high(JPIX__REF_TABLE_START)
+
                 ld (hl), e
                 inc l
                 ld (hl), d
@@ -834,59 +837,6 @@ page_loop:
                 ld sp, stack_top - 2
                 ret
 
-/*
-write_initial_jp_ix_table
-        ld a, 0
-page_loop:
-        bit 0, a
-        jr nz, continue_page        
-        ld sp, jpix_table
-continue_page:
-        ld b, 5
-        ld c, a
-        
-        ; fill JPIX_REF_TABLE
-        ld hl, 0
-        add hl, sp
-        ex de, hl
-
-        ld h, high(JPIX__REF_TABLE_START)
-        rla
-        ld l, a
-        rra
-        ld (hl), e
-        inc l
-        ld (hl), d
-
-        and a
-        set_page_by_bank
-
-        ld de, JP_IX_CODE
-.rep:   pop hl ; address
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore data
-        djnz .rep
-        pop hl
-        // write to the prev page
-        ld a, c
-        dec a
-        and 7
-        set_page_by_bank
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore data
-
-        ld a, c
-        inc a
-        cp 8
-        jr nz, page_loop
-
-        ld sp, stack_top - 2
-        ret
-*/
 
 /*
 copy_image:
