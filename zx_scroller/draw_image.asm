@@ -611,7 +611,7 @@ bank_drawing_common:
                 ; ticks: 38
 
                 ; hl - pointer to new record in JPIX table
-                add hl, de
+                sbc hl, de
 
                 ; prepare  N-th element for jpix_table_ref in a
 
@@ -760,7 +760,7 @@ JP_IX_CODE      equ #e9dd
 jp_ix_record_size       equ 8
 data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
-jp_first_bank_offset    equ jp_ix_record_size * 2
+jp_first_bank_offset    equ jp_ix_bank_size - 2 * jp_ix_record_size
 
 write_initial_jp_ix_table
                 // create banks helper (to avoid mul in runtime)
@@ -792,7 +792,8 @@ page_loop:
                 set_page_by_bank
                 ld a, c
 
-                ld sp, jpix_table + jp_first_bank_offset
+                // Use 1-st element here because every record reffers to the prev frame, due to update is called now before dec bc
+                ld sp, jpix_table + jp_ix_record_size + jp_first_bank_offset
                 ld c, 2
 .loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line, 6 descriptors per shift
                 
