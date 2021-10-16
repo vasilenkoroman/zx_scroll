@@ -369,7 +369,19 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
                 jr z, no                        ; 7
                 add 3                           ; 7
 no:
+
                 ld l, a                         ; 4
+                // total: 37
+
+/*                
+                ld a, c
+                rrca
+                and ~3
+                ld l, a
+*/                
+                // total: 19
+
+
                 ld h, b                         ; 4
                 ; bit 5 will be 0xc0 after mul to 6
                 set 5, h                        ; 8
