@@ -405,7 +405,7 @@ no:
                 ex (sp), hl                             ; 19
                 ld sp, hl                               ; 6
 
-                pop hl: pop hl
+                pop hl: pop hl  ; skip on record (already restored)
                 .4 restore_jp_ix
                 pop hl ; address        (next bank)
                 pop de ; restore data   (next bank)
@@ -426,7 +426,7 @@ no:
                 ld (hl), b
                 exx
 
-                // total: 659/657
+                // total: 679/681
 
         // ------------------------- update jpix table end
 loop1:
@@ -638,7 +638,7 @@ odd_bank_drawing:
                 out (0xfd), a
 bank_drawing_common:
 
-        // restore data from off rastr drawing
+        // restore data from off rastr drawing (middle part)
         ld h, high(JPIX__REF_TABLE_START)
         ld a, c
         dec a
@@ -649,6 +649,7 @@ bank_drawing_common:
         pop hl
         ld sp, hl
         .1 restore_jp_ix
+        // restore: 92 ticks
 
         ld (stack_bottom), bc
 
