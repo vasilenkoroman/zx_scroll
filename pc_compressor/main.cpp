@@ -2342,7 +2342,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
         for (int i = blocks64 + 1; i >= 0; --i)
         {
             int l = (line + i * 64) % imageHeight;
-            l = l > 0 ? l - 1 : imageHeight - 1;
+            //l = l > 0 ? l - 1 : imageHeight - 1;
 
             JpIxDescriptor d;
             d.pageNum = descriptors[l].pageNum;

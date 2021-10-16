@@ -25,9 +25,10 @@ JPIX__REF_TABLE_START   EQU screen_end
 JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
 UPDATE_JPIX_WRITE       EQU JPIX__REF_TABLE_END
 UPDATE_JPIX_RESTORE     EQU JPIX__REF_TABLE_END + 2
+tmp_hl_store            EQU UPDATE_JPIX_RESTORE + 2
 
 STACK_SIZE:     equ 4  ; in words
-stack_bottom    equ UPDATE_JPIX_RESTORE + 2
+stack_bottom    equ tmp_hl_store + 2
 stack_top       equ stack_bottom + STACK_SIZE * 2
 
 SET_PAGE_HELPER         EQU screen_end + 0x50
@@ -311,7 +312,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 0, 0   // align code data
+filler  defs 12, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -369,7 +370,7 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
                 .3 restore_jp_ix
                 // total 666
         // ------------------------- update jpix table end
-
+        ld bc, (stack_bottom)
 loop1:
         // calculate ceil(bc,8) / 2
         ld hl, 7
@@ -586,6 +587,33 @@ bank_drawing_common:
         pop hl
         DO_DELAY
 
+        // calculate address of the MC descriptors
+        // Draw from 0 to 23 is backward direction
+        ld hl, mc_descriptors + 23*2
+
+        // calculate floor(bc,8) / 4
+        ld d, b
+        ld a, ~6
+        and c
+        srl d : rra
+        srl d : rra
+        ld e, a
+
+        // prepare in HL' multicolor address to execute
+        add hl, de
+        ld sp, hl
+        pop hl
+        ld (tmp_hl_store), hl
+
+        dec bc
+        ; compare to -1
+        ld l, b
+        inc l
+        jp nz, no_limit      ; 10 ticks
+        ld bc, max_scroll_offset
+no_limit:        
+        ld (stack_bottom), bc
+
         // --------------------- update_jp_ix_table (first half) --------------------------------
         //MACRO update_jp_ix_table
                 ; a = bank number
@@ -594,9 +622,9 @@ bank_drawing_common:
                 ld a, 0xc0
                 and c
                 ld d, b
-                rr d: rra
-                rr d: rra
-                rr d: rra
+                srl d: rra
+                srl d: rra
+                srl d: rra
                 ld e, a
 
                 ld a, 0x3f
@@ -633,27 +661,14 @@ bank_drawing_common:
                 ld sp, hl                               ; 6
                 .3 restore_jp_ix
                 LD (UPDATE_JPIX_RESTORE), sp
+                
                 // total 698
         // ------------------------- update jpix table end
 
-        // calculate address of the MC descriptors
-        // Draw from 0 to 23 is backward direction
-        ld hl, mc_descriptors + 23*2
+        ld hl, (tmp_hl_store)
+        bit 0, c
+        jp z, odd_mc_drawing
 
-        // calculate floor(bc,8) / 4
-        ld a, ~6
-        and c
-        srl b : rra
-
-        jp c, odd_mc_drawing
-
-        srl b : rra
-        ld c, a
-
-        // prepare in HL' multicolor address to execute
-        add hl, bc
-        ld sp, hl
-        pop hl
 
         ; timing here on first frame: 91153
         scf     // aligned data uses ret nc. prevent these ret
@@ -684,26 +699,11 @@ bank_drawing_common:
         DRAW_MULTICOLOR_AND_RASTR_LINE 22, 7
         DRAW_MULTICOLOR_AND_RASTR_LINE 23, 0
 
-        ld bc, (stack_bottom)
-        dec bc
-        ; compare to -1
-        ld l, b
-        inc l
-
-        jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-filler2  defs 12, 0   // align code data
+filler2  defs 4, 0   // align code data
 
 odd_mc_drawing        
-        srl b : rra
-        ld c, a
-       
-        // prepare in HL' multicolor address to execute
-        add hl, bc
-        ld sp, hl
-        pop hl
-
         ; timing here on first frame: 91153
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE2 0
@@ -733,8 +733,6 @@ odd_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE2 22
         DRAW_MULTICOLOR_AND_RASTR_LINE2 23
 
-        ld bc, (stack_bottom)
-        dec bc
         jp loop                        ; 12 ticks
 
 
@@ -764,7 +762,6 @@ jp_first_bank_offset    equ jp_ix_bank_size - 2 * jp_ix_record_size
 write_initial_jp_ix_table
                 // create banks helper (to avoid mul in runtime)
                 and a
-                ld b, 64
                 ld hl, jpix_table + jp_ix_bank_size * 15 + jp_first_bank_offset
                 ld de, jp_ix_bank_size
                 ld sp, JPIX__BANKS_HELPER_END
@@ -791,8 +788,7 @@ page_loop:
                 set_page_by_bank
                 ld a, c
 
-                // Use 1-st element here because every record reffers to the prev frame, due to update is called now before dec bc
-                ld sp, jpix_table + jp_ix_record_size + jp_first_bank_offset
+                ld sp, jpix_table  + jp_first_bank_offset
                 ld c, 2
 .loop:          ld b, 6                         ; write 0, 64, 128-th descriptors for start line, 6 descriptors per shift
                 
@@ -803,8 +799,6 @@ page_loop:
                 ex de, hl
 
                 ld h, a
-                dec a
-                and 7
                 rla
                 ld l, a
                 ld a, h
