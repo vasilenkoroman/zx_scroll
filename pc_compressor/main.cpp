@@ -3026,7 +3026,10 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        static const int kZ80CodeDelay = 3163 + 8;
+        int kZ80CodeDelay = 3171 + 258;
+        if (line % 2 == 0)
+            kZ80CodeDelay += 7;
+        
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line

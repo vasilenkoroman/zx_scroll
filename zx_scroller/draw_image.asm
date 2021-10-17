@@ -332,7 +332,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 17837 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
+fixed_startup_delay     equ 16531 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -366,21 +366,11 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
                 ld a, ~6                        ; 7
                 and c                           ; 4
                 bit 0, a                        ; 8
-                jr z, no                        ; 7
+                jr z, no                        ; 7/12
                 add 3                           ; 7
 no:
-
                 ld l, a                         ; 4
-                // total: 37
-
-/*                
-                ld a, c
-                rrca
-                and ~3
-                ld l, a
-*/                
-                // total: 19
-
+                // total: 37/35
 
                 ld h, b                         ; 4
                 ; bit 5 will be 0xc0 after mul to 6
@@ -417,7 +407,7 @@ no:
                 ex (sp), hl                             ; 19
                 ld sp, hl                               ; 6
 
-                pop hl: pop hl  ; skip on record (already restored)
+                pop hl: pop hl  ; skip one record (already restored)
                 .4 restore_jp_ix
                 pop hl ; address        (next bank)
                 pop de ; restore data   (next bank)
