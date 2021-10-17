@@ -641,6 +641,22 @@ odd_bank_drawing:
 bank_drawing_common:
 
         // restore data from off rastr drawing (middle part)
+/*
+        ld hl, restore_data     ; 10
+        add hl, bc              ; 11
+        add hl, bc              ; 11
+        ld sp, hl               ; 6
+        // total: 38
+
+        ld hl, bc
+        srl h
+        rr l
+        ld sp, restore_data     ; 10
+        add hl, sp
+        ld sp, hl
+
+*/        
+
         ld h, high(JPIX__REF_TABLE_START)
         ld a, c
         dec a
