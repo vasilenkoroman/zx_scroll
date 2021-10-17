@@ -2312,6 +2312,15 @@ struct JpIxDescriptor
     uint16_t address = 0;
     std::vector<uint8_t> originData;
     int pageNum = 0;
+    int line = -1;
+};
+
+struct PartialUpdateJpIxDescriptor
+{
+    int pageNum = 0;
+    uint16_t writeAddress = 0;
+    uint16_t restoreAddress = 0;
+    std::vector<uint8_t> originData;
 };
 
 int lineNumToPageNum(int y, int height)
@@ -2342,12 +2351,16 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
             JpIxDescriptor d;
             d.pageNum = descriptors[l].pageNum;
+            if (i == 1)
+                d.line = line; //< restore off rastr mid on update
 
             d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
             d.originData = descriptors[l].rastrForOffscreen.endBlock;
             jpIxDescriptors[d.pageNum].push_back(d);
+            if (i == 0)
+                d.line = line;
         }
-
+        
         // 3 rastr for MC descriptors
         for (int i = 0; i < 3; ++i)
         {
@@ -2355,7 +2368,9 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
 
             JpIxDescriptor d;
             d.pageNum = descriptors[l].pageNum;
-
+            if (i == 2)
+                d.line = line; //< write MC top on update
+#if 1
             if (i == 2)
             {
                 // Shift to the next frame
@@ -2370,6 +2385,12 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
                 d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
                 d.originData = descriptors[l].rastrForMulticolor.endBlock;
             }
+#else
+            d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
+            d.originData = descriptors[l].rastrForMulticolor.endBlock;
+#endif
+
+
             jpIxDescriptors[d.pageNum].push_back(d);
         }
     }
@@ -2379,6 +2400,42 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
     {
         for (const auto& d : descriptors)
             result.push_back(d);
+    }
+
+    return result;
+}
+
+JpIxDescriptor findDescriptor(const std::vector<JpIxDescriptor>& fullJpix, int line)
+{
+    for (const auto& d: fullJpix)
+    {
+        if (d.line == line)
+            return d;
+    }
+    abort();
+    return JpIxDescriptor();
+}
+
+std::vector<PartialUpdateJpIxDescriptor> createPartialUpdateJpixDescriptors(
+    const std::vector<JpIxDescriptor>& fullJpix,
+    const int imageHeight)
+{
+    std::vector<PartialUpdateJpIxDescriptor> result;
+    for (int line = 0; line < imageHeight; ++line)
+    {
+
+        int prevLine =  line > 0 ? line - 1 : imageHeight - 1;
+        int restoreLine = (line + 7) % imageHeight;
+        const auto& writeJpix = findDescriptor(fullJpix, prevLine);
+        const auto& restoreJpix = findDescriptor(fullJpix, restoreLine);
+        assert(writeJpix.pageNum == restoreJpix.pageNum);
+        
+        PartialUpdateJpIxDescriptor d;
+        d.pageNum = writeJpix.pageNum;
+        d.writeAddress = writeJpix.address;
+        d.restoreAddress = restoreJpix.address;
+        d.originData = restoreJpix.originData;
+        result.push_back(d);
     }
 
     return result;
@@ -2399,6 +2456,13 @@ int nextLineInBank(int line, int imageHeight)
 int getRastrCodeStartAddr(int imageHeight)
 {
     const int jpixTableSize = imageHeight  * 24;
+    const int updateJpixTableSize = imageHeight * 6;
+    return rastrCodeStartAddrBase + (jpixTableSize + updateJpixTableSize) / kPagesForData;
+}
+
+int getUpdateJpixTableStartAddress(int imageHeight)
+{
+    const int jpixTableSize = imageHeight * 24;
     return rastrCodeStartAddrBase + jpixTableSize / kPagesForData;
 }
 
@@ -3026,7 +3090,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3171 + 258;
+        int kZ80CodeDelay = 3171 + 258 + 42;
         if (line % 2 == 0)
             kZ80CodeDelay += 7;
         
@@ -3094,6 +3158,44 @@ int serializeJpIxDescriptors(
         jpIxDescriptorFiles[d.pageNum].write((const char*)&d.address, sizeof(uint16_t));
         jpIxDescriptorFiles[d.pageNum].write((const char*)d.originData.data(), d.originData.size());
     }
+
+
+    std::vector<PartialUpdateJpIxDescriptor> update = createPartialUpdateJpixDescriptors(jpIxDescr, imageHeight);
+    for (int i = 0; i < update.size(); ++i)
+    {
+        const auto& d = update[i];
+        jpIxDescriptorFiles[d.pageNum].write((const char*)&d.writeAddress, sizeof(uint16_t));
+        jpIxDescriptorFiles[d.pageNum].write((const char*)&d.restoreAddress, sizeof(uint16_t));
+        jpIxDescriptorFiles[d.pageNum].write((const char*)d.originData.data(), d.originData.size());
+    }
+
+    ofstream midJpixHelper;
+    {
+        std::string fileName = inputFileName + ".mid_jpix_helper";
+        midJpixHelper.open(fileName, std::ios::binary);
+        if (!midJpixHelper.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
+    }
+
+    std::vector<int> cntByPage(4);
+    for (unsigned i = 0; i < imageHeight; ++i)
+    {
+        unsigned page = ((i - 1) % 8) / 2;
+
+        if (i == imageHeight - 1)
+        {
+            int gg = 4;
+        }
+
+        uint16_t address = cntByPage[page] * 6;
+        address += getUpdateJpixTableStartAddress(imageHeight);
+        midJpixHelper.write((const char*)&address, sizeof(uint16_t));
+        ++cntByPage[page];
+    }
+
 
     return 0;
 }

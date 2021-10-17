@@ -206,46 +206,6 @@ RASTR2_N?       jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************* Routines **********************/
 
-prepare_interruption_table:
-
-        //save data
-        LD   hl, #FE00
-        LD   de, screen_end + 256
-        LD   bc, #0200
-        ldir
-
-        // make interrupt table
-        ld A, 18h       ; JR instruction code
-        ld  (65535), a
-
-        ld   a, 0c3h    ; JP instruction code
-        ld   (65524), a
-        ld hl, after_interrupt
-        ld   (65525), hl
-
-        LD   hl, #FE00
-        LD   de, #FE01
-        LD   bc, #0100
-        LD   (hl), #FF
-        LD   a, h
-        LDIR
-        ld i, a
-        im 2
-
-        ei
-        halt
-after_interrupt:
-        di                              ; 4 ticks
-        ; remove interrupt data from stack
-        pop af                          ; 10 ticks
-
-        ; restore data
-        LD   de, #FE00
-        LD   hl, screen_end + 256
-        LD   bc, #0200
-        ldir
-        ret
-
 
 /************** delay routine *************/
         MACRO DO_DELAY
@@ -309,7 +269,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 14, 0   // align code data
+filler  defs 4, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -639,24 +599,19 @@ odd_bank_drawing:
                 ld a, l
                 out (0xfd), a
 bank_drawing_common:
+        ld hl, update_jpix_helper       ; 10
+        add hl, bc                      ; 11
+        add hl, bc                      ; 11
+        ld sp, hl                       ; 6
+        pop hl                          ; 10
+        ld sp, hl                       ; 6
+        // total: 54
+        ld de, JP_IX_CODE
+        write_jp_ix_data 0
+        //pop hl
+        restore_jp_ix
 
-        // restore data from off rastr drawing (middle part)
-/*
-        ld hl, restore_data     ; 10
-        add hl, bc              ; 11
-        add hl, bc              ; 11
-        ld sp, hl               ; 6
-        // total: 38
-
-        ld hl, bc
-        srl h
-        rr l
-        ld sp, restore_data     ; 10
-        add hl, sp
-        ld sp, hl
-
-*/        
-
+        /*
         ld h, high(JPIX__REF_TABLE_START)
         ld a, c
         dec a
@@ -668,6 +623,7 @@ bank_drawing_common:
         ld sp, hl
         .1 restore_jp_ix
         // restore: 92 ticks
+        */
 
         ld (stack_bottom), bc
 
@@ -783,6 +739,46 @@ odd_mc_drawing
 
 
 /*********************** routines *************/
+
+prepare_interruption_table:
+
+        //save data
+        LD   hl, #FE00
+        LD   de, screen_end + 256
+        LD   bc, #0200
+        ldir
+
+        // make interrupt table
+        ld A, 18h       ; JR instruction code
+        ld  (65535), a
+
+        ld   a, 0c3h    ; JP instruction code
+        ld   (65524), a
+        ld hl, after_interrupt
+        ld   (65525), hl
+
+        LD   hl, #FE00
+        LD   de, #FE01
+        LD   bc, #0100
+        LD   (hl), #FF
+        LD   a, h
+        LDIR
+        ld i, a
+        im 2
+
+        ei
+        halt
+after_interrupt:
+        di                              ; 4 ticks
+        ; remove interrupt data from stack
+        pop af                          ; 10 ticks
+
+        ; restore data
+        LD   de, #FE00
+        LD   hl, screen_end + 256
+        LD   bc, #0200
+        ldir
+        ret
 
 create_page_helper
         ld hl, SET_PAGE_HELPER
@@ -940,6 +936,8 @@ mc_descriptors
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
+update_jpix_helper
+        INCBIN "resources/compressed_data.mid_jpix_helper"
 
 jpix_table EQU 0xc000
 
