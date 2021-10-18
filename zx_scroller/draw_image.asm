@@ -21,20 +21,20 @@ color_addr:     equ 5800h
 screen_end:     equ 5b00h
 start:          equ 5e00h
 
-JPIX__REF_TABLE_START   EQU screen_end
-JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
-
-SET_PAGE_HELPER         EQU high(JPIX__REF_TABLE_END)*256 + 0x50
-SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
-
-JPIX__BANKS_HELPER      EQU SET_PAGE_HELPER_END
-JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
-
-DEBUG_MODE              EQU 0
+//JPIX__REF_TABLE_START   EQU screen_end
+//JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
 
 STACK_SIZE:     equ 4  ; in words
-stack_bottom    equ JPIX__BANKS_HELPER_END
+stack_bottom    equ screen_end
 stack_top       equ stack_bottom + STACK_SIZE * 2
+
+SET_PAGE_HELPER         EQU screen_end + 0x50
+SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
+
+//JPIX__BANKS_HELPER      EQU SET_PAGE_HELPER_END
+//JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
+
+DEBUG_MODE              EQU 0
 
         INCLUDE "resources/compressed_data.asm"
 
@@ -115,14 +115,17 @@ OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 inc hl
                 ld (hl), d
         ENDM
-        MACRO write_jp_ix_data skipRestoreData
+        MACRO write_jp_ix_data_via_de
+                pop hl ; address
+                ld (hl), e
+                inc hl
+                ld (hl), d
+        ENDM
+        MACRO write_jp_ix_data_via_bc
                 pop hl ; address
                 ld (hl), c
                 inc hl
                 ld (hl), b
-                IF (skipRestoreData == 1)
-                        pop hl ; skip restore address
-                ENDIF                        
         ENDM
 
 jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
@@ -269,7 +272,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 4, 0   // align code data
+filler  defs 6, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -292,7 +295,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 16531 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
+fixed_startup_delay     equ 15729 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -325,70 +328,30 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
                 // set bits that match page number to 0
                 ld a, ~6                        ; 7
                 and c                           ; 4
-                bit 0, a                        ; 8
-                jr z, no                        ; 7/12
-                add 3                           ; 7
+                ld h, b                         ; 4
+                rr h                            ; 8
+                rra                             ; 4
+                jr nc, no                       ; 7/12
+                add 2                           ; 7
 no:
                 ld l, a                         ; 4
-                // total: 37/35
-
-                ld h, b                         ; 4
-                ; bit 5 will be 0xc0 after mul to 6
-                set 5, h                        ; 8
-                // calcuate  hl * 6
-                add hl, hl      ; *2            ; 11
-                ld de, hl                       ; 8
-                add hl, hl      ; *4            ; 11
-                add hl, de      ; *6            ; 11
-                // total: 68
-
+                ld de,  update_jpix_helper      ; 10
+                add hl, de                      ; 11
+                
                 ld sp, hl
-                ld a, c
-                exx
+                pop hl
+                ld sp, hl
 
-                // 1. write new JP_IX
+                exx
                 ld bc, JP_IX_CODE
-                .5 write_jp_ix_data 1
-                //write_jp_ix_data 0
-                pop de ; reffers to the next bank
-                
-                // 2. restore data
-                and 7
-                rla
-                ; hl = jpix_table_ref
-                ld h, high(JPIX__REF_TABLE_START)       ; 7
-                ld l, a                                 ; 4
-                rra
-                ld sp, hl                               ; 6
-                ex de, hl
-
-                ; put new pointer to jpix_table_ref, get old pointer to restore data in hl
+                .2 restore_jp_ix
+                .2 write_jp_ix_data_via_bc
+                .2 restore_jp_ix
+                .2 write_jp_ix_data_via_bc
+                .2 restore_jp_ix
+                .1 write_jp_ix_data_via_bc
                 exx
-                ex (sp), hl                             ; 19
-                ld sp, hl                               ; 6
-
-                pop hl: pop hl  ; skip one record (already restored)
-                .4 restore_jp_ix
-                pop hl ; address        (next bank)
-                pop de ; restore data   (next bank)
-                
-                // last MC data reffers to the next page
-                dec a
-                and 7
-                set_page_by_bank
-                
-                ld (hl), e
-                inc hl
-                ld (hl), d
-
-                // write last data (in alt regs)
-                exx
-                ld (hl), c
-                inc hl
-                ld (hl), b
-                exx
-
-                // total: 679/681
+                // total: 496/494
 
         // ------------------------- update jpix table end
 loop1:
@@ -599,7 +562,7 @@ odd_bank_drawing:
                 ld a, l
                 out (0xfd), a
 bank_drawing_common:
-        ld hl, update_jpix_helper       ; 10
+        ld hl, mid_jpix_helper          ; 10
         add hl, bc                      ; 11
         add hl, bc                      ; 11
         ld sp, hl                       ; 6
@@ -607,23 +570,8 @@ bank_drawing_common:
         ld sp, hl                       ; 6
         // total: 54
         ld de, JP_IX_CODE
-        write_jp_ix_data 0
-        //pop hl
+        write_jp_ix_data_via_de
         restore_jp_ix
-
-        /*
-        ld h, high(JPIX__REF_TABLE_START)
-        ld a, c
-        dec a
-        and 7
-        rla
-        ld l, a
-        ld sp, hl
-        pop hl
-        ld sp, hl
-        .1 restore_jp_ix
-        // restore: 92 ticks
-        */
 
         ld (stack_bottom), bc
 
@@ -796,7 +744,8 @@ create_page_helper
 
 JP_IX_CODE      equ #e9dd
 
-jp_ix_record_size       equ 8
+jp_ix_record_size       equ 12
+jp_write_data_offset    equ 8
 data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
@@ -805,46 +754,25 @@ write_initial_jp_ix_table
 page_loop:
         bit 0, a
         jr nz, continue_page        
-        ld sp, jpix_table
+        ld sp, jpix_table + jp_write_data_offset
 continue_page:
-        ld b, 5
+        ld b, 3
+
         ld c, a
-        
-        ; fill JPIX_REF_TABLE
-        ld hl, 0
-        add hl, sp
-        ex de, hl
-
-        ld h, high(JPIX__REF_TABLE_START)
-        rla
-        ld l, a
-        rra
-        ld (hl), e
-        inc l
-        ld (hl), d
-
         and a
         set_page_by_bank
+        ld a, c
 
         ld de, JP_IX_CODE
-.rep:   pop hl ; address
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore data
+.rep:   write_jp_ix_data_via_de
+        write_jp_ix_data_via_de
+        ld hl, jp_ix_record_size - 4
+        add hl, sp
+        ld sp, hl
         djnz .rep
-        pop hl
-        // write to the prev page
-        ld a, c
-        dec a
-        and 7
-        set_page_by_bank
-        ld (hl), e
-        inc hl
-        ld (hl), d
-        pop hl ; skip restore data
 
-        ld a, c
+        ld sp, jpix_table + jp_ix_bank_size + jp_write_data_offset
+
         inc a
         cp 8
         jr nz, page_loop
@@ -936,8 +864,10 @@ mc_descriptors
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
-update_jpix_helper
+mid_jpix_helper
         INCBIN "resources/compressed_data.mid_jpix_helper"
+update_jpix_helper
+        INCBIN "resources/compressed_data.update_jpix_helper"
 
 jpix_table EQU 0xc000
 
