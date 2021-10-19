@@ -2828,7 +2828,7 @@ int serializeColorData(
     std::vector<uint8_t> serializedDescriptors;
 
     // serialize color descriptors
-    for (int d = 0; d <= imageHeight; ++d)
+    for (int d = 0; d < imageHeight + 2; ++d)
     {
         const int srcLine = d % imageHeight;
         const int endLine = (d + 24) % imageHeight;
@@ -2885,8 +2885,8 @@ int serializeColorData(
 
     for (const auto& descriptor : descriptors)
     {
-        descriptorFile.write((const char*)&descriptor.addressBegin, sizeof(descriptor.addressBegin));
         descriptorFile.write((const char*)&descriptor.addressEnd, sizeof(descriptor.addressEnd));
+        descriptorFile.write((const char*)&descriptor.addressBegin, sizeof(descriptor.addressBegin));
     }
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
@@ -3169,10 +3169,12 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3171 + 115;
+        int kZ80CodeDelay = 3171 + 115 - 137;
         if (line % 2 == 0)
             kZ80CodeDelay += 7;
-        
+        if (line % 8 == 0)
+            kZ80CodeDelay += 50;
+
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line

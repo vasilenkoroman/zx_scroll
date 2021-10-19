@@ -21,18 +21,14 @@ color_addr:     equ 5800h
 screen_end:     equ 5b00h
 start:          equ 5e00h
 
-//JPIX__REF_TABLE_START   EQU screen_end
-//JPIX__REF_TABLE_END     EQU JPIX__REF_TABLE_START + 16
-
-STACK_SIZE:     equ 4  ; in words
-stack_bottom    equ screen_end
-stack_top       equ stack_bottom + STACK_SIZE * 2
+STACK_SIZE:             equ 4  ; in words
+stack_bottom            equ screen_end
+stack_top               equ stack_bottom + STACK_SIZE * 2
+//mc_color_end_addr       equ stack_top
+color_data_to_restore   equ stack_top
 
 SET_PAGE_HELPER         EQU screen_end + 0x50
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
-
-//JPIX__BANKS_HELPER      EQU SET_PAGE_HELPER_END
-//JPIX__BANKS_HELPER_END  EQU JPIX__BANKS_HELPER + 128
 
 DEBUG_MODE              EQU 0
 
@@ -46,10 +42,20 @@ DEBUG_MODE              EQU 0
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
         ld sp, hl                                       ; 6
+        ; hl - end of exec address
+        pop de                                          ; 10
         ; iy - address to execute
         pop iy                                          ; 14
-        ; hl - end of exec address
-        pop hl                                          ; 10
+
+        // restore data from prev MC drawing steps
+        .3 pop hl
+        ld sp, hl
+        inc sp
+        inc sp
+        ld hl, (color_data_to_restore)
+        push hl
+
+        ex de, hl
 
         ; write JP_IX to end exec address, 
         ; store original data to HL
@@ -73,7 +79,6 @@ DEBUG_MODE              EQU 0
         ld (hl), d                                      ; 7
 
         ; total 154 (162 with ret)
-
         ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?, Prev?
@@ -355,7 +360,55 @@ no:
 
         // ------------------------- update jpix table end
 loop1:
+        SET_PAGE 7
+
+        ld a, 7
+        and c
+        jr nz, draw_with_multicolor        
+        ld hl, bc
+        rr hl
+        draw_colors
+
+        // prepare colors for the next 7 multicolors steps
+        // 1. go to next color descriptor
+        ld hl, bc
+        srl h
+        rr l
+
+        // 2. write color jp_ix for the MC steps
+        ld de, color_descriptor + 4                     ; 10
+        add hl, de                                      ; 11
+        ld sp, hl                                       ; 6
+
+        ; de - end of exec address
+        pop de                                          ; 10
+        //ld (mc_color_end_addr), hl                    ; 16
+
+        ; address to execute
+        pop hl                                          ; 10
+        ld (fast_color_draw + 1), hl                    ; 16
+
+        ; write JP_IX to end exec address, 
+        ; store original data to HL
+        ex de, hl
+        ld sp, hl                                       ; 6
+        ld hl, JP_IX_CODE                               ; 10
+        ex (sp), hl                                     ; 19
+        ld (color_data_to_restore), hl                  ; 16
+
+        jp draw_common
+draw_with_multicolor:
+        // fast color draw. non-MC step calculate JP point
+        exx                                             ; 4
+        ld sp, color_addr + 768                         ; 10
+        ld ix, $ + 7                                    ; 14
+fast_color_draw:
+        jp 00                                           ; 8
+        exx                                             ; 4
+
+draw_common:
         // calculate ceil(bc,8) / 2
+/*        
         ld hl, 7
         add hl, bc
 
@@ -363,10 +416,7 @@ loop1:
         and l
         srl h : rra
         ld l, a
-
-        SET_PAGE 7
-        draw_colors
-
+*/        
 
         //MACRO prepare_rastr_drawing
         ld hl, bc
@@ -641,7 +691,7 @@ bank_drawing_common:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-filler2  defs 12, 0   // align code data
+filler2  defs 14, 0   // align code data
 
 odd_mc_drawing        
         srl b : rra
@@ -776,6 +826,16 @@ continue_page:
         inc a
         cp 8
         jr nz, page_loop
+
+        // write initial color data to restore
+        SET_PAGE 7
+
+        ld hl, color_descriptor + 4*2                   ; 10
+        ld sp, hl                                       ; 6
+        pop hl                                          ; 10
+        ld sp, hl
+        pop hl
+        ld (color_data_to_restore), hl                  ; 16
 
         ld sp, stack_top - 2
         ret
