@@ -36,19 +36,25 @@ DEBUG_MODE              EQU 0
 
     org start
 
-        MACRO draw_colors
-        ; hl - line number / 2
+        MACRO update_colors_jpix
+        //MACRO draw_colors
+        ; bc - line number
+
+        ld hl, bc
+        rr hl
 
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
         ld sp, hl                                       ; 6
-        ; hl - end of exec address
+        ; end of exec address
         pop de                                          ; 10
-        ; iy - address to execute
-        pop iy                                          ; 14
+        ;  address to execute
+        pop hl                                          ; 14
+        ld (start_draw_colors+1), hl
+        ld (start_draw_colors0+1), hl
 
         // restore data from prev MC drawing steps
-        .3 pop hl
+        pop hl
         ld sp, hl
         inc sp
         inc sp
@@ -64,21 +70,7 @@ DEBUG_MODE              EQU 0
         ld de, JP_IX_CODE                               ; 10
         ex de, hl                                       ; 4
         ex (sp), hl                                     ; 19
-
-        exx                                             ; 4
-        ld sp, color_addr + 768                         ; 10
-        ld ix, $ + 6                                    ; 14
-        jp iy                                           ; 8
-        exx                                             ; 4
-
-        ; Restore data
-        ex hl, de                                       ; 4
-
-        ld (hl), e                                      ; 7
-        inc hl                                          ; 6
-        ld (hl), d                                      ; 7
-
-        ; total 154 (162 with ret)
+        ld (color_data_to_restore), hl
         ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?, Prev?
@@ -134,55 +126,44 @@ OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
         ENDM
 
 jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
-      
 
     MACRO DRAW_MULTICOLOR_LINE N?:
-                IF (N? != 0)
-                        exx                                     ; 4
-                ENDIF                        
                 ld sp, color_addr + N? * 32 + 16        ; 10
                 ld iy, color_addr + N? * 32 + 32        ; 14
-MC_LINE_N?      ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                IF (N? != 23)
-                        exx                             ; 4
-                ENDIF                        
-                // total ticks: 50 (58 with ret)
+MC_LINE_N?      ld ix, $ + 7                            ; 14
+                jp 00                                   ; 10
+                // total ticks: 48 (56 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_LINE2 N?:
-                IF (N? != 0)
-                        exx                                     ; 4
-                ENDIF                        
                 ld sp, color_addr + N? * 32 + 16        ; 10
                 ld iy, color_addr + N? * 32 + 32        ; 14
-MC_LINE2_N?     ld ix, $ + 5                            ; 14
-                jp hl                                   ; 4
-                IF (N? != 23)
-                        exx                             ; 4
-                ENDIF                        
-                // total ticks: 50 (58 with ret)
+MC_LINE2_N?     ld ix, $ + 7                            ; 14
+                jp 00                                   ; 10
+                // total ticks: 48 (56 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?, N2?:
                 DRAW_MULTICOLOR_LINE  N?
-        
-                //ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256
+                ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256      ; 10
                 ASSERT(high($+6) == high(MC_LINE_N? + 5))
-                ld ixl, low($ + 6)                             ; 11
-RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
-        // total ticks: 70 (86 with ret)
+                ld ixl, low($ + 6)                                                      ; 11
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)                           ; 10        
+                // total ticks: 31 (39 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE2 N?:
                 DRAW_MULTICOLOR_LINE2  N?
-        
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
                 ASSERT(high($+6) == high(MC_LINE2_N? + 5))
                 ld ixl, low($ + 6)                             ; 11
 RASTR2_N?       jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
-        // total ticks: 70 (86 with ret)
+    ENDM                
+
+    MACRO DRAW_ONLY_RASTR_LINE N?, N2?:
+                ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256
+                ld ix, $ + 7
+RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
     ENDM                
 
         MACRO SET_PAGE page_number
@@ -214,6 +195,19 @@ RASTR2_N?       jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************* Routines **********************/
 
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+        ret
 
 /************** delay routine *************/
         MACRO DO_DELAY
@@ -300,7 +294,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 15729 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
+fixed_startup_delay     equ 8725 // I can see one blinking byte in spectaculator. moved forward just in case
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -328,7 +322,7 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
         //MACRO update_jp_ix_table
                 // bc - screen address to draw
-
+                // between frames here: 73248/71456
                 ; a = bank number
                 // set bits that match page number to 0
                 ld a, ~6                        ; 7
@@ -360,63 +354,121 @@ no:
 
         // ------------------------- update jpix table end
 loop1:
-        SET_PAGE 7
-
         ld a, 7
         and c
-        jr nz, draw_with_multicolor        
-        ld hl, bc
-        rr hl
-        draw_colors
+        jp nz, mc_step_drawing
 
-        // prepare colors for the next 7 multicolors steps
-        // 1. go to next color descriptor
-        ld hl, bc
-        srl h
-        rr l
+        /************************* no-mc step drawing *********************************************/
+        
+        // calculate address of the MC descriptors
+        // Draw from 0 to 23 is backward direction
+        ld hl, mc_descriptors
 
-        // 2. write color jp_ix for the MC steps
-        ld de, color_descriptor + 4                     ; 10
-        add hl, de                                      ; 11
-        ld sp, hl                                       ; 6
+        // calculate floor(bc,8) / 4
+        ld d, b
+        ld a, ~6
+        and c
+        srl d : rra
+        srl d : rra
+        ld e, a
 
-        ; de - end of exec address
-        pop de                                          ; 10
-        //ld (mc_color_end_addr), hl                    ; 16
+        // prepare  multicolor drawing (for next 7 mc steps)
+        add hl, de
+        ld sp, hl
 
-        ; address to execute
-        pop hl                                          ; 10
-        ld (fast_color_draw + 1), hl                    ; 16
+        pop hl: ld (MC_LINE_23 + 5), hl: ld (MC_LINE2_23 + 5), hl
+        pop hl: ld (MC_LINE_22 + 5), hl: ld (MC_LINE2_22 + 5), hl
+        pop hl: ld (MC_LINE_21 + 5), hl: ld (MC_LINE2_21 + 5), hl
+        pop hl: ld (MC_LINE_20 + 5), hl: ld (MC_LINE2_20 + 5), hl
+        pop hl: ld (MC_LINE_19 + 5), hl: ld (MC_LINE2_19 + 5), hl
+        pop hl: ld (MC_LINE_18 + 5), hl: ld (MC_LINE2_18 + 5), hl
+        pop hl: ld (MC_LINE_17 + 5), hl: ld (MC_LINE2_17 + 5), hl
+        pop hl: ld (MC_LINE_16 + 5), hl: ld (MC_LINE2_16 + 5), hl
+        pop hl: ld (MC_LINE_15 + 5), hl: ld (MC_LINE2_15 + 5), hl
+        pop hl: ld (MC_LINE_14 + 5), hl: ld (MC_LINE2_14 + 5), hl
+        pop hl: ld (MC_LINE_13 + 5), hl: ld (MC_LINE2_13 + 5), hl
+        pop hl: ld (MC_LINE_12 + 5), hl: ld (MC_LINE2_12 + 5), hl
+        pop hl: ld (MC_LINE_11 + 5), hl: ld (MC_LINE2_11 + 5), hl
+        pop hl: ld (MC_LINE_10 + 5), hl: ld (MC_LINE2_10 + 5), hl
+        pop hl: ld (MC_LINE_9 + 5),  hl: ld (MC_LINE2_9 + 5), hl
+        pop hl: ld (MC_LINE_8 + 5),  hl: ld (MC_LINE2_8 + 5), hl
+        pop hl: ld (MC_LINE_7 + 5),  hl: ld (MC_LINE2_7 + 5), hl
+        pop hl: ld (MC_LINE_6 + 5),  hl: ld (MC_LINE2_6 + 5), hl
+        pop hl: ld (MC_LINE_5 + 5),  hl: ld (MC_LINE2_5 + 5), hl
+        pop hl: ld (MC_LINE_4 + 5),  hl: ld (MC_LINE2_4 + 5), hl
+        pop hl: ld (MC_LINE_3 + 5),  hl: ld (MC_LINE2_3 + 5), hl
+        pop hl: ld (MC_LINE_2 + 5),  hl: ld (MC_LINE2_2 + 5), hl
+        pop hl: ld (MC_LINE_1 + 5),  hl: ld (MC_LINE2_1 + 5), hl
+        pop hl: ld (MC_LINE_0 + 5),  hl: ld (MC_LINE2_0 + 5), hl
 
-        ; write JP_IX to end exec address, 
-        ; store original data to HL
-        ex de, hl
-        ld sp, hl                                       ; 6
-        ld hl, JP_IX_CODE                               ; 10
-        ex (sp), hl                                     ; 19
-        ld (color_data_to_restore), hl                  ; 16
-
-        jp draw_common
-draw_with_multicolor:
-        // fast color draw. non-MC step calculate JP point
+        SET_PAGE 7
+        update_colors_jpix        
         exx                                             ; 4
         ld sp, color_addr + 768                         ; 10
         ld ix, $ + 7                                    ; 14
-fast_color_draw:
+start_draw_colors0:
+        jp 00                                           ; 8
+        exx
+        //MACRO prepare_rastr_drawing (for the current step)
+        ld hl, bc
+        add hl, hl // * 2
+        add hl, hl // * 4
+        ld sp, rastr_descriptors
+        add hl, sp
+        ld sp, hl
+
+        // Draw bottom 3-th of rastr during middle 3-th of colors
+        exx
+        pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR0_15+1), hl
+        pop hl: ld (OFF_RASTR_1+1), hl:    pop hl: ld (RASTR0_14+1), hl
+        pop hl: ld (OFF_RASTR_2+1), hl:    pop hl: ld (RASTR0_13+1), hl
+        pop hl: ld (OFF_RASTR_3+1), hl:    pop hl: ld (RASTR0_12+1), hl
+        pop hl: ld (OFF_RASTR_4+1), hl:    pop hl: ld (RASTR0_11+1), hl
+        pop hl: ld (OFF_RASTR_5+1), hl:    pop hl: ld (RASTR0_10+1), hl
+        pop hl: ld (OFF_RASTR_6+1), hl:    pop hl: ld (RASTR0_9+1), hl
+        pop hl: ld (OFF_RASTR_7+1), hl:    pop hl: ld (RASTR0_8+1), hl
+        exx
+
+        // Draw middle 3-th of rastr during top 3-th of colors
+
+        inc h
+        ld sp, hl
+
+        pop hl: ld (OFF_RASTR_8+1), hl:    pop hl: ld (RASTR0_7+1), hl
+        pop hl: ld (OFF_RASTR_9+1), hl:    pop hl: ld (RASTR0_6+1), hl
+        pop hl: ld (OFF_RASTR_10+1), hl:   pop hl: ld (RASTR0_5+1), hl
+        pop hl: ld (OFF_RASTR_11+1), hl:   pop hl: ld (RASTR0_4+1), hl
+        pop hl: ld (OFF_RASTR_12+1), hl:   pop hl: ld (RASTR0_3+1), hl
+        pop hl: ld (OFF_RASTR_13+1), hl:   pop hl: ld (RASTR0_2+1), hl
+        pop hl: ld (OFF_RASTR_14+1), hl:   pop hl: ld (RASTR0_1+1), hl
+        pop hl: ld (OFF_RASTR_15+1), hl:   pop hl: ld (RASTR0_0+1), hl
+
+        // Draw top 3-th of rastr during bottom 3-th of colors
+        ; shift to 63 for MC rastr instead of 64 to move on next frame
+        ld hl, (63-8) * 4 + 2
+        add hl, sp
+        ld sp, hl
+
+                                            pop hl: ld (RASTR0_22+1), hl
+        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR0_21+1), hl
+        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR0_20+1), hl
+        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR0_19+1), hl
+        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR0_18+1), hl
+        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR0_17+1), hl
+        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR0_16+1), hl
+        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR0_23+1), hl
+        pop hl: ld (OFF_RASTR_23+1), hl:    
+        jp draw_off_rastr_even
+
+//*************************************************************************************
+mc_step_drawing:
+        SET_PAGE 7
+        exx                                             ; 4
+        ld sp, color_addr + 768                         ; 10
+        ld ix, $ + 7                                    ; 14
+start_draw_colors:
         jp 00                                           ; 8
         exx                                             ; 4
-
-draw_common:
-        // calculate ceil(bc,8) / 2
-/*        
-        ld hl, 7
-        add hl, bc
-
-        ld a, ~7
-        and l
-        srl h : rra
-        ld l, a
-*/        
 
         //MACRO prepare_rastr_drawing
         ld hl, bc
@@ -475,10 +527,7 @@ draw_common:
                 pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_23+1), hl
                 pop hl: ld (OFF_RASTR_23+1), hl:    
 
-                //ENDM
-        
-                // -------------------------------- (even) DRAW_RASTR_LINES -----------------------------------------
-
+draw_off_rastr_even
                 ld a, c
                 and 7
                 set_page_by_bank
@@ -521,6 +570,7 @@ draw_common:
                 
                 exx
                 jp bank_drawing_common
+                
 odd_bank_drawing:        
 
                 // Draw bottom 3-th of rastr during middle 3-th of colors
@@ -625,33 +675,70 @@ bank_drawing_common:
 
         ld (stack_bottom), bc
 
+        ld e, a
+        ld a, 7
+        and c
+        ld a, e
+        jp nz, continue_mc_drawing
+
+        // render screen in non-mc mode (before delay)
+        exx
+        scf
+        DRAW_ONLY_RASTR_LINE 0, 0
+        DRAW_ONLY_RASTR_LINE 1, 1
+        DRAW_ONLY_RASTR_LINE 2, 2
+        DRAW_ONLY_RASTR_LINE 3, 3
+        DRAW_ONLY_RASTR_LINE 4, 4
+        DRAW_ONLY_RASTR_LINE 5, 5
+        DRAW_ONLY_RASTR_LINE 6, 6
+        DRAW_ONLY_RASTR_LINE 7, 7
+        
+        DRAW_ONLY_RASTR_LINE 8,  0
+        DRAW_ONLY_RASTR_LINE 9,  1
+        DRAW_ONLY_RASTR_LINE 10, 2
+        DRAW_ONLY_RASTR_LINE 11, 3
+        DRAW_ONLY_RASTR_LINE 12, 4
+        DRAW_ONLY_RASTR_LINE 13, 5
+        DRAW_ONLY_RASTR_LINE 14, 6
+        DRAW_ONLY_RASTR_LINE 15, 7
+
+        DRAW_ONLY_RASTR_LINE 16, 1
+        DRAW_ONLY_RASTR_LINE 17, 2
+        DRAW_ONLY_RASTR_LINE 18, 3
+        DRAW_ONLY_RASTR_LINE 19, 4
+        DRAW_ONLY_RASTR_LINE 20, 5
+        DRAW_ONLY_RASTR_LINE 21, 6
+        DRAW_ONLY_RASTR_LINE 22, 7
+        DRAW_ONLY_RASTR_LINE 23, 0
+        exx
+
+continue_mc_drawing
+
         ; delay
         ld hl, timings_data
         add hl, bc
         add hl, bc
         ld sp, hl
         pop hl
-        
+        ld b, a
         DO_DELAY
 
-        // calculate address of the MC descriptors
-        // Draw from 0 to 23 is backward direction
-        ld hl, mc_descriptors + 23*2
-
-        // calculate floor(bc,8) / 4
-        ld a, ~6
+        ld a, 7
         and c
-        srl b : rra
+        jp nz, continue_mc_drawing2
 
+        ld bc, (stack_bottom)
+        dec bc
+        ; compare to -1
+        ld l, b
+        inc l
+        jp z, lower_limit_reached      ; 10 ticks
+        jp loop                        ; 12 ticks
+
+continue_mc_drawing2        
+        rra
+        ld a, b
         jp c, odd_mc_drawing
-
-        srl b : rra
-        ld c, a
-
-        // prepare in HL' multicolor address to execute
-        add hl, bc
-        ld sp, hl
-        pop hl
 
         ; timing here on first frame: 91153
         scf     // aligned data uses ret nc. prevent these ret
@@ -684,25 +771,12 @@ bank_drawing_common:
 
         ld bc, (stack_bottom)
         dec bc
-        ; compare to -1
-        ld l, b
-        inc l
-
-        jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-filler2  defs 14, 0   // align code data
+filler2  defs 0, 0   // align code data
 
 odd_mc_drawing        
-        srl b : rra
-        ld c, a
-       
-        // prepare in HL' multicolor address to execute
-        add hl, bc
-        ld sp, hl
-        pop hl
-
-        ; timing here on first frame: 91153
+        ; timing here on first frame: 91153 + 71680-224 = 162609
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE2 0
         DRAW_MULTICOLOR_AND_RASTR_LINE2 1
@@ -778,20 +852,6 @@ after_interrupt:
         ldir
         ret
 
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-        ret
-
 JP_IX_CODE      equ #e9dd
 
 jp_ix_record_size       equ 12
@@ -830,7 +890,7 @@ continue_page:
         // write initial color data to restore
         SET_PAGE 7
 
-        ld hl, color_descriptor + 4*2                   ; 10
+        ld hl, color_descriptor + 4                     ; 10
         ld sp, hl                                       ; 6
         pop hl                                          ; 10
         ld sp, hl
@@ -908,11 +968,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-	IF (DEBUG_MODE == 1)
-        	ORG 28000
-	ENDIF	
-        ASSERT $ <= 26700
-        ORG 26700
+        ASSERT $ <= 28000
+         ORG 28000
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code

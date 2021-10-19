@@ -17,9 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
-//#define LOG_DEBUG
-
-#define TEMP_FOR_TEST_COLORS 1
+#define LOG_DEBUG
 
 static const int totalTicksPerFrame = 71680;
 
@@ -56,7 +54,7 @@ enum Flags
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 97 + 10; // context switch + ld hl in the end of the multicolor line
+static const int kRtMcContextSwitchDelay = 95; // context switch
 static const int kTicksOnScreenPerByte = 4;
 static const int kStackMovingTimeForMc = 10;
 
@@ -2828,7 +2826,7 @@ int serializeColorData(
     std::vector<uint8_t> serializedDescriptors;
 
     // serialize color descriptors
-    for (int d = 0; d < imageHeight + 2; ++d)
+    for (int d = 0; d <= imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
         const int endLine = (d + 24) % imageHeight;
@@ -2942,7 +2940,7 @@ int serializeMultiColorData(
     int size = 0;
     std::vector<uint8_t> serializedData;
     std::vector<int> lineOffset;
-    std::vector<int> ldHlOffset;
+    //std::vector<int> ldHlOffset;
     for (int y = 0; y < colorImageHeight; ++y)
     {
         lineOffset.push_back(serializedData.size());
@@ -2950,17 +2948,20 @@ int serializeMultiColorData(
         const auto& line = data.data[y];
         line.serialize(serializedData);
 
+#if 0
         // add LD HL, NEXT_LINE_ADDRESS command in the end of a line
         serializedData.push_back(0x21);
         ldHlOffset.push_back(serializedData.size());
         serializedData.push_back(0);
         serializedData.push_back(0);
+#endif
 
         // add JP_IX command in the end of a line
         serializedData.push_back(0xdd);
         serializedData.push_back(0xe9);
     }
 
+#if 0
     // Resolve LD HL, PREV_LINE_ADDR
     for (int y = 0; y < colorImageHeight; ++y)
     {
@@ -2968,15 +2969,16 @@ int serializeMultiColorData(
         uint16_t* ldHlPtr = (uint16_t*)(ldHlOffset[y] + serializedData.data());
         *ldHlPtr = prevLineOffset + codeOffset;
     }
+#endif
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
     // serialize multicolor descriptors
 
     std::vector<MulticolorDescriptor> descriptors;
-    for (int d = 0; d < colorImageHeight + 23; ++d)
+    for (int d = -1; d < colorImageHeight + 23; ++d)
     {
-        const int srcLine = d % colorImageHeight;
+        const int srcLine = d >= 0 ? d % colorImageHeight : colorImageHeight-1;
 
         MulticolorDescriptor descriptor;
         const auto& line = data.data[srcLine];
@@ -3126,7 +3128,8 @@ int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data, const CompressedData& color, const std::string& inputFileName,
-    int flags)
+    int flags,
+    int mcLineLen)
 {
     using namespace std;
 
@@ -3163,17 +3166,18 @@ int serializeTimingData(
         {
             // Draw next frame longer in  6 lines
             ticks -= kLineDurationInTicks * 7;
+            ticks -= mcLineLen * 24;
         }
-        else //if (line % 8 > 1)
+        else
         {
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3171 + 115 - 137;
-        if (line % 2 == 0)
-            kZ80CodeDelay += 7;
+        int kZ80CodeDelay = 3130;
         if (line % 8 == 0)
-            kZ80CodeDelay += 50;
+            kZ80CodeDelay += 23;
+        else if (line % 2 == 1)
+            kZ80CodeDelay += 8;
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
@@ -3469,7 +3473,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags, multicolorData.data[0].drawTicks);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }
