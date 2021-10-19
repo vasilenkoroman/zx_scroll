@@ -2828,7 +2828,7 @@ int serializeColorData(
     std::vector<uint8_t> serializedDescriptors;
 
     // serialize color descriptors
-    for (int d = 0; d < imageHeight + 2; ++d)
+    for (int d = 0; d <= imageHeight; ++d)
     {
         const int srcLine = d % imageHeight;
         const int endLine = (d + 24) % imageHeight;
@@ -3152,6 +3152,7 @@ int serializeTimingData(
         int ticks = 0;
         ticks += offscreenTicks.ticks();
         int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
+        if (line % 8 != 0)
         ticks += colorTicks;
 
         if (line == 0)
@@ -3169,11 +3170,11 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3171 + 115 - 137;
+        int kZ80CodeDelay = 3171 - 22;
         if (line % 2 == 0)
             kZ80CodeDelay += 7;
         if (line % 8 == 0)
-            kZ80CodeDelay += 50;
+            kZ80CodeDelay += 158;
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)

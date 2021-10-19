@@ -36,19 +36,24 @@ DEBUG_MODE              EQU 0
 
     org start
 
-        MACRO draw_colors
-        ; hl - line number / 2
+        MACRO update_colors_jpix
+        //MACRO draw_colors
+        ; bc - line number
+
+        ld hl, bc
+        rr hl
 
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
         ld sp, hl                                       ; 6
-        ; hl - end of exec address
+        ; end of exec address
         pop de                                          ; 10
-        ; iy - address to execute
-        pop iy                                          ; 14
+        ;  address to execute
+        pop hl                                          ; 14
+        ld (start_draw_colors+1), hl
 
         // restore data from prev MC drawing steps
-        .3 pop hl
+        pop hl
         ld sp, hl
         inc sp
         inc sp
@@ -64,21 +69,7 @@ DEBUG_MODE              EQU 0
         ld de, JP_IX_CODE                               ; 10
         ex de, hl                                       ; 4
         ex (sp), hl                                     ; 19
-
-        exx                                             ; 4
-        ld sp, color_addr + 768                         ; 10
-        ld ix, $ + 6                                    ; 14
-        jp iy                                           ; 8
-        exx                                             ; 4
-
-        ; Restore data
-        ex hl, de                                       ; 4
-
-        ld (hl), e                                      ; 7
-        inc hl                                          ; 6
-        ld (hl), d                                      ; 7
-
-        ; total 154 (162 with ret)
+        ld (color_data_to_restore), hl
         ENDM
 
         MACRO DRAW_OFFSCREEN_LINES N?, Prev?
@@ -277,7 +268,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 6, 0   // align code data
+filler  defs 0, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -300,7 +291,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 15729 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
+fixed_startup_delay     equ 15830 + 6 // I can see one blinking byte in spectaculator. moved forward just in case
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -364,59 +355,17 @@ loop1:
 
         ld a, 7
         and c
-        jr nz, draw_with_multicolor        
-        ld hl, bc
-        rr hl
-        draw_colors
-
-        // prepare colors for the next 7 multicolors steps
-        // 1. go to next color descriptor
-        ld hl, bc
-        srl h
-        rr l
-
-        // 2. write color jp_ix for the MC steps
-        ld de, color_descriptor + 4                     ; 10
-        add hl, de                                      ; 11
-        ld sp, hl                                       ; 6
-
-        ; de - end of exec address
-        pop de                                          ; 10
-        //ld (mc_color_end_addr), hl                    ; 16
-
-        ; address to execute
-        pop hl                                          ; 10
-        ld (fast_color_draw + 1), hl                    ; 16
-
-        ; write JP_IX to end exec address, 
-        ; store original data to HL
-        ex de, hl
-        ld sp, hl                                       ; 6
-        ld hl, JP_IX_CODE                               ; 10
-        ex (sp), hl                                     ; 19
-        ld (color_data_to_restore), hl                  ; 16
-
-        jp draw_common
-draw_with_multicolor:
-        // fast color draw. non-MC step calculate JP point
+        jr nz, do_draw_colors
+        update_colors_jpix        
+        jr draw_colors_end
+do_draw_colors:
         exx                                             ; 4
         ld sp, color_addr + 768                         ; 10
         ld ix, $ + 7                                    ; 14
-fast_color_draw:
+start_draw_colors:
         jp 00                                           ; 8
         exx                                             ; 4
-
-draw_common:
-        // calculate ceil(bc,8) / 2
-/*        
-        ld hl, 7
-        add hl, bc
-
-        ld a, ~7
-        and l
-        srl h : rra
-        ld l, a
-*/        
+draw_colors_end:
 
         //MACRO prepare_rastr_drawing
         ld hl, bc
@@ -691,7 +640,7 @@ bank_drawing_common:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-filler2  defs 14, 0   // align code data
+filler2  defs 10, 0   // align code data
 
 odd_mc_drawing        
         srl b : rra
@@ -830,7 +779,7 @@ continue_page:
         // write initial color data to restore
         SET_PAGE 7
 
-        ld hl, color_descriptor + 4*2                   ; 10
+        ld hl, color_descriptor + 4                     ; 10
         ld sp, hl                                       ; 6
         pop hl                                          ; 10
         ld sp, hl
