@@ -3187,8 +3187,6 @@ int serializeTimingData(
         int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
         ticks += colorTicks;
 
-        if (line == 0)
-            firstLineDelay = ticks;
 
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
 
@@ -3238,7 +3236,7 @@ int serializeTimingData(
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
 
         if (line == 0)
-            firstLineDelay += freeTicks;
+            firstLineDelay = freeTicks;
     }
     std::cout << "worse line free ticks=" << worseLineTicks << ". ";
     if (kMinDelay - worseLineTicks > 0)

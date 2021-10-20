@@ -289,10 +289,10 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 8797
+fixed_startup_delay     equ 42542
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
-        assert (sync_tick <= 65535)
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay  //- FIRST_LINE_DELAY
+        assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
 max_scroll_offset equ imageHeight - 1
@@ -317,7 +317,7 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
         //MACRO update_jp_ix_table
                 // bc - screen address to draw
-                // between frames here: 73248/71456
+                // between frames: 73248/71456
                 ; a = bank number
                 // set bits that match page number to 0
                 ld a, ~6                        ; 7
