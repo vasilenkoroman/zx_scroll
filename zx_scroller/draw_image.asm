@@ -777,7 +777,6 @@ filler2  defs 0, 0   // align code data
 
 odd_mc_drawing        
         ; timing here on first frame: 91153 + 71680-224 = 162609
-        scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE2 0
         DRAW_MULTICOLOR_AND_RASTR_LINE2 1
         DRAW_MULTICOLOR_AND_RASTR_LINE2 2
