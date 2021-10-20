@@ -354,6 +354,8 @@ no:
 
         // ------------------------- update jpix table end
 loop1:
+        SET_PAGE 7
+
         ld a, 7
         and c
         jp nz, mc_step_drawing
@@ -401,7 +403,6 @@ loop1:
         pop hl: ld (MC_LINE_1 + 5),  hl: ld (MC_LINE2_1 + 5), hl
         pop hl: ld (MC_LINE_0 + 5),  hl: ld (MC_LINE2_0 + 5), hl
 
-        SET_PAGE 7
         update_colors_jpix        
         exx                                             ; 4
         ld sp, color_addr + 768                         ; 10
@@ -462,7 +463,6 @@ start_draw_colors0:
 
 //*************************************************************************************
 mc_step_drawing:
-        SET_PAGE 7
         exx                                             ; 4
         ld sp, color_addr + 768                         ; 10
         ld ix, $ + 7                                    ; 14
@@ -975,9 +975,6 @@ generated_code:
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-mc_descriptors
-        INCBIN "resources/compressed_data.mc_descriptors"
-
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
@@ -1016,6 +1013,8 @@ color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 rastr_descriptors
         INCBIN "resources/compressed_data.rastr.descriptors"
+mc_descriptors
+        INCBIN "resources/compressed_data.mc_descriptors"
 
 /*
 src_data
