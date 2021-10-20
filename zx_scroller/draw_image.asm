@@ -129,27 +129,23 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
     MACRO DRAW_MULTICOLOR_LINE N?:
                 ld sp, color_addr + N? * 32 + 16        ; 10
-                ld iy, color_addr + N? * 32 + 32        ; 14
-MC_LINE_N?      ld ix, $ + 7                            ; 14
-                jp 00                                   ; 10
-                // total ticks: 48 (56 with ret)
+MC_LINE_N?      jp 00                                   ; 10
+                // total ticks: 20 (30 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_LINE2 N?:
                 ld sp, color_addr + N? * 32 + 16        ; 10
-                ld iy, color_addr + N? * 32 + 32        ; 14
-MC_LINE2_N?     ld ix, $ + 7                            ; 14
-                jp 00                                   ; 10
-                // total ticks: 48 (56 with ret)
+MC_LINE2_N?     jp 00                                   ; 10
+                // total ticks: 20 (30 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?, N2?:
                 DRAW_MULTICOLOR_LINE  N?
                 ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256      ; 10
                 ASSERT(high($+6) == high(MC_LINE_N? + 5))
-                ld ixl, low($ + 6)                                                      ; 11
+                ld ix, $ + 7                                                            ; 14
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)                           ; 10        
-                // total ticks: 31 (39 with ret)
+                // total ticks: 34 (42 with ret)
     ENDM                
 
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE2 N?:

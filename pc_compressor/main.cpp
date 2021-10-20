@@ -46,7 +46,6 @@ enum Flags
     oddVerticalCompression = 8, //< can skip odd drawing bytes.
     inverseColors = 16,         //< Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
-    hurryUpViaIY = 64,          //< Not enough ticks for multicolors. Use dec IY instead of dec SP during preparing registers to save 6 ticks during multicolor.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
     sinkMcTicksToRastr = 256,    //< Spend Multicolor ticks during alignments to the rastr line
     updateViaHl = 512
@@ -54,11 +53,8 @@ enum Flags
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 95; // context switch
+static const int kRtMcContextSwitchDelay = 72; // multicolor to rastr context switch delay
 static const int kTicksOnScreenPerByte = 4;
-static const int kStackMovingTimeForMc = 10;
-
-static const std::vector<uint8_t> kLdSpIy = { 0xFD, 0xF9 };
 
 /**
  * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
@@ -671,15 +667,15 @@ bool compressLine(
                     verticalRepCount &= ~1;
         }
 
-        if (x == context.borderPoint)
+        if (context.borderPoint && x == context.borderPoint)
         {
-            result.splitPosHint = result.data.size();
-            if (verticalRepCount > 0 && (context.flags & hurryUpViaIY))
-            {
-                result.extraIyDelta = std::min(2, verticalRepCount);
-                x += result.extraIyDelta;
+            result.spPosHint = result.data.size();
+            if (verticalRepCount > 0)
+                x += verticalRepCount;
+            sp.loadXX(result, 32 - (x - context.borderPoint));
+
+            if (verticalRepCount > 0)
                 continue;
-            }
         }
 
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
@@ -694,28 +690,13 @@ bool compressLine(
                 return false;
             if (x + verticalRepCount >= context.borderPoint)
             {
-                const int prevVerticalRepCount = verticalRepCount;
-                verticalRepCount -= context.borderPoint - x;
-                x = context.borderPoint;
-                if (verticalRepCount > 3)
-                {
-                    if (auto hl = findRegister(registers, "hl", result.isAltReg))
-                    {
-                        if (result.isAltAf)
-                            result.exAf();
-                        hl->updateToValue(result, 32 - prevVerticalRepCount, registers, context.af);
-                        hl->addSP(result);
-                        if (auto f = findRegister8(registers, 'f'))
-                            f->value.reset();
-                        sp.loadFromReg16(result, *hl);
-                        x += verticalRepCount;
-                        result.scf();
-                    }
-                }
+                x += verticalRepCount;
+                result.spPosHint = result.data.size();
+                sp.loadXX(result, 32 - (x - context.borderPoint));
                 continue;
             }
         }
-
+        
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4)
@@ -815,15 +796,13 @@ bool compressLine(
         if (choisedLine.data.empty())
             return false;
 
-        if (choisedLine.splitPosHint >= 0)
-            result.splitPosHint = result.data.size() + choisedLine.splitPosHint;
+        if (choisedLine.spPosHint >= 0)
+            result.spPosHint = result.data.size() + choisedLine.spPosHint;
 
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
         result.isAltAf = choisedLine.isAltAf;
         result.lastOddRepPosition = choisedLine.lastOddRepPosition;
-        if (choisedLine.extraIyDelta > 0)
-            result.extraIyDelta = choisedLine.extraIyDelta;
         registers = chosedRegisters;
 
         return true;
@@ -1193,23 +1172,11 @@ void finilizeLine(
     Register16 sp("sp");
     Register16 iy("iy");
 
-    auto doAddIY =
-        [&](int value)
-    {
-        iy.decValue(result, value);
-    };
-
-
     // Left part is exists
     if (context.minX > 0)
     {
         uint16_t delta = context.minX < 16 ? context.minX : 16 - (context.minX - 16);
         Z80Parser::serializeAddSpToFront(result, delta);
-    }
-    if (pushLine.splitPosHint >= 0 && pushLine.extraIyDelta)
-    {
-        if (pushLine.extraIyDelta)
-            doAddIY(pushLine.extraIyDelta);
     }
 
     result += loadLine;
@@ -1224,48 +1191,16 @@ void finilizeLine(
         Register16("bc'"), Register16("de'"), Register16("hl'")
     };
 
-    // parse pushLine to find point for LD SP, IY
+    if (pushLine.spPosHint >= 0)
+        result.spPosHint = result.data.size() + pushLine.spPosHint;
+    result += pushLine;
 
-    auto info = parser.parseCode(
-        context.af,
-        registers,
-        pushLine.data.buffer(),
-        pushLine.data.size(),
-        /* start offset*/ 0,
-        /* end offset*/ pushLine.splitPosHint,
-        /* codeOffset*/ 0
-    );
-
-    auto info2 = parser.parseCode(
-        context.af,
-        registers,
-        pushLine.data.buffer(),
-        pushLine.data.size(),
-        /* start offset*/ info.endOffset,
-        /* end offset*/ pushLine.data.size(),
-        /* codeOffset*/ 0);
-
-    result.append(pushLine.data.buffer(), info.endOffset);
-    //result.drawTicks += info.ticks;
-
-    if (pushLine.splitPosHint >= 0)
-    {
-        result.append(kLdSpIy);
-        result.drawTicks += kStackMovingTimeForMc;
-    }
-
-
-    result.append(pushLine.data.buffer() + info.endOffset, pushLine.data.size() - info.endOffset);
-    result.extraIyDelta = pushLine.extraIyDelta;
-    result.drawTicks += pushLine.drawTicks;
-
+    result.spPosHint = pushLine.spPosHint;
 }
 
 int getDrawTicks(const CompressedLine& pushLine)
 {
     int drawTicks = pushLine.drawTicks;
-    if (pushLine.splitPosHint >= 0)
-        drawTicks += kStackMovingTimeForMc;
     if (pushLine.data.last() == kExAfOpCode)
         drawTicks -= 4;
     return drawTicks;
@@ -1397,24 +1332,6 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     int drawTicks = getDrawTicks(pushLine);
 
-    if (drawTicks > t2&& pushLine.splitPosHint >= 0)
-    {
-        context.flags |= hurryUpViaIY;
-        CompressedLine pushLine2;
-        success = compressLine(context, pushLine2, registers6,  /*x*/ context.minX);
-
-        int drawTicks2 = getDrawTicks(pushLine2);
-
-        if (drawTicks2 < drawTicks)
-        {
-            pushLine = pushLine2;
-            drawTicks = drawTicks2;
-        }
-        else
-        {
-            context.flags &= ~hurryUpViaIY;
-        }
-    }
     if (!success)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
@@ -2302,6 +2219,8 @@ struct LineDescriptor
 struct MulticolorDescriptor
 {
     uint16_t addressBegin = 0;
+    uint16_t moveSpLastBytePos = 0;
+    uint16_t endLineJpAddr = 0;
 };
 
 struct ColorDescriptor
@@ -2978,17 +2897,10 @@ int serializeMultiColorData(
         const auto& line = data.data[y];
         line.serialize(serializedData);
 
-#if 0
-        // add LD HL, NEXT_LINE_ADDRESS command in the end of a line
-        serializedData.push_back(0x21);
-        ldHlOffset.push_back(serializedData.size());
-        serializedData.push_back(0);
-        serializedData.push_back(0);
-#endif
-
-        // add JP_IX command in the end of a line
-        serializedData.push_back(0xdd);
-        serializedData.push_back(0xe9);
+        // add JP XX command in the end of a line
+        serializedData.push_back(0xc3);
+        serializedData.push_back(0x00);
+        serializedData.push_back(0x00);
     }
 
 #if 0
@@ -3014,6 +2926,8 @@ int serializeMultiColorData(
         const auto& line = data.data[srcLine];
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
+        descriptor.endLineJpAddr = lineAddressPtr + line.data.size() - 2;
+        descriptor.moveSpLastBytePos = lineAddressPtr + line.spPosHint + 2;
         descriptors.push_back(descriptor);
     }
 
@@ -3027,7 +2941,9 @@ int serializeMultiColorData(
     }
 
     for (const auto& descriptor : descriptors)
+    {
         file.write((const char*)&descriptor, sizeof(descriptor));
+    }
 
 
     return serializedData.size();
