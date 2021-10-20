@@ -289,7 +289,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 8779
+fixed_startup_delay     equ 8797
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -723,8 +723,11 @@ drawing_before_delay
         DO_DELAY
         ld a, b
 
+        rr c
+        jp c, odd_mc_drawing
+
 after_delay        
-        jp continue_mc_drawing2
+        jp continue_even_mc_drawing
 
         ld hl, after_partial_update_jpix
         ld (hl), 0xc3   // restore JP command by modify this byte
@@ -739,10 +742,7 @@ after_delay
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
-continue_mc_drawing2        
-        rr c
-        jp c, odd_mc_drawing
-
+continue_even_mc_drawing
         ; timing here on first frame: 91153
         scf     // aligned data uses ret nc. prevent these ret
         DRAW_MULTICOLOR_AND_RASTR_LINE 0, 0
