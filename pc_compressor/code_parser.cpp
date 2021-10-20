@@ -455,6 +455,12 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x29: // ADD HL, HL
                 break;
+            case 0x31: // LD SP, XX
+                {
+                    int value = ptr[1] + ((uint16_t)ptr[2] << 8);
+                    result.spOffset = 16 - value;
+                    break;
+                }
             case 0x33: result.spOffset++;    // incSP
                 break;
             case 0x34: hl->incValue(info);

@@ -181,8 +181,7 @@ public:
 
     int flags = 0;
     int lastOddRepPosition = 0;
-    int splitPosHint = -1;
-    int extraIyDelta = 0;
+    int spPosHint = -1;
 
     int16_t minX = 0;
     int16_t maxX = 0;

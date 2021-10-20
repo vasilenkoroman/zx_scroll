@@ -2064,8 +2064,8 @@ struct DescriptorState
         auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
         auto outRegs = getSerializedRegisters(registers, af);
         auto result = outRegs.drawTicks - omitedTicksFromMainCode;
-        if (lineBank % 2 == 1)
-            result += kSetPageTicks;
+        //if (lineBank % 2 == 1)
+        result += kSetPageTicks;
         return result;
     }
 
@@ -2117,8 +2117,8 @@ struct DescriptorState
         const CompressedLine* line,
         int pageNum, int bankNum)
     {
-        if (bankNum % 2 == 1)
-            serializeSetPageCode(pageNum);
+        //if (bankNum % 2 == 1)
+        serializeSetPageCode(pageNum);
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -2219,7 +2219,7 @@ struct LineDescriptor
 struct MulticolorDescriptor
 {
     uint16_t addressBegin = 0;
-    uint16_t moveSpLastBytePos = 0;
+    uint16_t moveSpBytePos = 0;
     uint16_t endLineJpAddr = 0;
 };
 
@@ -2926,8 +2926,8 @@ int serializeMultiColorData(
         const auto& line = data.data[srcLine];
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
+        descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() - 2;
-        descriptor.moveSpLastBytePos = lineAddressPtr + line.spPosHint + 2;
         descriptors.push_back(descriptor);
     }
 
