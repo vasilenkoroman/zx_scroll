@@ -2552,20 +2552,30 @@ int serializeMainData(
     int flags,
     int mcDrawTicks)
 {
-    std::vector<uint8_t> serializedDescriptors;
+    std::vector<uint8_t> mainMemSerializedDescriptors;
+    std::array<std::vector<uint8_t>, kPagesForData> inpageSerializedDescriptors;
 
     using namespace std;
     const int imageHeight = data.data.size();
     const int rastrCodeStartAddr = getRastrCodeStartAddr(imageHeight);
 
     std::array<ofstream, kPagesForData> mainDataFiles;
+    std::array<ofstream, kPagesForData> inpageDescrDataFiles;
     for (int i = 0; i < kPagesForData; ++i)
     {
-        std::string mainDataFileName = inputFileName + ".main" + std::to_string(i);
-        mainDataFiles[i].open(mainDataFileName, std::ios::binary);
+        std::string fileName = inputFileName + ".main" + std::to_string(i);
+        mainDataFiles[i].open(fileName, std::ios::binary);
         if (!mainDataFiles[i].is_open())
         {
-            std::cerr << "Can not write destination file" << std::endl;
+            std::cerr << "Can not write destination file " << fileName << std::endl;
+            return -1;
+        }
+
+        fileName = inputFileName + ".reach_descriptor" + std::to_string(i);
+        inpageDescrDataFiles[i].open(fileName, std::ios::binary);
+        if (!inpageDescrDataFiles[i].is_open())
+        {
+            std::cerr << "Can not write destination file " << fileName << std::endl;
             return -1;
         }
     }
@@ -2592,7 +2602,12 @@ int serializeMainData(
         line.serialize(serializedData[pageNum]);
     }
 
+
     // serialize descriptors
+
+    std::array<int, kPagesForData> inpageDescrOffsets;
+    for (int i = 0; i < kPagesForData; ++i)
+        inpageDescrOffsets[i] = rastrCodeStartAddr + serializedData[i].size();
 
     const int bankSize = imageHeight / 8;
     const int colorsHeight = bankSize;
@@ -2613,11 +2628,6 @@ int serializeMainData(
 
     for (int d = 0; d < imageHeight; ++d)
     {
-        if (d == 153)
-        {
-            int gg = 4;
-        }
-
         const int srcLine = d % imageHeight;
 
         LineDescriptor descriptor;
@@ -2744,11 +2754,22 @@ int serializeMainData(
         descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
-        descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
-        descriptor.rastrForMulticolor.serialize(serializedDescriptors);
+        descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + mainMemSerializedDescriptors.size();
+        descriptor.rastrForMulticolor.serialize(mainMemSerializedDescriptors);
 
-        descriptor.rastrForOffscreen.descriptorLocationPtr = reachDescriptorsBase + serializedDescriptors.size();
-        descriptor.rastrForOffscreen.serialize(serializedDescriptors);
+        std::vector<uint8_t> tmp;
+        descriptor.rastrForOffscreen.serialize(tmp);
+        if (inpageDescrOffsets[descriptor.pageNum] + tmp.size() <= 65535)
+        {
+            descriptor.rastrForOffscreen.descriptorLocationPtr = inpageDescrOffsets[descriptor.pageNum];
+            descriptor.rastrForOffscreen.serialize(inpageSerializedDescriptors[descriptor.pageNum]);
+            inpageDescrOffsets[descriptor.pageNum] += tmp.size();
+        }
+        else
+        {
+            descriptor.rastrForOffscreen.descriptorLocationPtr = reachDescriptorsBase + mainMemSerializedDescriptors.size();
+            descriptor.rastrForOffscreen.serialize(mainMemSerializedDescriptors);
+        }
 
         descriptors.push_back(descriptor);
     }
@@ -2768,10 +2789,13 @@ int serializeMainData(
     }
 
     for (int i = 0; i < kPagesForData; ++i)
+    {
         mainDataFiles[i].write((const char*)serializedData[i].data(), serializedData[i].size());
-    reachDescriptorFile.write((const char*)serializedDescriptors.data(), serializedDescriptors.size());
+        inpageDescrDataFiles[i].write((const char*)inpageSerializedDescriptors[i].data(), inpageSerializedDescriptors[i].size());
+    }
+    reachDescriptorFile.write((const char*)mainMemSerializedDescriptors.data(), mainMemSerializedDescriptors.size());
 
-    int serializedSize = serializedDescriptors.size();
+    int serializedSize = mainMemSerializedDescriptors.size();
     return serializedSize;
 }
 

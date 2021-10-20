@@ -991,21 +991,24 @@ jpix_table EQU 0xc000
         PAGE 0
         INCBIN "resources/compressed_data.jpix0"
         INCBIN "resources/compressed_data.main0"
-
+        INCBIN "resources/compressed_data.reach_descriptor0"
         ORG 0xc000
         PAGE 1
         INCBIN "resources/compressed_data.jpix1"
         INCBIN "resources/compressed_data.main1"
+        INCBIN "resources/compressed_data.reach_descriptor1"
 
         ORG 0xc000
         PAGE 3
         INCBIN "resources/compressed_data.jpix2"
         INCBIN "resources/compressed_data.main2"
+        INCBIN "resources/compressed_data.reach_descriptor2"
 
         ORG 0xc000
         PAGE 4
         INCBIN "resources/compressed_data.jpix3"
         INCBIN "resources/compressed_data.main3"
+        INCBIN "resources/compressed_data.reach_descriptor3"
 
         ORG 0xc000 + 0x1b00
         PAGE 7
