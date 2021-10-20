@@ -629,7 +629,7 @@ bool willWriteByteViaHl(
     if (context.sameBytesCount->at(index))
         return false;
 
-    if (newX < context.maxX - 1)
+    if (newX < 31 & newX < context.maxX)
     {
         uint16_t* buffer16 = (uint16_t*)(context.buffer + index);
         uint16_t word = *buffer16;
