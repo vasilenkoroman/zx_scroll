@@ -266,7 +266,7 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 6, 0   // align code data
+filler  defs 0, 0   // align code data
 
 /*************** Main. ******************/
 main:
@@ -289,7 +289,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 8746
+fixed_startup_delay     equ 8779
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -457,6 +457,8 @@ start_draw_colors0:
 
 
         ld hl, after_partial_update_jpix
+        ld (hl), 0x21   // comment JP command by modify this byte
+        ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
         jp draw_off_rastr_even
 
@@ -719,12 +721,14 @@ drawing_before_delay
         pop hl
         ld b, a
         DO_DELAY
+        ld a, b
 
-        ld a, 7
-        and c
-        jp nz, continue_mc_drawing2
+after_delay        
+        jp continue_mc_drawing2
 
         ld hl, after_partial_update_jpix
+        ld (hl), 0xc3   // restore JP command by modify this byte
+        ld hl, after_delay
         ld (hl), 0xc3   // restore JP command by modify this byte
 
         ld bc, (saved_bc)
@@ -736,8 +740,7 @@ drawing_before_delay
         jp loop                        ; 12 ticks
 
 continue_mc_drawing2        
-        rra
-        ld a, b
+        rr c
         jp c, odd_mc_drawing
 
         ; timing here on first frame: 91153
@@ -773,7 +776,7 @@ continue_mc_drawing2
         dec bc
         jp loop                        ; 12 ticks
 
-filler2  defs 0, 0   // align code data
+filler2  defs 14, 0   // align code data
 
 odd_mc_drawing        
         ; timing here on first frame: 91153 + 71680-224 = 162609

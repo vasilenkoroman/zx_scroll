@@ -3173,9 +3173,9 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3111;
+        int kZ80CodeDelay = 3104;
         if (line % 8 == 0)
-            kZ80CodeDelay += 63;
+            kZ80CodeDelay += 103;
         else if (line % 2 == 1)
             kZ80CodeDelay += 4;
 
