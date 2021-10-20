@@ -24,8 +24,8 @@ start:          equ 5e00h
 STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ screen_end
 stack_top               equ stack_bottom + STACK_SIZE * 2
-//mc_color_end_addr       equ stack_top
 color_data_to_restore   equ stack_top
+saved_bc                equ color_data_to_restore + 2
 
 SET_PAGE_HELPER         EQU screen_end + 0x50
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
@@ -171,18 +171,13 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
                 OUT (#fd), A
         ENDM
 
-        MACRO set_logical_page
+        MACRO set_page_by_bank
                 ; a - bank number
+                rra
                 cp 2
                 ccf
                 adc 0x50
                 out (0xfd), a
-        ENDM
-
-        MACRO set_page_by_bank
-                ; a - bank number
-                rra
-                set_logical_page
         ENDM
 
         MACRO next_page
@@ -673,13 +668,13 @@ bank_drawing_common:
         write_jp_ix_data_via_de
         restore_jp_ix
 
-        ld (stack_bottom), bc
+        ld (saved_bc), bc
 
         ld e, a
         ld a, 7
         and c
         ld a, e
-        jp nz, continue_mc_drawing
+        jp nz, drawing_before_delay
 
         // render screen in non-mc mode (before delay)
         exx
@@ -712,7 +707,7 @@ bank_drawing_common:
         DRAW_ONLY_RASTR_LINE 23, 0
         exx
 
-continue_mc_drawing
+drawing_before_delay
 
         ; delay
         ld hl, timings_data
@@ -727,7 +722,7 @@ continue_mc_drawing
         and c
         jp nz, continue_mc_drawing2
 
-        ld bc, (stack_bottom)
+        ld bc, (saved_bc)
         dec bc
         ; compare to -1
         ld l, b
@@ -769,7 +764,7 @@ continue_mc_drawing2
         DRAW_MULTICOLOR_AND_RASTR_LINE 22, 7
         DRAW_MULTICOLOR_AND_RASTR_LINE 23, 0
 
-        ld bc, (stack_bottom)
+        ld bc, (saved_bc)
         dec bc
         jp loop                        ; 12 ticks
 
@@ -804,7 +799,7 @@ odd_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE2 22
         DRAW_MULTICOLOR_AND_RASTR_LINE2 23
 
-        ld bc, (stack_bottom)
+        ld bc, (saved_bc)
         dec bc
         jp loop                        ; 12 ticks
 
