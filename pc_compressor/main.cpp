@@ -1219,7 +1219,10 @@ void finilizeLine(
     result.maxMcDrawShift = (64 - preloadTicks) + pushLine.maxDrawDelayTicks;
 
     Z80Parser parser;
-    std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::vector<Register16> registers = {
+        Register16("bc"), Register16("de"), Register16("hl"),
+        Register16("bc'"), Register16("de'"), Register16("hl'")
+    };
 
     // parse pushLine to find point for LD SP, IY
 
@@ -1510,7 +1513,10 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
     int i = 0;
     for (auto& line : compressedData.data)
     {
-        std::vector<Register16> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+        std::vector<Register16> registers = {
+            Register16("bc"), Register16("de"), Register16("hl"),
+            Register16("bc'"), Register16("de'"), Register16("hl'")
+        };
         int extraDelay = 0;
         Z80Parser parser;
 
