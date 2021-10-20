@@ -289,7 +289,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 8725 // I can see one blinking byte in spectaculator. moved forward just in case
+fixed_startup_delay     equ 8746
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay - FIRST_LINE_DELAY
         assert (sync_tick <= 65535)
@@ -454,6 +454,10 @@ start_draw_colors0:
         pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR0_16+1), hl
         pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR0_23+1), hl
         pop hl: ld (OFF_RASTR_23+1), hl:    
+
+
+        ld hl, after_partial_update_jpix
+        ld (hl), 0x21   // comment JP command by modify this byte
         jp draw_off_rastr_even
 
 //*************************************************************************************
@@ -670,11 +674,9 @@ bank_drawing_common:
 
         ld (saved_bc), bc
 
-        ld e, a
-        ld a, 7
-        and c
-        ld a, e
-        jp nz, drawing_before_delay
+after_partial_update_jpix:
+        jp drawing_before_delay
+
 
         // render screen in non-mc mode (before delay)
         exx
@@ -721,6 +723,9 @@ drawing_before_delay
         ld a, 7
         and c
         jp nz, continue_mc_drawing2
+
+        ld hl, after_partial_update_jpix
+        ld (hl), 0xc3   // restore JP command by modify this byte
 
         ld bc, (saved_bc)
         dec bc

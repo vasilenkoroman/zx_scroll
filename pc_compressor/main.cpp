@@ -2375,7 +2375,7 @@ std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
             if (i == 0)
                 d.line = line;
         }
-        
+
         // 3 rastr for MC descriptors
         for (int i = 0; i < 3; ++i)
         {
@@ -2503,7 +2503,7 @@ std::vector<PartialUpdateJpIxDescriptor> createPartialUpdateJpixDescriptors(
         const auto& writeJpix = findDescriptor(fullJpix, prevLine, JpIxDescriptor::Type::multicolor);
         const auto& restoreJpix = findDescriptor(fullJpix, restoreLine, JpIxDescriptor::Type::offscreen);
         assert(writeJpix.pageNum == restoreJpix.pageNum);
-        
+
         PartialUpdateJpIxDescriptor d;
         d.pageNum = writeJpix.pageNum;
         d.writeAddress = writeJpix.address;
@@ -3173,9 +3173,9 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3130;
+        int kZ80CodeDelay = 3111;
         if (line % 8 == 0)
-            kZ80CodeDelay += 23;
+            kZ80CodeDelay += 63;
         else if (line % 2 == 1)
             kZ80CodeDelay += 4;
 
