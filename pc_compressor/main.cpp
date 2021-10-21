@@ -667,7 +667,7 @@ bool compressLine(
                     verticalRepCount &= ~1;
         }
 
-        if (context.borderPoint && x == context.borderPoint && result.spPosHint == -1)
+        if (context.borderPoint && x >= context.borderPoint && result.spPosHint == -1)
         {
             result.spPosHint = result.data.size();
             if (verticalRepCount > 0)
@@ -2923,7 +2923,16 @@ int serializeMultiColorData(
         const auto& line = data.data[srcLine];
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
-        descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
+
+        if (line.spPosHint >= 0)
+        {
+            if (line.data.buffer()[line.spPosHint] != 0x31)
+            {
+                std::cerr << "Invalid spPos hint. Some bug!";
+                abort();
+            }
+            descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
+        }
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX
         descriptors.push_back(descriptor);
     }

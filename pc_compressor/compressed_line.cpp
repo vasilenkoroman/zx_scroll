@@ -146,12 +146,17 @@ void CompressedLine::push_front(const std::vector<uint8_t>& v)
 {
     for (auto itr = v.rbegin(); itr != v.rend(); ++itr)
         data.push_front(*itr);
+    if (spPosHint >= 0)
+        spPosHint += v.size();
+
 }
 
 void CompressedLine::push_front(const ZxData& buffer)
 {
     for (int i = buffer.size() - 1; i >= 0; --i)
         data.push_front(buffer.data()[i]);
+    if (spPosHint >= 0)
+        spPosHint += buffer.size();
 }
 
 std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const
