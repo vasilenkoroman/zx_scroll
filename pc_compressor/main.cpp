@@ -448,7 +448,6 @@ void choiseNextRegister(
         newLine.isAltReg = currentLine.isAltReg;
         newLine.isAltAf = currentLine.isAltAf;
         newLine.regUsage = currentLine.regUsage;
-        newLine.spPosHint = currentLine.spPosHint;
 
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
             continue;
@@ -668,7 +667,7 @@ bool compressLine(
                     verticalRepCount &= ~1;
         }
 
-        if (context.borderPoint && x >= context.borderPoint && result.spPosHint == -1)
+        if (context.borderPoint && x == context.borderPoint)
         {
             result.spPosHint = result.data.size();
             if (verticalRepCount > 0)
@@ -691,8 +690,11 @@ bool compressLine(
             if (x + verticalRepCount >= context.borderPoint)
             {
                 x += verticalRepCount;
-                result.spPosHint = result.data.size();
-                sp.loadXX(result, 32 - (x - context.borderPoint));
+                if (x  > context.borderPoint)
+                {
+                    result.spPosHint = result.data.size();
+                    sp.loadXX(result, 32 - (x - context.borderPoint));
+                }
                 continue;
             }
         }
@@ -796,7 +798,7 @@ bool compressLine(
         if (choisedLine.data.empty())
             return false;
 
-        if (result.spPosHint < 0 && choisedLine.spPosHint >= 0)
+        if (choisedLine.spPosHint >= 0)
             result.spPosHint = result.data.size() + choisedLine.spPosHint;
 
         result += choisedLine;
@@ -1175,7 +1177,7 @@ void finilizeLine(
     // Left part is exists
     if (context.minX > 0)
     {
-        uint16_t delta = context.minX < 16 ? context.minX : 16 - (context.minX - 16);
+        int delta = context.minX < 16 ? context.minX : context.minX - 32;
         Z80Parser::serializeAddSpToFront(result, delta);
     }
 
@@ -1312,6 +1314,12 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     // 2.4 start compressor with prepared register values
 
+    if (context.y == 11)
+    {
+        int gg = 4;
+    }
+
+
     CompressedLine pushLine;
     auto regCopy = registers6;
     success = compressLine(context, pushLine, regCopy,  /*x*/ context.minX);
@@ -1349,6 +1357,16 @@ CompressedLine  compressMultiColorsLine(Context context)
     pushLine.maxDrawDelayTicks = t2 - drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
+
+    if (result.spPosHint >= 0)
+    {
+        uint16_t* value = (uint16_t*)(result.data.buffer() + result.spPosHint + 1);
+        if (*value > 32 || *value < 1)
+        {
+            std::cerr << "Unsupported spPos value " << *value << std::endl;
+            abort();
+        }
+    }
     return result;
 }
 

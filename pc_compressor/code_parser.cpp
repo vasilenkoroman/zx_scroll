@@ -1095,7 +1095,7 @@ void serializeAdHlSp(CompressedLine& line, int value)
 {
     static Register16 sp("sp");
     static Register16 hl("hl");
-    if (value >= 5)
+    if (abs(value) >= 5)
     {
         hl.loadXX(line, -value);
         hl.addSP(line);
@@ -1103,9 +1103,13 @@ void serializeAdHlSp(CompressedLine& line, int value)
         if (value < 0)
             line.scf(); //< Keep flag 'c' on during multicolors
     }
-    else
+    else if(value > 0)
     {
         sp.decValue(line, value);
+    }
+    else
+    {
+        sp.incValue(line, abs(value));
     }
 }
 
