@@ -145,12 +145,14 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ld (MC_LINE_N? + 1), hl
 
                 pop hl                          ; LD SP, XX first byte addr
-                ld (hl), high(color_addr + N? * 32)
-                inc hl
-                ld a, (hl)                
+                ld a, (hl)
+                dec a
                 and 0x1f
                 or low(color_addr + N? * 32)
+                inc a
                 ld (hl), a
+                inc hl
+                ld (hl), high(color_addr + N? * 32)
 
                 pop hl                          ; JP XX command+1 address
                 ld (hl), low(MC_LINE_N? + 3)

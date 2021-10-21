@@ -1194,8 +1194,6 @@ void finilizeLine(
     if (pushLine.spPosHint >= 0)
         result.spPosHint = result.data.size() + pushLine.spPosHint;
     result += pushLine;
-
-    result.spPosHint = pushLine.spPosHint;
 }
 
 int getDrawTicks(const CompressedLine& pushLine)
@@ -2927,7 +2925,7 @@ int serializeMultiColorData(
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
         descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
-        descriptor.endLineJpAddr = lineAddressPtr + line.data.size() - 2;
+        descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX
         descriptors.push_back(descriptor);
     }
 

@@ -1115,6 +1115,8 @@ void Z80Parser::serializeAddSpToFront(CompressedLine& line, int value)
     serializeAdHlSp(temp, value);
     line.push_front(temp.data);
     line.drawTicks += temp.drawTicks;
+    if (line.spPosHint >= 0)
+        line.spPosHint += temp.data.size();
 };
 
 void Z80Parser::serializeAddSpToBack(CompressedLine& line, int value)
