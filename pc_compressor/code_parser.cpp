@@ -458,7 +458,7 @@ Z80CodeInfo Z80Parser::parseCode(
             case 0x31: // LD SP, XX
                 {
                     int value = ptr[1] + ((uint16_t)ptr[2] << 8);
-                    result.spOffset = 16 - value;
+                    result.spOffset = value - 16;
                     break;
                 }
             case 0x33: result.spOffset++;    // incSP
