@@ -2235,8 +2235,9 @@ struct LineDescriptor
 struct MulticolorDescriptor
 {
     uint16_t addressBegin = 0;
-    uint16_t moveSpBytePos = 0;
     uint16_t endLineJpAddr = 0;
+    uint16_t moveSpDelta = 0;
+    uint16_t moveSpBytePos = 0;
 };
 
 struct ColorDescriptor
@@ -2951,6 +2952,8 @@ int serializeMultiColorData(
                 abort();
             }
             descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
+            uint8_t value8 = line.data.buffer()[line.spPosHint + 1];
+            descriptor.moveSpDelta = value8;
         }
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX
         descriptors.push_back(descriptor);
@@ -3144,7 +3147,7 @@ int serializeTimingData(
         }
         int kZ80CodeDelay = 3104 - 18;
         if (line % 8 == 0)
-            kZ80CodeDelay += 121 + 2528;
+            kZ80CodeDelay += 121 + 2528 + 189;
         else if (line % 2 == 1)
             kZ80CodeDelay += 11;
 

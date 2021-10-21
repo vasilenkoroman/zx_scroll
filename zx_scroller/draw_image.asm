@@ -144,20 +144,25 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 pop hl                          ; begin addr
                 ld (MC_LINE_N? + 1), hl
 
-                pop hl                          ; LD SP, XX first byte addr
-                ld a, (hl)
-                dec a
-                and 0x1f
-                or low(color_addr + N? * 32)
-                inc a
-                ld (hl), a
-                inc hl
-                ld (hl), high(color_addr + N? * 32)
-
                 pop hl                          ; JP XX command+1 address
                 ld (hl), low(MC_LINE_N? + 3)
                 inc hl
                 ld (hl), high(MC_LINE_N? + 3)
+
+                ; e- first stack moving value, d - 2-nd stack moving value
+                ; The value is relative from the line end
+                ld hl, color_addr + N? * 32
+                pop de                          
+                ld d, 0x00 ; //< Currently unused. Reserved for the future use (3 part MC drawing)
+                add hl, de
+                ex hl, de
+
+                // LD SP, XX first byte addr
+                pop hl                          
+                ld (hl), e
+                inc hl
+                ld (hl), d
+
         ENDM               
 
 
@@ -363,12 +368,8 @@ loop1:
         ld hl, mc_descriptors
 
         // prepare  multicolor drawing (for next 7 mc steps)
-        // calculate bc/8 * 6
-        ld de, bc
-        srl d : rr e
-        add hl, de
-        srl d : rr e
-        add hl, de
+        // calculate bc/8 * 8
+        add hl, bc
         ld sp, hl
 
         //pop hl: ld (MC_LINE_23 + 5), hl: ld (MC_LINE2_23 + 5), hl
@@ -943,6 +944,12 @@ mid_jpix_helper
         INCBIN "resources/compressed_data.mid_jpix_helper"
 update_jpix_helper
         INCBIN "resources/compressed_data.update_jpix_helper"
+/*
+src_data
+        INCBIN "resources/samanasuke.bin", 0, 6144
+color_data:
+        INCBIN "resources/samanasuke.bin", 6144, 768
+*/	
 
 jpix_table EQU 0xc000
 
@@ -980,12 +987,6 @@ rastr_descriptors
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 
-/*
-src_data
-        INCBIN "resources/samanasuke.bin", 0, 6144
-color_data:
-        INCBIN "resources/samanasuke.bin", 6144, 768
-*/        
 data_end:
 
 imageHeight     equ (timings_data_end - timings_data) / 2
