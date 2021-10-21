@@ -132,7 +132,6 @@ struct CompressedData
 {
     std::vector<int8_t> sameBytesCount;
     std::vector<CompressedLine> data;
-    int mcDrawPhase = 0;  //< Negative value means draw before ray start line.
     int flags = 0;
 
 public:
@@ -1439,9 +1438,6 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
 
     const int imageHeight = compressedData.data.size();
 
-    for (const auto& line : compressedData.data)
-        compressedData.mcDrawPhase = std::min(compressedData.mcDrawPhase, line.maxMcDrawShift);
-
     // Put extra delay to the start if drawing ahead of ray
     int i = 0;
     for (auto& line : compressedData.data)
@@ -1470,7 +1466,6 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
                 int rightBorder = 32;
                 static const int kInitialSpOffset = 16;
                 int rayTicks = (kInitialSpOffset + info.spOffset) * kTicksOnScreenPerByte;
-                rayTicks -= compressedData.mcDrawPhase;
                 if (info.ticks < rayTicks)
                 {
                     int delay = rayTicks - info.ticks;
@@ -2880,7 +2875,7 @@ void serializeAsmFile(
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
-    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.mcDrawPhase << std::endl;
+    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << 0 << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
