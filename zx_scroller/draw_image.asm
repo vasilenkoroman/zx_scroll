@@ -516,14 +516,14 @@ start_draw_colors:
                 add hl, sp
                 ld sp, hl
 
-                                                    pop hl: ld (RASTR_22+1), hl
-                pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_21+1), hl
-                pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_20+1), hl
-                pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_19+1), hl
-                pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_18+1), hl
-                pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_17+1), hl
-                pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_16+1), hl
-                pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_23+1), hl
+                                                    pop hl: ld (RASTR_23+1), hl
+                pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR_22+1), hl
+                pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR_21+1), hl
+                pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR_20+1), hl
+                pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR_19+1), hl
+                pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR_18+1), hl
+                pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR_17+1), hl
+                pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR_16+1), hl
                 pop hl: ld (OFF_RASTR_23+1), hl:    
 
 draw_off_rastr_even
