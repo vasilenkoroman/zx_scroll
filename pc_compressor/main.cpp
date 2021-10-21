@@ -448,6 +448,7 @@ void choiseNextRegister(
         newLine.isAltReg = currentLine.isAltReg;
         newLine.isAltAf = currentLine.isAltAf;
         newLine.regUsage = currentLine.regUsage;
+        newLine.spPosHint = currentLine.spPosHint;
 
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
             continue;
@@ -795,7 +796,7 @@ bool compressLine(
         if (choisedLine.data.empty())
             return false;
 
-        if (choisedLine.spPosHint >= 0)
+        if (result.spPosHint < 0 && choisedLine.spPosHint >= 0)
             result.spPosHint = result.data.size() + choisedLine.spPosHint;
 
         result += choisedLine;
