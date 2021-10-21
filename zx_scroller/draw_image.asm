@@ -738,8 +738,8 @@ after_delay
         jp loop                        ; 12 ticks
 
 continue_mc_drawing
-
         ; timing here on first frame: 91153 + 71680-224 = 162609
+        scf
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
         DRAW_MULTICOLOR_AND_RASTR_LINE 2
@@ -766,7 +766,6 @@ continue_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_AND_RASTR_LINE 23
-
         ld bc, (saved_bc)
         dec bc
         jp loop                        ; 12 ticks

@@ -667,13 +667,12 @@ bool compressLine(
                     verticalRepCount &= ~1;
         }
 
-        if (context.borderPoint && x == context.borderPoint)
+        if (context.borderPoint && x == context.borderPoint && result.spPosHint == -1)
         {
             result.spPosHint = result.data.size();
             if (verticalRepCount > 0)
                 x += verticalRepCount;
             sp.loadXX(result, 32 - (x - context.borderPoint));
-
             if (verticalRepCount > 0)
                 continue;
         }
