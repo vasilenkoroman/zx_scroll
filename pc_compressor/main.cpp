@@ -695,7 +695,7 @@ bool compressLine(
                 continue;
             }
         }
-        
+
         // Decrement stack if line has same value from previous step (vertical compression)
         // Up to 4 bytes is more effetient to decrement via 'DEC SP' call.
         if (verticalRepCount > 4)
@@ -3123,11 +3123,11 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3104;
+        int kZ80CodeDelay = 3104 - 18;
         if (line % 8 == 0)
-            kZ80CodeDelay += 121;
+            kZ80CodeDelay += 121 + 2528;
         else if (line % 2 == 1)
-            kZ80CodeDelay -= 6;
+            kZ80CodeDelay += 11;
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
