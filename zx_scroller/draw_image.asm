@@ -469,7 +469,7 @@ start_draw_colors0:
         pop hl: ld (OFF_RASTR_23+1), hl:    
 
 
-        ld hl, after_partial_update_jpix
+        ld hl, before_draw_only_rastr
         ld (hl), 0x21   // comment JP command by modify this byte
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
@@ -580,8 +580,41 @@ draw_off_rastr_even
                 DRAW_OFFSCREEN_LINES 14, 15
                 DRAW_OFFSCREEN_LINES 7, 14
                 DRAW_OFFSCREEN_LINES 6, 7
-                
                 exx
+
+before_draw_only_rastr:
+                jp bank_drawing_common
+
+                // render screen in non-mc mode (before delay)
+                exx
+                scf
+                DRAW_ONLY_RASTR_LINE 0
+                DRAW_ONLY_RASTR_LINE 1
+                DRAW_ONLY_RASTR_LINE 2
+                DRAW_ONLY_RASTR_LINE 3
+                DRAW_ONLY_RASTR_LINE 4
+                DRAW_ONLY_RASTR_LINE 5
+                DRAW_ONLY_RASTR_LINE 6
+                DRAW_ONLY_RASTR_LINE 7
+                
+                DRAW_ONLY_RASTR_LINE 8
+                DRAW_ONLY_RASTR_LINE 9
+                DRAW_ONLY_RASTR_LINE 10
+                DRAW_ONLY_RASTR_LINE 11
+                DRAW_ONLY_RASTR_LINE 12
+                DRAW_ONLY_RASTR_LINE 13
+                DRAW_ONLY_RASTR_LINE 14
+                DRAW_ONLY_RASTR_LINE 15
+
+                DRAW_ONLY_RASTR_LINE 16
+                DRAW_ONLY_RASTR_LINE 17
+                DRAW_ONLY_RASTR_LINE 18
+                DRAW_ONLY_RASTR_LINE 19
+                DRAW_ONLY_RASTR_LINE 20
+                DRAW_ONLY_RASTR_LINE 21
+                DRAW_ONLY_RASTR_LINE 22
+                exx
+
                 jp bank_drawing_common
                 
 odd_bank_drawing:        
@@ -677,41 +710,6 @@ odd_bank_drawing:
 bank_drawing_common:
         ld (saved_bc), bc
 
-after_partial_update_jpix:
-        jp drawing_before_delay
-
-
-        // render screen in non-mc mode (before delay)
-        exx
-        scf
-        DRAW_ONLY_RASTR_LINE 0
-        DRAW_ONLY_RASTR_LINE 1
-        DRAW_ONLY_RASTR_LINE 2
-        DRAW_ONLY_RASTR_LINE 3
-        DRAW_ONLY_RASTR_LINE 4
-        DRAW_ONLY_RASTR_LINE 5
-        DRAW_ONLY_RASTR_LINE 6
-        DRAW_ONLY_RASTR_LINE 7
-        
-        DRAW_ONLY_RASTR_LINE 8
-        DRAW_ONLY_RASTR_LINE 9
-        DRAW_ONLY_RASTR_LINE 10
-        DRAW_ONLY_RASTR_LINE 11
-        DRAW_ONLY_RASTR_LINE 12
-        DRAW_ONLY_RASTR_LINE 13
-        DRAW_ONLY_RASTR_LINE 14
-        DRAW_ONLY_RASTR_LINE 15
-
-        DRAW_ONLY_RASTR_LINE 16
-        DRAW_ONLY_RASTR_LINE 17
-        DRAW_ONLY_RASTR_LINE 18
-        DRAW_ONLY_RASTR_LINE 19
-        DRAW_ONLY_RASTR_LINE 20
-        DRAW_ONLY_RASTR_LINE 21
-        DRAW_ONLY_RASTR_LINE 22
-        exx
-
-drawing_before_delay
 
         ; delay
         ld hl, timings_data
@@ -726,7 +724,7 @@ drawing_before_delay
 after_delay        
         jp continue_mc_drawing
 
-        ld hl, after_partial_update_jpix
+        ld hl, before_draw_only_rastr
         ld (hl), 0xc3   // restore JP command by modify this byte
         ld hl, after_delay
         ld (hl), 0xc3   // restore JP command by modify this byte
