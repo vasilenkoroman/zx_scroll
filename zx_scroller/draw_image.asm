@@ -929,8 +929,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 28000
-         ORG 28000
+        ASSERT $ <= 26850
+         ORG 26850
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code

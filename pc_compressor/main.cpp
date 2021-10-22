@@ -17,7 +17,7 @@
 #include "code_parser.h"
 
 #define LOG_INFO
-#define LOG_DEBUG
+//#define LOG_DEBUG
 
 static const int totalTicksPerFrame = 71680;
 
