@@ -298,7 +298,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42520
+fixed_startup_delay     equ 42520 - 78
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay  //- FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -324,6 +324,11 @@ lower_limit_reached:
 loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
+
+        ld a, 7
+        and c
+        set_page_by_bank
+
         //MACRO update_jp_ix_table
                 // bc - screen address to draw
                 // between frames: 73248/71456
@@ -352,11 +357,16 @@ no:
                 .2 restore_jp_ix
                 .2 write_jp_ix_data_via_bc
                 .2 restore_jp_ix
-                .1 write_jp_ix_data_via_bc
-                exx
+                .2 write_jp_ix_data_via_bc
+                //exx
                 // total: 496/494
-
         // ------------------------- update jpix table end
+        scf
+        //exx
+        DRAW_RASTR_LINE 23
+        exx
+
+
 loop1:
         SET_PAGE 7
 
@@ -448,7 +458,7 @@ start_draw_colors0:
         add hl, sp
         ld sp, hl
 
-                                            pop hl: ld (RASTR0_23+1), hl
+                                            pop hl: ld (RASTR_23+1), hl
         pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR0_22+1), hl
         pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR0_21+1), hl
         pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR0_20+1), hl
@@ -665,17 +675,6 @@ odd_bank_drawing:
                 ld a, l
                 out (0xfd), a
 bank_drawing_common:
-        ld hl, mid_jpix_helper          ; 10
-        add hl, bc                      ; 11
-        add hl, bc                      ; 11
-        ld sp, hl                       ; 6
-        pop hl                          ; 10
-        ld sp, hl                       ; 6
-        // total: 54
-        ld de, JP_IX_CODE
-        write_jp_ix_data_via_de
-        restore_jp_ix
-
         ld (saved_bc), bc
 
 after_partial_update_jpix:
@@ -710,7 +709,6 @@ after_partial_update_jpix:
         DRAW_ONLY_RASTR_LINE 20
         DRAW_ONLY_RASTR_LINE 21
         DRAW_ONLY_RASTR_LINE 22
-        DRAW_ONLY_RASTR_LINE 23
         exx
 
 drawing_before_delay
@@ -769,7 +767,7 @@ continue_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE 20
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
-        DRAW_MULTICOLOR_AND_RASTR_LINE 23
+        DRAW_MULTICOLOR_LINE 23
         ld bc, (saved_bc)
         dec bc
         jp loop                        ; 12 ticks
@@ -943,8 +941,6 @@ multicolor_code
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
-mid_jpix_helper
-        INCBIN "resources/compressed_data.mid_jpix_helper"
 update_jpix_helper
         INCBIN "resources/compressed_data.update_jpix_helper"
 /*
