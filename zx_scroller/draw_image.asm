@@ -127,17 +127,27 @@ OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
 
 jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
+    MACRO DRAW_ONLY_RASTR_LINE N?
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld ix, $ + 7
+RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
+    ENDM                
+
     MACRO DRAW_MULTICOLOR_LINE N?:
                 ld sp, color_addr + N? * 32 + 16        ; 10
 MC_LINE_N?      jp 00                                   ; 10
                 // total ticks: 20 (30 with ret)
     ENDM                
 
-    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
-                DRAW_MULTICOLOR_LINE  N?
+    MACRO DRAW_RASTR_LINE N?:
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld ix, $ + 7                                            ; 14
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
+    ENDM                
+
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
+                DRAW_MULTICOLOR_LINE  N?
+                DRAW_RASTR_LINE N?
     ENDM                
 
         MACRO PREPARE_MC_DRAWING N?
@@ -164,13 +174,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ld (hl), d
 
         ENDM               
-
-
-    MACRO DRAW_ONLY_RASTR_LINE N?, N2?:
-                ld sp, screen_addr + (((N? + 8) / 8) % 3) * 2048 + N2? * 256 + 256
-                ld ix, $ + 7
-RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
-    ENDM                
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -445,14 +448,14 @@ start_draw_colors0:
         add hl, sp
         ld sp, hl
 
-                                            pop hl: ld (RASTR0_22+1), hl
-        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR0_21+1), hl
-        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR0_20+1), hl
-        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR0_19+1), hl
-        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR0_18+1), hl
-        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR0_17+1), hl
-        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR0_16+1), hl
-        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR0_23+1), hl
+                                            pop hl: ld (RASTR0_23+1), hl
+        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR0_22+1), hl
+        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR0_21+1), hl
+        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR0_20+1), hl
+        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR0_19+1), hl
+        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR0_18+1), hl
+        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR0_17+1), hl
+        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR0_16+1), hl
         pop hl: ld (OFF_RASTR_23+1), hl:    
 
 
@@ -682,32 +685,32 @@ after_partial_update_jpix:
         // render screen in non-mc mode (before delay)
         exx
         scf
-        DRAW_ONLY_RASTR_LINE 0, 0
-        DRAW_ONLY_RASTR_LINE 1, 1
-        DRAW_ONLY_RASTR_LINE 2, 2
-        DRAW_ONLY_RASTR_LINE 3, 3
-        DRAW_ONLY_RASTR_LINE 4, 4
-        DRAW_ONLY_RASTR_LINE 5, 5
-        DRAW_ONLY_RASTR_LINE 6, 6
-        DRAW_ONLY_RASTR_LINE 7, 7
+        DRAW_ONLY_RASTR_LINE 0
+        DRAW_ONLY_RASTR_LINE 1
+        DRAW_ONLY_RASTR_LINE 2
+        DRAW_ONLY_RASTR_LINE 3
+        DRAW_ONLY_RASTR_LINE 4
+        DRAW_ONLY_RASTR_LINE 5
+        DRAW_ONLY_RASTR_LINE 6
+        DRAW_ONLY_RASTR_LINE 7
         
-        DRAW_ONLY_RASTR_LINE 8,  0
-        DRAW_ONLY_RASTR_LINE 9,  1
-        DRAW_ONLY_RASTR_LINE 10, 2
-        DRAW_ONLY_RASTR_LINE 11, 3
-        DRAW_ONLY_RASTR_LINE 12, 4
-        DRAW_ONLY_RASTR_LINE 13, 5
-        DRAW_ONLY_RASTR_LINE 14, 6
-        DRAW_ONLY_RASTR_LINE 15, 7
+        DRAW_ONLY_RASTR_LINE 8
+        DRAW_ONLY_RASTR_LINE 9
+        DRAW_ONLY_RASTR_LINE 10
+        DRAW_ONLY_RASTR_LINE 11
+        DRAW_ONLY_RASTR_LINE 12
+        DRAW_ONLY_RASTR_LINE 13
+        DRAW_ONLY_RASTR_LINE 14
+        DRAW_ONLY_RASTR_LINE 15
 
-        DRAW_ONLY_RASTR_LINE 16, 1
-        DRAW_ONLY_RASTR_LINE 17, 2
-        DRAW_ONLY_RASTR_LINE 18, 3
-        DRAW_ONLY_RASTR_LINE 19, 4
-        DRAW_ONLY_RASTR_LINE 20, 5
-        DRAW_ONLY_RASTR_LINE 21, 6
-        DRAW_ONLY_RASTR_LINE 22, 7
-        DRAW_ONLY_RASTR_LINE 23, 0
+        DRAW_ONLY_RASTR_LINE 16
+        DRAW_ONLY_RASTR_LINE 17
+        DRAW_ONLY_RASTR_LINE 18
+        DRAW_ONLY_RASTR_LINE 19
+        DRAW_ONLY_RASTR_LINE 20
+        DRAW_ONLY_RASTR_LINE 21
+        DRAW_ONLY_RASTR_LINE 22
+        DRAW_ONLY_RASTR_LINE 23
         exx
 
 drawing_before_delay
