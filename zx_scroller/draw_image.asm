@@ -718,9 +718,7 @@ bank_drawing_common:
         add hl, bc
         ld sp, hl
         pop hl
-        ld b, a
         DO_DELAY
-        ld a, b
 
 after_delay        
         jp continue_mc_drawing
