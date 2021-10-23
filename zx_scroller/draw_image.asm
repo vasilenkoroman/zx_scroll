@@ -25,7 +25,7 @@ STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ screen_end
 stack_top               equ stack_bottom + STACK_SIZE * 2
 color_data_to_restore   equ stack_top
-saved_bc                equ color_data_to_restore + 2
+//saved_bc                equ color_data_to_restore + 2
 
 SET_PAGE_HELPER         EQU screen_end + 0x50
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
@@ -712,7 +712,7 @@ odd_bank_drawing:
                 ld a, l
                 out (0xfd), a
 bank_drawing_common:
-        ld (saved_bc), bc
+        ld iy, bc
 
 
         ; delay
@@ -733,7 +733,7 @@ after_delay
         ld hl, after_delay
         ld (hl), 0xc3   // restore JP command by modify this byte
 
-        ld bc, (saved_bc)
+        ld bc, iy
         dec bc
         ; compare to -1
         ld l, b
@@ -770,7 +770,7 @@ continue_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
-        ld bc, (saved_bc)
+        ld bc, iy
         dec bc
         jp loop                        ; 12 ticks
 

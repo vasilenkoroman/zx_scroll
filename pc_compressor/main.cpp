@@ -2635,6 +2635,7 @@ int serializeMainData(
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             rastrCodeStartAddr);
 
+
         int spDeltaSum = descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset + (dataLine.stackMovingAtStart - dataLine.minX);
         if (spDeltaSum < -256)
         {
@@ -3112,7 +3113,7 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3104 - 18 - 56 - 29;
+        int kZ80CodeDelay = 3104 - 18 - 56 - 29 - 8;
         if (line % 8 == 0)
             kZ80CodeDelay += 121 + 2528 + 199 + 4;
         else if (line % 2 == 1)
