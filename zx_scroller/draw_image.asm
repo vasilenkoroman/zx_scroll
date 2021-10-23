@@ -429,11 +429,11 @@ start_draw_colors0:
         jp 00                                           ; 8
         exx
         //MACRO prepare_rastr_drawing (for the current step)
-        ld hl, bc
-        add hl, hl // * 2
-        add hl, hl // * 4
-        ld sp, rastr_descriptors
-        add hl, sp
+
+        sla c : rl b    // bc*2
+        ld hl, rastr_descriptors
+        add hl,bc       // * 2
+        add hl, bc      // * 4
         ld sp, hl
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
@@ -495,11 +495,10 @@ start_draw_colors:
         exx                                             ; 4
 
         //MACRO prepare_rastr_drawing
-        ld hl, bc
-        add hl, hl // * 2
-        add hl, hl // * 4
-        ld sp, rastr_descriptors
-        add hl, sp
+        sla c : rl b    // bc*2
+        ld hl, rastr_descriptors
+        add hl, bc      // *2
+        add hl, bc      // *4
         ld sp, hl
 
         // Swap odd/even bank drawing if need. Always start drawing from odd bank number
@@ -716,7 +715,6 @@ odd_bank_drawing:
 bank_drawing_common:
         ; delay
         ld hl, timings_data
-        add hl, bc
         add hl, bc
         ld sp, hl
         pop hl
