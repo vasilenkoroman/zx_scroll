@@ -22,7 +22,7 @@ screen_end:     equ 5b00h
 start:          equ 5e00h
 
 STACK_SIZE:             equ 4  ; in words
-stack_bottom            equ screen_end
+stack_bottom            equ screen_end + 8
 stack_top               equ stack_bottom + STACK_SIZE * 2
 color_data_to_restore   equ stack_top
 //saved_bc                equ color_data_to_restore + 2
@@ -34,8 +34,8 @@ DEBUG_MODE              EQU 0
 
         INCLUDE "resources/compressed_data.asm"
 
-    //org 16384
-    //INCBIN "resources/zosya.scr", 0, 6144+768
+    org 16384
+    INCBIN "resources/zosya.scr", 0, 6144+768
 
     org start
 
@@ -183,10 +183,19 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
+/*
         MACRO set_page_by_bank
                 ; a - bank number
                 rra
                 set_page_by_logical_num
+        ENDM
+*/        
+        MACRO set_page_by_bank
+                ; a - bank number
+                ld h, high(SET_PAGE_HELPER)     ; 7
+                ld l, a                         ; 11
+                ld a, (hl)                      ; 18
+                out (0xfd), a
         ENDM
 
         MACRO set_page_by_logical_num
@@ -219,6 +228,25 @@ create_page_helper
         inc l
         ld (hl), 0x50   ; 4-th
         inc l
+
+        ld hl, high(SET_PAGE_HELPER)*256
+        ld (hl), 0x50
+        inc l
+        ld (hl), 0x50
+        inc l
+        ld (hl), 0x51
+        inc l
+        ld (hl), 0x51
+        inc l
+        ld (hl), 0x53
+        inc l
+        ld (hl), 0x53
+        inc l
+        ld (hl), 0x54
+        inc l
+        ld (hl), 0x54
+        inc l
+
         ret
 
 /************** delay routine *************/
@@ -306,7 +334,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42520 - 78 + 14
+fixed_startup_delay     equ 42520 - 78 + 14 + 94
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay  //- FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -926,8 +954,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 26850
-         ORG 26850
+        ASSERT $ <= 26900
+         ORG 26900
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
