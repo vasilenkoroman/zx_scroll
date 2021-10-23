@@ -2749,7 +2749,7 @@ int serializeColorData(
         // Make filler to prevent it. It is perfomance loss, but I expect more big images ( > 192 lines) for release.
         if (imageHeight == 24)
         {
-            serializedData.push_back(0x3e); // LD A, 0 as an filler
+            serializedData.push_back(0); // NOP, NOP
             serializedData.push_back(0);
         }
         line.serialize(serializedData);
@@ -3055,7 +3055,7 @@ int getColorTicksForWholeFrame(
     if (data.flags & interlineRegisters)
         result += colorDescriptors[lineNum].preambula.drawTicks;
     if (data.data.size() == 24)
-        result += 23 * 7; //< Image height 192 has additional filler LD A, 0 for color lines.
+        result += 23 * 8; //< Image height 192 has additional filler NOP: NOP for color lines.
 
     // End line contains JP <first line> command. If drawing is stoppeed on the end line this command is not executed.
     int endLine = (lineNum + 24) % imageHeight;
@@ -3112,9 +3112,9 @@ int serializeTimingData(
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
-        int kZ80CodeDelay = 3104 - 18 - 56 - 10;
+        int kZ80CodeDelay = 3104 - 18 - 56 - 29;
         if (line % 8 == 0)
-            kZ80CodeDelay += 121 + 2528 + 199;
+            kZ80CodeDelay += 121 + 2528 + 199 + 4;
         else if (line % 2 == 1)
             kZ80CodeDelay += 11;
 

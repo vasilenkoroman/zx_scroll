@@ -34,6 +34,9 @@ DEBUG_MODE              EQU 0
 
         INCLUDE "resources/compressed_data.asm"
 
+    //org 16384
+    //INCBIN "resources/zosya.scr", 0, 6144+768
+
     org start
 
         MACRO update_colors_jpix
@@ -183,6 +186,11 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         MACRO set_page_by_bank
                 ; a - bank number
                 rra
+                set_page_by_logical_num
+        ENDM
+
+        MACRO set_page_by_logical_num
+                ; a - bank number
                 cp 2
                 ccf
                 adc 0x50
@@ -496,8 +504,8 @@ start_draw_colors:
         // because it has set_page command in descriptor (even banks don't have it).
         // Also, draw in order 0..7 instead of 7..0. It can be used on this third because there is no ray conflict here.
         // It need to finish drawing on the last page and followed update_jpix routine will use same page.
-        bit 0, c
-        jp nz, odd_bank_drawing
+        rra
+        jp c, odd_bank_drawing
                 // Draw bottom 3-th of rastr during middle 3-th of colors
                 exx
                 pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR_15+1), hl
@@ -541,9 +549,7 @@ start_draw_colors:
                 pop hl: ld (OFF_RASTR_23+1), hl:    
 
 draw_off_rastr_even
-                ld a, c
-                and 7
-                set_page_by_bank
+                set_page_by_logical_num
                 scf
                 exx
 
@@ -663,9 +669,7 @@ odd_bank_drawing:
 
                 // -------------------------------- (odd) DRAW_RASTR_LINES -----------------------------------------
 
-                ld a, c
-                and 7
-                set_page_by_bank
+                set_page_by_logical_num
                 ld l, a
                 scf
                 exx
