@@ -1480,7 +1480,7 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
         if (extraDelay > line.maxDrawDelayTicks)
         {
             std::cerr << "Something wrong. Multicolor line #" << i << ". Extray delay " << extraDelay << " is bigger than maxDrawDelayTicks=" << line.maxDrawDelayTicks << std::endl;
-            abort();
+            //abort();
         }
 
         const auto delay = Z80Parser::genDelay(extraDelay);
@@ -2579,6 +2579,10 @@ int serializeMainData(
         int extraCommandsIncluded = 0;
         int descriptorsDelta = 0;
 
+        // Aviod conflicts between MC/OFF descriptors if image packs too good. 
+        // Offscreen descriptor end should be at least 2 bytes later than MC descriptor end after removeTrailing stack moving.
+        const static int kMinBytesForOffscreen = 6;
+
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             *dataLine.inputAf,
             *dataLine.inputRegisters,
@@ -2611,6 +2615,13 @@ int serializeMainData(
                         descriptorsDelta += command.size;
                         return false; //< Continue
                     }
+                }
+                if (relativeOffsetToEnd > command.ptr && command.ptr >= relativeOffsetToEnd -  kMinBytesForOffscreen)
+                {
+                    #ifdef LOG_DEBUG
+                        std::cout << "break due to size at line " << d << std::endl;
+                    #endif
+                    success = false;
                 }
                 return !success;
             });
