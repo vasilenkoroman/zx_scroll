@@ -306,7 +306,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42520 - 78
+fixed_startup_delay     equ 42520 - 78 + 14
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay  //- FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -325,11 +325,13 @@ max_scroll_offset equ imageHeight - 1
         pop af
         ex af, af'
 
+        ld iy, 0h                       ; 14  ticks
         ld bc, 0h                       ; 10  ticks
         jp loop1
 lower_limit_reached:
-        ld bc,  max_scroll_offset       ; 10 ticks
+        ld iy,  max_scroll_offset       ; 10 ticks
 loop:  
+        ld bc, iy
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
 
@@ -712,9 +714,6 @@ odd_bank_drawing:
                 ld a, l
                 out (0xfd), a
 bank_drawing_common:
-        ld iy, bc
-
-
         ; delay
         ld hl, timings_data
         add hl, bc
@@ -733,11 +732,10 @@ after_delay
         ld hl, after_delay
         ld (hl), 0xc3   // restore JP command by modify this byte
 
-        ld bc, iy
-        dec bc
+        dec iy
         ; compare to -1
-        ld l, b
-        inc l
+        ld c, iyh
+        inc c
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
@@ -770,8 +768,7 @@ continue_mc_drawing
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
-        ld bc, iy
-        dec bc
+        dec iy
         jp loop                        ; 12 ticks
 
 
