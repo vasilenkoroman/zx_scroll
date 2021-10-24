@@ -3122,7 +3122,7 @@ int serializeTimingData(
                 kZ80CodeDelay += 4;
         }
         else if (line % 2 == 1)
-            kZ80CodeDelay += 11;
+            kZ80CodeDelay -= 8;
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)

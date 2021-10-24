@@ -699,7 +699,6 @@ odd_bank_drawing:
                 // -------------------------------- (odd) DRAW_RASTR_LINES -----------------------------------------
 
                 set_page_by_logical_num
-                ld l, a
                 scf
                 exx
 
@@ -738,8 +737,6 @@ odd_bank_drawing:
                 DRAW_OFFSCREEN_LINES2 5, 6
 
                 exx
-                ld a, l
-                out (0xfd), a
 bank_drawing_common:
         ; delay
         ld hl, timings_data
