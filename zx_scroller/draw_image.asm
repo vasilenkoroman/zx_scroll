@@ -245,8 +245,7 @@ create_page_helper
         ld (hl), 0x54
         inc l
         ld (hl), 0x54
-        inc l
-
+        
         ret
 
 /************** delay routine *************/
@@ -334,7 +333,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42520 - 78 + 14 + 94
+fixed_startup_delay     equ 42554
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay + MULTICOLOR_DRAW_PHASE
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay  //- FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -355,6 +354,7 @@ max_scroll_offset equ imageHeight - 1
 
         ld iy, 0h                       ; 14  ticks
         ld bc, 0h                       ; 10  ticks
+        exx
         jp loop1
 lower_limit_reached:
         ld iy,  max_scroll_offset       ; 10 ticks
@@ -367,55 +367,52 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
         and c
         set_page_by_bank
 
-        //MACRO update_jp_ix_table
-                // bc - screen address to draw
-                // between frames: 73248/71456
-                ; a = bank number
-                // set bits that match page number to 0
-                ld a, ~6                        ; 7
-                and c                           ; 4
-                ld h, b                         ; 4
-                rr h                            ; 8
-                rra                             ; 4
-                jr nc, no                       ; 7/12
-                add 2                           ; 7
+        // ------------------------- update jpix table
+        // bc - screen address to draw
+        // between frames: 73248/71456
+        ; a = bank number
+        // set bits that match page number to 0
+        ld a, ~6                        ; 7
+        and c                           ; 4
+        ld h, b                         ; 4
+        rr h                            ; 8
+        rra                             ; 4
+        jr nc, no                       ; 7/12
+        add 2                           ; 7
 no:
-                ld l, a                         ; 4
-                ld de,  update_jpix_helper      ; 10
-                add hl, de                      ; 11
-                
-                ld sp, hl
-                pop hl
-                ld sp, hl
+        ld l, a                         ; 4
+        ld de,  update_jpix_helper      ; 10
+        add hl, de                      ; 11
+        
+        ld sp, hl
+        pop hl
+        ld sp, hl
 
-                exx
-                ld bc, JP_IX_CODE
-                .2 restore_jp_ix
-                .2 write_jp_ix_data_via_bc
-                .2 restore_jp_ix
-                .2 write_jp_ix_data_via_bc
-                .2 restore_jp_ix
-                .2 write_jp_ix_data_via_bc
-                //exx
-                // total: 496/494
+        exx
+        ld bc, JP_IX_CODE
+        .2 restore_jp_ix
+        .2 write_jp_ix_data_via_bc
+        .2 restore_jp_ix
+        .2 write_jp_ix_data_via_bc
+        .2 restore_jp_ix
+        .2 write_jp_ix_data_via_bc
+        // total: 562/560 (with switching page)
         // ------------------------- update jpix table end
         scf
-        //exx
         DRAW_RASTR_LINE 23
-        exx
-
 
 loop1:
         SET_PAGE 7
 
         ld a, 7
-        and c
+        and iyl
         jp nz, mc_step_drawing
 
         /************************* no-mc step drawing *********************************************/
         
         // calculate address of the MC descriptors
         // Draw from 0 to 23 is backward direction
+        exx     ; go main regs
         ld hl, mc_descriptors
 
         // prepare  multicolor drawing (for next 7 mc steps)
@@ -515,7 +512,7 @@ start_draw_colors0:
 
 //*************************************************************************************
 mc_step_drawing:
-        exx                                             ; 4
+        // enter  on alt regs
         ld sp, color_addr + 768                         ; 10
         ld ix, $ + 7                                    ; 14
 start_draw_colors:

@@ -3114,10 +3114,10 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;
         }
 
-        int kZ80CodeDelay = 2955;
+        int kZ80CodeDelay = 2955 - 4;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2856;
+            kZ80CodeDelay += 2856 + 8;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
