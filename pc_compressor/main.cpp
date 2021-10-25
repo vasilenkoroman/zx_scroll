@@ -1101,7 +1101,7 @@ int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHe
     return result;
 }
 
-CompressedData compress(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int8_t> sameBytesCount)
+CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int8_t> sameBytesCount)
 {
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
@@ -3114,10 +3114,10 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;
         }
 
-        int kZ80CodeDelay = 3104 - 18 - 56 - 29 - 8 - 12 - 14 - 8 - 4;
+        int kZ80CodeDelay = 2955;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 121 + 2528 + 199 + 4 + 4;
+            kZ80CodeDelay += 2856;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
@@ -3335,7 +3335,7 @@ int main(int argc, char** argv)
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
     std::vector<int8_t> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
-    CompressedData data = compress(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
+    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
 
 
