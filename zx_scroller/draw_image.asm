@@ -216,39 +216,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************* Routines **********************/
 
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-
-        ld hl, high(SET_PAGE_HELPER)*256
-        ld (hl), 0x50
-        inc l
-        ld (hl), 0x50
-        inc l
-        ld (hl), 0x51
-        inc l
-        ld (hl), 0x51
-        inc l
-        ld (hl), 0x53
-        inc l
-        ld (hl), 0x53
-        inc l
-        ld (hl), 0x54
-        inc l
-        ld (hl), 0x54
-        inc l
-
-        ret
-
 /************** delay routine *************/
         MACRO DO_DELAY
 
@@ -459,53 +426,54 @@ start_draw_colors0:
         //MACRO prepare_rastr_drawing (for the current step)
 
         sla c : rl b    // bc*2
-        ld hl, rastr_descriptors
+        ld hl, mc_rastr_descriptors
         add hl,bc       // * 2
-        add hl, bc      // * 4
         ld sp, hl
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
-        exx
-        pop hl: ld (OFF_RASTR_0+1), hl:    pop hl: ld (RASTR0_15+1), hl
-        pop hl: ld (OFF_RASTR_1+1), hl:    pop hl: ld (RASTR0_14+1), hl
-        pop hl: ld (OFF_RASTR_2+1), hl:    pop hl: ld (RASTR0_13+1), hl
-        pop hl: ld (OFF_RASTR_3+1), hl:    pop hl: ld (RASTR0_12+1), hl
-        pop hl: ld (OFF_RASTR_4+1), hl:    pop hl: ld (RASTR0_11+1), hl
-        pop hl: ld (OFF_RASTR_5+1), hl:    pop hl: ld (RASTR0_10+1), hl
-        pop hl: ld (OFF_RASTR_6+1), hl:    pop hl: ld (RASTR0_9+1), hl
-        pop hl: ld (OFF_RASTR_7+1), hl:    pop hl: ld (RASTR0_8+1), hl
-        exx
+        pop hl: ld (RASTR0_15+1), hl
+        pop hl: ld (RASTR0_14+1), hl
+        pop hl: ld (RASTR0_13+1), hl
+        pop hl: ld (RASTR0_12+1), hl
+        pop hl: ld (RASTR0_11+1), hl
+        pop hl: ld (RASTR0_10+1), hl
+        pop hl: ld (RASTR0_9+1), hl
+        pop hl: ld (RASTR0_8+1), hl
 
         // Draw middle 3-th of rastr during top 3-th of colors
 
-        inc h
-        ld sp, hl
-
-        pop hl: ld (OFF_RASTR_8+1), hl:    pop hl: ld (RASTR0_7+1), hl
-        pop hl: ld (OFF_RASTR_9+1), hl:    pop hl: ld (RASTR0_6+1), hl
-        pop hl: ld (OFF_RASTR_10+1), hl:   pop hl: ld (RASTR0_5+1), hl
-        pop hl: ld (OFF_RASTR_11+1), hl:   pop hl: ld (RASTR0_4+1), hl
-        pop hl: ld (OFF_RASTR_12+1), hl:   pop hl: ld (RASTR0_3+1), hl
-        pop hl: ld (OFF_RASTR_13+1), hl:   pop hl: ld (RASTR0_2+1), hl
-        pop hl: ld (OFF_RASTR_14+1), hl:   pop hl: ld (RASTR0_1+1), hl
-        pop hl: ld (OFF_RASTR_15+1), hl:   pop hl: ld (RASTR0_0+1), hl
-
-        // Draw top 3-th of rastr during bottom 3-th of colors
-        ; shift to 63 for MC rastr instead of 64 to move on next frame
-        ld hl, (63-8) * 4 + 2
+        ld hl, (64-8) * 2
         add hl, sp
         ld sp, hl
 
-                                            pop hl: ld (RASTR_23+1), hl
-        pop hl: ld (OFF_RASTR_16+1), hl:    pop hl: ld (RASTR0_22+1), hl
-        pop hl: ld (OFF_RASTR_17+1), hl:    pop hl: ld (RASTR0_21+1), hl
-        pop hl: ld (OFF_RASTR_18+1), hl:    pop hl: ld (RASTR0_20+1), hl
-        pop hl: ld (OFF_RASTR_19+1), hl:    pop hl: ld (RASTR0_19+1), hl
-        pop hl: ld (OFF_RASTR_20+1), hl:    pop hl: ld (RASTR0_18+1), hl
-        pop hl: ld (OFF_RASTR_21+1), hl:    pop hl: ld (RASTR0_17+1), hl
-        pop hl: ld (OFF_RASTR_22+1), hl:    pop hl: ld (RASTR0_16+1), hl
-        pop hl: ld (OFF_RASTR_23+1), hl:    
+        pop hl: ld (RASTR0_7+1), hl
+        pop hl: ld (RASTR0_6+1), hl
+        pop hl: ld (RASTR0_5+1), hl
+        pop hl: ld (RASTR0_4+1), hl
+        pop hl: ld (RASTR0_3+1), hl
+        pop hl: ld (RASTR0_2+1), hl
+        pop hl: ld (RASTR0_1+1), hl
+        pop hl: ld (RASTR0_0+1), hl
 
+        // Draw top 3-th of rastr during bottom 3-th of colors
+        ; shift to 63 for MC rastr instead of 64 to move on next frame
+        ld hl, (63-8) * 2
+        add hl, sp
+        ld sp, hl
+
+        pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR0_22+1), hl
+        pop hl: ld (RASTR0_21+1), hl
+        pop hl: ld (RASTR0_20+1), hl
+        pop hl: ld (RASTR0_19+1), hl
+        pop hl: ld (RASTR0_18+1), hl
+        pop hl: ld (RASTR0_17+1), hl
+        pop hl: ld (RASTR0_16+1), hl
+        
+
+        ld hl, off_rastr_descriptors - mc_rastr_descriptors - (127+8)*2
+        add hl, sp
+        ld sp, hl
 
         ld hl, before_draw_only_rastr
         ld (hl), 0x21   // comment JP command by modify this byte
@@ -548,10 +516,10 @@ start_draw_colors:
         pop hl: ld (RASTR_6+1), hl
         pop hl: ld (RASTR_5+1), hl
         pop hl: ld (RASTR_4+1), hl
-        pop hl: ld (RASTR_3+12
-        pop hl: ld (RASTR_2+12
-        pop hl: ld (RASTR_1+12
-        pop hl: ld (RASTR_0+12
+        pop hl: ld (RASTR_3+1), hl
+        pop hl: ld (RASTR_2+1), hl
+        pop hl: ld (RASTR_1+1), hl
+        pop hl: ld (RASTR_0+1), hl
 
         // Draw top 3-th of rastr during bottom 3-th of c2
         ; shift to 63 for MC rastr instead of 64 to move on next 2
@@ -579,6 +547,8 @@ start_draw_colors:
         rra
         jp c, odd_bank_drawing
                 // Draw bottom 3-th of rastr during middle 3-th of colors
+draw_off_rastr_even
+
                 pop hl: ld (OFF_RASTR_0+1), hl
                 pop hl: ld (OFF_RASTR_1+1), hl
                 pop hl: ld (OFF_RASTR_2+1), hl
@@ -609,6 +579,7 @@ start_draw_colors:
                 add hl, sp
                 ld sp, hl
                 
+                pop hl: ld (OFF_RASTR_16+1), hl
                 pop hl: ld (OFF_RASTR_17+1), hl
                 pop hl: ld (OFF_RASTR_18+1), hl
                 pop hl: ld (OFF_RASTR_19+1), hl
@@ -617,7 +588,6 @@ start_draw_colors:
                 pop hl: ld (OFF_RASTR_22+1), hl
                 pop hl: ld (OFF_RASTR_23+1), hl
 
-draw_off_rastr_even
                 set_page_by_logical_num
                 scf
                 exx
@@ -833,6 +803,39 @@ continue_mc_drawing
 
 /*********************** routines *************/
 
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+
+        ld hl, high(SET_PAGE_HELPER)*256
+        ld (hl), 0x50
+        inc l
+        ld (hl), 0x50
+        inc l
+        ld (hl), 0x51
+        inc l
+        ld (hl), 0x51
+        inc l
+        ld (hl), 0x53
+        inc l
+        ld (hl), 0x53
+        inc l
+        ld (hl), 0x54
+        inc l
+        ld (hl), 0x54
+        inc l
+
+        ret
+
 prepare_interruption_table:
 
         //save data
@@ -1039,10 +1042,10 @@ color_code
         INCBIN "resources/compressed_data.color"
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
-off_rastr_descriptors
-        INCBIN "resources/compressed_data.off_rastr.descriptors"
 mc_rastr_descriptors
-        INCBIN "resources/compressed_data.mc_rastr.descriptors"
+        INCBIN "resources/compressed_data.mc_rastr_descriptors"
+off_rastr_descriptors
+        INCBIN "resources/compressed_data.off_rastr_descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 

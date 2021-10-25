@@ -2579,7 +2579,7 @@ int serializeMainData(
         int extraCommandsIncluded = 0;
         int descriptorsDelta = 0;
 
-        // Aviod conflicts between MC/OFF descriptors if image packs too good. 
+        // Aviod conflicts between MC/OFF descriptors if image packs too good.
         // Offscreen descriptor end should be at least 2 bytes later than MC descriptor end after removeTrailing stack moving.
         const static int kMinBytesForOffscreen = 6;
 
@@ -2953,13 +2953,24 @@ int serializeRastrDescriptors(
     int imageHeight = descriptors.size();
 
 
-    ofstream file;
-    std::string fileName = inputFileName + ".rastr.descriptors";
-    file.open(fileName, std::ios::binary);
-    if (!file.is_open())
+    ofstream offRastrFile, mcRastrFile;
     {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        std::string fileName = inputFileName + ".off_rastr_descriptors";
+        offRastrFile.open(fileName, std::ios::binary);
+        if (!offRastrFile.is_open())
+        {
+            std::cerr << "Can not write destination file " << fileName << std::endl;
+            return -1;
+        }
+    }
+    {
+        std::string fileName = inputFileName + ".mc_rastr_descriptors";
+        mcRastrFile.open(fileName, std::ios::binary);
+        if (!mcRastrFile.is_open())
+        {
+            std::cerr << "Can not write destination file " << fileName << std::endl;
+            return -1;
+        }
     }
 
     for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
@@ -2967,9 +2978,16 @@ int serializeRastrDescriptors(
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
 
-        file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
-        file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+        offRastrFile.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
     }
+
+    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
+    {
+        int line = i % imageHeight;
+        const auto& descriptor = descriptors[line];
+        mcRastrFile.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+    }
+
 }
 
 struct OffscreenTicks
