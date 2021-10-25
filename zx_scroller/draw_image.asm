@@ -471,14 +471,15 @@ start_draw_colors0:
         pop hl: ld (RASTR0_16+1), hl
         
 
-        ld hl, off_rastr_descriptors - mc_rastr_descriptors - (127+8)*2
-        add hl, sp
-        ld sp, hl
-
         ld hl, before_draw_only_rastr
         ld (hl), 0x21   // comment JP command by modify this byte
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
+
+        ld hl, off_rastr_descriptors - mc_rastr_descriptors - (127+8)*2
+        add hl, sp
+        ld sp, hl
+
         jp draw_off_rastr_even
 
 //*************************************************************************************
@@ -548,7 +549,7 @@ start_draw_colors:
         jp c, odd_bank_drawing
                 // Draw bottom 3-th of rastr during middle 3-th of colors
 draw_off_rastr_even
-
+                exx
                 pop hl: ld (OFF_RASTR_0+1), hl
                 pop hl: ld (OFF_RASTR_1+1), hl
                 pop hl: ld (OFF_RASTR_2+1), hl
@@ -575,8 +576,8 @@ draw_off_rastr_even
 
                 // Draw top 3-th of rastr during bottom 3-th of colors
                 ; shift to 63 for MC rastr instead of 64 to move on next frame
-                ld hl, (64-8) * 2
-                add hl, sp
+                exx
+                inc h
                 ld sp, hl
                 
                 pop hl: ld (OFF_RASTR_16+1), hl
@@ -663,7 +664,7 @@ before_draw_only_rastr:
                 jp bank_drawing_common
                 
 odd_bank_drawing:        
-
+                exx
                 // Draw bottom 3-th of rastr during middle 3-th of colors
                 pop hl: ld (OFF_RASTR2_0+1), hl
                 pop hl: ld (OFF_RASTR2_1+1), hl
@@ -691,8 +692,8 @@ odd_bank_drawing:
 
                 // Draw top 3-th of rastr during bottom 3-th of colors
                 ; shift to 63 for MC rastr instead of 64 to move on next frame
-                ld hl, (64-8) * 2
-                add hl, sp
+                exx
+                inc h
                 ld sp, hl
                                                 
                 pop hl: ld (OFF_RASTR2_16+1), hl
