@@ -167,6 +167,13 @@ struct CompressedLine
     void splitPreLoadAndPush(CompressedLine* preloadLine, CompressedLine* pushLine);
 
 public:
+
+    struct Range
+    {
+        int min = 0;
+        int max = 0;
+    };
+
     ZxData data;
     std::shared_ptr<std::vector<Register16>> inputRegisters;
     std::shared_ptr<Register16> inputAf;
@@ -174,8 +181,10 @@ public:
     int drawTicks = 0;
     bool isAltReg = false;
     bool isAltAf = false;
-    int maxDrawDelayTicks = 0;
-    int maxMcDrawShift = 0;
+
+    //int maxDrawDelayTicks = 0;
+    //int maxMcDrawShift = 0;
+    Range mcDrawShift;
 
     RegUsageInfo regUsage;
 
@@ -186,7 +195,7 @@ public:
     int16_t minX = 0;
     int16_t maxX = 0;
     int16_t stackMovingAtStart = 0;
-    
+
     std::optional<uint16_t> updatedHlValue() const
     {
         if (stackMovingAtStart >= 5 && minX > 0)

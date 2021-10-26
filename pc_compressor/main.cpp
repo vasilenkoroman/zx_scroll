@@ -1183,18 +1183,69 @@ void finilizeLine(
     result += loadLine;
     int preloadTicks = result.drawTicks;
 
-    result.maxDrawDelayTicks = pushLine.maxDrawDelayTicks;
-    result.maxMcDrawShift = (64 - preloadTicks) + pushLine.maxDrawDelayTicks;
+    //result.maxDrawDelayTicks = pushLine.maxDrawDelayTicks;
+    result.mcDrawShift.max = (64 - preloadTicks) + pushLine.mcDrawShift.max;
 
-    Z80Parser parser;
+    {
+        Z80Parser parser;
+        std::vector<Register16> registers = {
+            Register16("bc"), Register16("de"), Register16("hl"),
+            Register16("bc'"), Register16("de'"), Register16("hl'")
+        };
+
+        if (pushLine.spPosHint >= 0)
+            result.spPosHint = result.data.size() + pushLine.spPosHint;
+        result += pushLine;
+    }
+
+
+    // Calculate line min and max draw delay (point 0 is the ray in the begin of a line)
+
     std::vector<Register16> registers = {
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'")
     };
+    int extraDelay = 0;
+    Z80Parser parser;
 
-    if (pushLine.spPosHint >= 0)
-        result.spPosHint = result.data.size() + pushLine.spPosHint;
-    result += pushLine;
+    auto timingInfo = parser.parseCode(
+        context.af,
+        registers,
+        result.data.buffer(),
+        result.data.size(),
+        /* start offset*/ 0,
+        /* end offset*/ result.data.size(),
+        /* codeOffset*/ 0,
+        [&](const Z80CodeInfo& info, const z80Command& command)
+        {
+            const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
+            if (!inputReg)
+                return false;
+
+            int rightBorder = 32;
+            static const int kInitialSpOffset = 16;
+            int rayTicks = (kInitialSpOffset + info.spOffset) * kTicksOnScreenPerByte;
+            if (info.ticks < rayTicks)
+            {
+                int delay = rayTicks - info.ticks;
+                extraDelay = std::max(extraDelay, delay);
+            }
+
+            return false;
+        });
+    if (extraDelay > 0 && extraDelay < 4)
+    {
+        int dt = 4 - extraDelay;
+        extraDelay += dt;
+        result.mcDrawShift.max -= dt;
+    }
+    result.mcDrawShift.min = extraDelay;
+
+    if (result.mcDrawShift.min > result.mcDrawShift.max)
+    {
+        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcDrawShift. min= " << result.mcDrawShift.min << " is bigger than max=" << result.mcDrawShift.min << std::endl;
+        //abort();
+    }
 }
 
 int getDrawTicks(const CompressedLine& pushLine)
@@ -1353,7 +1404,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         //abort();
     }
 
-    pushLine.maxDrawDelayTicks = t2 - drawTicks;
+    pushLine.mcDrawShift.max = t2 - drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
 
@@ -1439,53 +1490,17 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
     const int imageHeight = compressedData.data.size();
 
     // Put extra delay to the start if drawing ahead of ray
+
     int i = 0;
     for (auto& line : compressedData.data)
     {
-        std::vector<Register16> registers = {
-            Register16("bc"), Register16("de"), Register16("hl"),
-            Register16("bc'"), Register16("de'"), Register16("hl'")
-        };
-        int extraDelay = 0;
-        Z80Parser parser;
 
-        auto timingInfo = parser.parseCode(
-            *line.inputAf,
-            registers,
-            line.data.buffer(),
-            line.data.size(),
-            /* start offset*/ 0,
-            /* end offset*/ line.data.size(),
-            /* codeOffset*/ 0,
-            [&](const Z80CodeInfo& info, const z80Command& command)
-            {
-                const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
-                if (!inputReg)
-                    return false;
-
-                int rightBorder = 32;
-                static const int kInitialSpOffset = 16;
-                int rayTicks = (kInitialSpOffset + info.spOffset) * kTicksOnScreenPerByte;
-                if (info.ticks < rayTicks)
-                {
-                    int delay = rayTicks - info.ticks;
-                    extraDelay = std::max(extraDelay, delay);
-                }
-
-                return false;
-            });
-
-        if (extraDelay > 0)
-            extraDelay = std::max(4, extraDelay);
-        if (extraDelay > line.maxDrawDelayTicks)
+        if (line.mcDrawShift.min > 0)
         {
-            std::cerr << "Something wrong. Multicolor line #" << i << ". Extray delay " << extraDelay << " is bigger than maxDrawDelayTicks=" << line.maxDrawDelayTicks << std::endl;
-            //abort();
+            const auto delay = Z80Parser::genDelay(line.mcDrawShift.min);
+            line.push_front(delay);
+            line.drawTicks += line.mcDrawShift.min;
         }
-
-        const auto delay = Z80Parser::genDelay(extraDelay);
-        line.push_front(delay);
-        line.drawTicks += extraDelay;
         ++i;
     }
 
@@ -2579,7 +2594,7 @@ int serializeMainData(
         int extraCommandsIncluded = 0;
         int descriptorsDelta = 0;
 
-        // Aviod conflicts between MC/OFF descriptors if image packs too good. 
+        // Aviod conflicts between MC/OFF descriptors if image packs too good.
         // Offscreen descriptor end should be at least 2 bytes later than MC descriptor end after removeTrailing stack moving.
         const static int kMinBytesForOffscreen = 6;
 
