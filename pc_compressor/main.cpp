@@ -47,7 +47,6 @@ enum Flags
     inverseColors = 16,         //< Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
-    sinkMcTicksToRastr = 256,    //< Spend Multicolor ticks during alignments to the rastr line
     updateViaHl = 512
 };
 
@@ -1543,174 +1542,15 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
     std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 #endif
 
-    int sinkBytesUpdated = 0;
-
     for (int y = 0; y < compressedData.data.size(); ++y)
     {
         auto& line = compressedData.data[y];
 
         int endLineDelay = maxTicks - line.drawTicks;
-#if 0
-        if (y == 0 && endLineDelay >= 25 + 4)
-        {
-            line.data.push_back(0x3e); //LD a, 1
-            line.data.push_back(0x07); //LD a, 1
-            line.data.push_back(0xd3); //out 0xfe,a
-            line.data.push_back(0xfe); //out 0xfe,a
-            line.data.push_back(0x3e); //LD a, 0
-            line.data.push_back(0x00); //LD a, 0
-            line.drawTicks += 25;
-            endLineDelay -= 25;
-        }
-        if (y == 24 && endLineDelay >= 25 + 4)
-        {
-            line.data.push_back(0x3e); //LD a, 3
-            line.data.push_back(0x01); //LD a, 3
-            line.data.push_back(0xd3); //out 0xfe,a
-            line.data.push_back(0xfe); //out 0xfe,a
-            line.data.push_back(0x3e); //LD a, 0
-            line.data.push_back(0x00); //LD a, 0
-            line.drawTicks += 25;
-            endLineDelay -= 25;
-        }
-#endif
-
-        if (endLineDelay >= 45 + 10 && (flags & sinkMcTicksToRastr))
-        {
-            static Register16 sp("sp");
-            std::array<Register16, 1> registers = { Register16("bc") };
-            Register16* bc = &registers[0];
-
-            auto info = Z80Parser::parseCode(*line.inputAf, line.data.buffer(), line.data.size());
-            CompressedLine sinkLine;
-            int spPos = 16 + info.spOffset;
-            if (spPos == 0)
-            {
-                std::cerr << "Invalid spPos 0 at line " << y << std::endl;
-                abort();
-            }
-
-            sinkLine.drawTicks += 45;
-
-            // Move SP from SP
-            const int rastrY = y * 8 + 7;
-            int x = rastrSameBytes[rastrY * 32];
-            int xDelta = spPos - x;
-
-            bool singleByteMode = false;
-            int ticksRest = endLineDelay - sinkLine.drawTicks;
-            bool hlPosDirty = false;
-            if (x == 0 || ticksRest < 27 || rastrSameBytes[rastrY * 32 + x + 1])
-            {
-                // Make sure SP stay on the same line but not next line end.
-                // Also, if there is space for single byte only, start from ld (hl) insterad of push
-                --xDelta;
-                singleByteMode = true;
-            }
-
-            sinkLine.data.push_back(0x21); //LD HL,  x - x2
-            sinkLine.data.push_back(xDelta);
-            sinkLine.data.push_back(0x90); // Move from attr to rastr delta
-            sinkLine.data.push_back(0x39); // ADD HL, SP
-
-            sinkLine.append({ 0xcb, 0x04 });  // RLC H
-            sinkLine.append({ 0xcb, 0x04 }); // RLC H
-            sinkLine.append({ 0xcb, 0x04 }); // RLC H
-
-            bool hasData = false;
-            bool hasLdSpHl = false;
-
-            while (x < 31 && sinkLine.drawTicks <= endLineDelay - 10)
-            {
-                int ticksRest = endLineDelay - sinkLine.drawTicks;
-                int index = rastrY * 32 + x;
-
-                int minTicksForPush = 21;
-                if (!hasLdSpHl)
-                    minTicksForPush += 6;
-
-                if (singleByteMode)
-                    singleByteMode = ticksRest < minTicksForPush || x == 0 || rastrSameBytes[rastrY * 32 + x + 1];
-
-                if (rastrSameBytes[index])
-                {
-                    if (!hasLdSpHl)
-                    {
-                        sinkLine.data.push_back(0x2d);  // DEC L
-                        sinkLine.drawTicks += 4;
-                    }
-                    else
-                    {
-                        sp.decValue(sinkLine);
-                    }
-                    ++x;
-                    continue;
-                }
-
-                if (singleByteMode)
-                {
-                    int ticks = sinkLine.drawTicks + 10;
-                    if (hlPosDirty)
-                        ticks += 4;
-                    if (ticks != endLineDelay && ticks > endLineDelay - 4)
-                        break;
-
-                    if (hlPosDirty)
-                    {
-                        sinkLine.data.push_back(0x2d);  // DEC L
-                        sinkLine.drawTicks += 4;
-                    }
-
-                    hlPosDirty = true;
-                    sinkLine.data.push_back(0x36);  // LD (HL), x
-                    sinkLine.data.push_back(rastrBuffer[index]);
-                    sinkLine.drawTicks += 10;
-                    markByteAsSame(rastrSameBytes, rastrY, x);
-                    ++x;
-                    hasData = true;
-                    ++sinkBytesUpdated;
-                    continue;
-                }
-                else
-                {
-                    if (!hasLdSpHl)
-                    {
-                        hasLdSpHl = true;
-                        sinkLine.data.push_back(0xf9); // LD SP, HL
-                        sinkLine.drawTicks += 6;
-                    }
-                    hlPosDirty = false;
-
-                    uint16_t* buffer16 = (uint16_t*)(rastrBuffer + index);
-                    uint16_t word = *buffer16;
-                    word = swapBytes(word);
-
-                    CompressedLine tmpLine;
-                    bc->updateToValue(tmpLine, word, registers, *line.inputAf);
-                    int ticks = tmpLine.drawTicks + sinkLine.drawTicks + 11;
-                    if (ticks != endLineDelay && ticks > endLineDelay - 4)
-                        break;
-                    sinkLine += tmpLine;
-                    bc->push(sinkLine);
-                    sinkBytesUpdated += 2;
-                    markByteAsSame(rastrSameBytes, rastrY, x + 1);
-                    markByteAsSame(rastrSameBytes, rastrY, x);
-                    hasData = true;
-                    x += 2;
-                }
-            }
-            if (hasData)
-            {
-                endLineDelay -= sinkLine.drawTicks;
-                line += sinkLine;
-            }
-        }
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
         line.drawTicks += endLineDelay;
     }
-    if (sinkBytesUpdated > 0)
-        std::cout << "Update " << sinkBytesUpdated << " bytes while spending alignment multicolor ticks to rastr" << std::endl;
     return rastrSameBytes;
 }
 
@@ -3343,7 +3183,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | sinkMcTicksToRastr; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
