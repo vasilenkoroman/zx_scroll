@@ -47,7 +47,8 @@ enum Flags
     inverseColors = 16,         //< Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
-    updateViaHl = 512
+    updateViaHl = 512,
+    OptimizeMcTicks = 1024
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -1183,7 +1184,7 @@ void finilizeLine(
     int preloadTicks = result.drawTicks;
 
     //result.maxDrawDelayTicks = pushLine.maxDrawDelayTicks;
-    result.mcDrawShift.max = (64 - preloadTicks) + pushLine.mcDrawShift.max;
+    result.mcStats.max = (64 - preloadTicks) + pushLine.mcStats.max;
 
     {
         Z80Parser parser;
@@ -1232,17 +1233,11 @@ void finilizeLine(
 
             return false;
         });
-    if (extraDelay > 0 && extraDelay < 4)
-    {
-        int dt = 4 - extraDelay;
-        extraDelay += dt;
-        result.mcDrawShift.max -= dt;
-    }
-    result.mcDrawShift.min = extraDelay;
+    result.mcStats.min = extraDelay;
 
-    if (result.mcDrawShift.min > result.mcDrawShift.max)
+    if (result.mcStats.min > result.mcStats.max)
     {
-        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcDrawShift. min= " << result.mcDrawShift.min << " is bigger than max=" << result.mcDrawShift.min << std::endl;
+        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcStats. min= " << result.mcStats.min << " is bigger than max=" << result.mcStats.min << std::endl;
         //abort();
     }
 }
@@ -1403,7 +1398,7 @@ CompressedLine  compressMultiColorsLine(Context context)
         //abort();
     }
 
-    pushLine.mcDrawShift.max = t2 - drawTicks;
+    pushLine.mcStats.max = t2 - drawTicks;
     finilizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
 
@@ -1474,38 +1469,61 @@ void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
     }
 }
 
-void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
+bool rebalanceStep(CompressedData& compressedData)
 {
-    // Align duration for multicolors
-
-     // 1. Calculate extra delay for begin of the line if it draw too fast
-
     const int imageHeight = compressedData.data.size();
-
-    // Put extra delay to the start if drawing ahead of ray
-
-    int i = 0;
-    for (auto& line : compressedData.data)
+    
+    int maxTicks = 0;
+    for (int i = 0; i < imageHeight; ++i)
     {
-
-        if (line.mcDrawShift.min > 0)
-        {
-            const auto delay = Z80Parser::genDelay(line.mcDrawShift.min);
-            line.push_front(delay);
-            line.drawTicks += line.mcDrawShift.min;
-        }
-        ++i;
+        const auto& line = compressedData.data[i];
+        maxTicks = std::max(line.mcStats.virtualTicks, maxTicks);
     }
 
+    // Try to rerduce virtual line duration in ticks
+    std::set<int> maxLines;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        int nextIndex = i < imageHeight - 1 ? i+1 : 0;
+        auto& line = compressedData.data[i];
+        auto& nextLine = compressedData.data[nextIndex];
+        if (line.mcStats.virtualTicks == maxTicks)
+        {
+            // try to reduce max tics, next line will be drawn later
+            int available = nextLine.mcStats.max - nextLine.mcStats.pos;
+            if (available <= 0)
+                return false;
+            maxLines.insert(i);
+        }
+    }
+
+    for (int i: maxLines)
+    {
+        int nextIndex = i < imageHeight - 1 ? i+1 : 0;
+        auto& line = compressedData.data[i];
+        auto& nextLine = compressedData.data[nextIndex];
+
+        --line.mcStats.virtualTicks;
+        ++nextLine.mcStats.pos;
+        ++nextLine.mcStats.virtualTicks;
+    }
+    return true;
+}
+
+int alignMulticolorTimings(int flags, CompressedData& compressedData)
+{
+    const int imageHeight = compressedData.data.size();
+
+    // 1. Get lines stats    
     int maxTicks = 0;
     int minTicks = std::numeric_limits<int>::max();
     int regularTicks = 0;
     int maxTicksLine = 0;
     int minTicksLine = 0;
-    int maxPhase = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
-        const auto& line = compressedData.data[i];
+        auto& line = compressedData.data[i];
+        line.mcStats.virtualTicks = line.drawTicks;
         if (line.drawTicks > maxTicks)
         {
             maxTicks = line.drawTicks;
@@ -1518,33 +1536,66 @@ void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* 
         }
         regularTicks += line.drawTicks;
     }
+    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
 
-    // 2. Add delay to the end of lines to make them equal duration
+    if (flags & OptimizeMcTicks)
+        while (rebalanceStep(compressedData));
 
+    int maxVirtualTicks = 0;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        const auto& line = compressedData.data[i];
+        maxVirtualTicks = std::max(line.mcStats.virtualTicks, maxVirtualTicks);
+    }
+    std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << std::endl;
+
+
+    // 1. Calculate extra delay for begin of the line if it draw too fast
+    int i = 0;
     for (auto& line : compressedData.data)
     {
-        if (maxTicks != line.drawTicks && maxTicks - line.drawTicks < 4)
+
+        if (line.mcStats.pos < line.mcStats.min)
         {
-            maxTicks += 4;
+            int dt = line.mcStats.pos - line.mcStats.min;
+            dt = std::max(4, dt);
+            const auto delay = Z80Parser::genDelay(dt);
+            line.push_front(delay);
+            line.mcStats.virtualTicks += dt;
+            line.drawTicks += dt;
+            if (dt + line.mcStats.pos > line.mcStats.max)
+            {
+                std::cerr << "Error. pos > max after alignment at line " << i << ". pos=" << line.mcStats.pos << " . max=" << line.mcStats.max << ". dt=" << dt << std::endl;
+                abort();
+            }
+        }
+        ++i;
+    }
+
+
+    // 2. Add delay to the end of lines to make them equal duration
+    for (auto& line : compressedData.data)
+    {
+        if (maxVirtualTicks != line.mcStats.virtualTicks && maxVirtualTicks - line.mcStats.virtualTicks < 4)
+        {
+            maxVirtualTicks += 4;
             break;
         }
     }
+    std::cout << "INFO: Align virtual ticks to: " << maxVirtualTicks << std::endl;
 
-#ifdef LOG_INFO
-    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
-
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
-#endif
 
     for (int y = 0; y < compressedData.data.size(); ++y)
     {
         auto& line = compressedData.data[y];
 
-        int endLineDelay = maxTicks - line.drawTicks;
+        int endLineDelay = maxVirtualTicks - line.mcStats.virtualTicks;
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
         line.drawTicks += endLineDelay;
     }
+    return maxVirtualTicks;
 }
 
 CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
@@ -3176,7 +3227,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
@@ -3186,7 +3237,7 @@ int main(int argc, char** argv)
     std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, buffer.data(), &maskColor, imageHeight);
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
+    int alignedMcTicks = alignMulticolorTimings(flags, multicolorData);
 
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
@@ -3231,8 +3282,7 @@ int main(int argc, char** argv)
     std::vector<LineDescriptor> descriptors;
     std::vector<ColorDescriptor> colorDescriptors;
 
-    int multicolorTicks = multicolorData.data[0].drawTicks;
-    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, multicolorTicks);
+    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, alignedMcTicks);
     serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize);
 
     // put JP to the latest line of colors
@@ -3242,7 +3292,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags, multicolorData.data[0].drawTicks);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags, alignedMcTicks);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }

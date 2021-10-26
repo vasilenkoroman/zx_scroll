@@ -171,7 +171,9 @@ public:
     struct Range
     {
         int min = 0;
+        int pos = 0;
         int max = 0;
+        int virtualTicks = 0;
     };
 
     ZxData data;
@@ -184,7 +186,7 @@ public:
 
     //int maxDrawDelayTicks = 0;
     //int maxMcDrawShift = 0;
-    Range mcDrawShift;
+    Range mcStats;
 
     RegUsageInfo regUsage;
 
