@@ -1474,14 +1474,8 @@ void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
     }
 }
 
-std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
+void alignMulticolorTimings(int flags, CompressedData& compressedData, uint8_t* rastrBuffer, uint8_t* colorBuffer)
 {
-    int rastrHeight = compressedData.data.size() * 8;
-    std::vector<bool> maskColor;
-    if (flags & skipInvisibleColors)
-        maskColor = removeInvisibleColors(flags, rastrBuffer, colorBuffer, rastrHeight);
-    std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, rastrBuffer, &maskColor, rastrHeight);
-
     // Align duration for multicolors
 
      // 1. Calculate extra delay for begin of the line if it draw too fast
@@ -1551,7 +1545,6 @@ std::vector<int8_t> alignMulticolorTimings(int flags, CompressedData& compressed
         line.append(delayCode);
         line.drawTicks += endLineDelay;
     }
-    return rastrSameBytes;
 }
 
 CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
@@ -3187,8 +3180,13 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
+    std::vector<bool> maskColor;
+    if (flags & skipInvisibleColors)
+        maskColor = removeInvisibleColors(flags, buffer.data(), colorBuffer.data(), imageHeight);
+    std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, buffer.data(), &maskColor, imageHeight);
+
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    std::vector<int8_t> rastrSameBytes = alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
+    alignMulticolorTimings(flags, multicolorData, buffer.data(), colorBuffer.data());
 
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
