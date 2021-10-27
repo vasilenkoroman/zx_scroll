@@ -1594,6 +1594,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         const auto delayCode = Z80Parser::genDelay(endLineDelay);
         line.append(delayCode);
         line.drawTicks += endLineDelay;
+        line.mcStats.virtualTicks += endLineDelay;
     }
     return maxVirtualTicks;
 }
@@ -2968,13 +2969,19 @@ int getColorTicksForWholeFrame(
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
-    const CompressedData& data, const CompressedData& color, const std::string& inputFileName,
+    const CompressedData& data, 
+    const CompressedData& color, 
+    const CompressedData& multicolor,
+    const std::string& inputFileName,
     int flags,
     int mcLineLen)
 {
     using namespace std;
 
     const int imageHeight = data.data.size();
+    const int colorHeight = imageHeight / 8;
+
+
     ofstream timingDataFile;
     std::string timingDataFileName = inputFileName + ".timings";
     timingDataFile.open(timingDataFileName, std::ios::binary);
@@ -2999,7 +3006,10 @@ int serializeTimingData(
         ticks += colorTicks;
 
 
+        //int mcRastrTicks = ((kLineDurationInTicks * 8) - mcLineLen) * 24;
+        //ticks += mcRastrTicks;
         ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
+
 
         if (line % 8 == 0)
         {
@@ -3009,6 +3019,12 @@ int serializeTimingData(
         }
         else
         {
+            int mcLine = ((line + 7) / 8) % colorHeight;
+            int lastMcLine = (mcLine + 23) % colorHeight;
+            //int lastOverhead = multicolor.data[lastMcLine].drawTicks - mcLineLen;
+            ticks += multicolor.data[lastMcLine].mcStats.pos;
+
+
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
@@ -3292,7 +3308,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, outputFileName, flags, alignedMcTicks);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags, alignedMcTicks);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }
