@@ -1542,6 +1542,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     if (flags & OptimizeMcTicks)
         while (rebalanceStep(compressedData));
 
+
     int maxVirtualTicks = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
@@ -1550,6 +1551,11 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     }
     std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << std::endl;
 
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        int endLine = (i + 23) % imageHeight;
+        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << ", " << compressedData.data[endLine].mcStats.pos << std::endl;
+    }
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
     int i = 0;
@@ -2748,6 +2754,7 @@ void serializeAsmFile(
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
+    //phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[0].mcStats.pos << std::endl;
     phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << 0 << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
@@ -3013,17 +3020,34 @@ int serializeTimingData(
 
         if (line % 8 == 0)
         {
+            int mcLine = ((line + 7) / 8) % colorHeight;
+            int lastMcLine = (mcLine + 24) % colorHeight;
+            int prevMcLine = (mcLine + 1) % colorHeight;;
+
             // Draw next frame longer in  6 lines
             ticks -= kLineDurationInTicks * 7;
             ticks -= mcLineLen * 24;
+
+            if (line == 192 * 2 - 8)
+            {
+                int gg = 4;
+            }
+
+
+            int lineDt = multicolor.data[prevMcLine].mcStats.pos - multicolor.data[mcLine].mcStats.pos;
+            ticks += lineDt;
+            ticks += multicolor.data[lastMcLine].mcStats.pos;
+            if (line == 0)
+                firstLineDelay = multicolor.data[mcLine].mcStats.pos;
         }
         else
         {
             int mcLine = ((line + 7) / 8) % colorHeight;
             int lastMcLine = (mcLine + 23) % colorHeight;
-            //int lastOverhead = multicolor.data[lastMcLine].drawTicks - mcLineLen;
-            ticks += multicolor.data[lastMcLine].mcStats.pos;
 
+            //int lastOverhead = multicolor.data[lastMcLine].drawTicks - mcLineLen;
+            //ticks -= multicolor.data[mcLine].mcStats.pos;
+            ticks += multicolor.data[lastMcLine].mcStats.pos;
 
             // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
@@ -3067,8 +3091,6 @@ int serializeTimingData(
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
         timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
 
-        if (line == 0)
-            firstLineDelay = freeTicks;
     }
     std::cout << "worse line free ticks=" << worseLineTicks << ". ";
     if (kMinDelay - worseLineTicks > 0)
