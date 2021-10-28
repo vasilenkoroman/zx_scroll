@@ -35,7 +35,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    INCBIN "resources/zosya.scr", 0, 6144+768
+    INCBIN "resources/jorg10.scr", 0, 6144+768
 
     org start
 
@@ -335,7 +335,7 @@ ticks_per_line                  equ  224
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 42554
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY + MULTICOLOR_DRAW_PHASE
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 

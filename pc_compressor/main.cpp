@@ -1472,7 +1472,7 @@ void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
 bool rebalanceStep(CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
-    
+
     int maxTicks = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
@@ -1514,7 +1514,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
 
-    // 1. Get lines stats    
+    // 1. Get lines stats
     int maxTicks = 0;
     int minTicks = std::numeric_limits<int>::max();
     int regularTicks = 0;
@@ -2754,8 +2754,7 @@ void serializeAsmFile(
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
-    //phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[0].mcStats.pos << std::endl;
-    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << 0 << std::endl;
+    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[0].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
@@ -2976,8 +2975,8 @@ int getColorTicksForWholeFrame(
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
-    const CompressedData& data, 
-    const CompressedData& color, 
+    const CompressedData& data,
+    const CompressedData& color,
     const CompressedData& multicolor,
     const std::string& inputFileName,
     int flags,
@@ -3020,9 +3019,11 @@ int serializeTimingData(
 
         if (line % 8 == 0)
         {
-            int mcLine = ((line + 7) / 8) % colorHeight;
-            int lastMcLine = (mcLine + 24) % colorHeight;
-            int prevMcLine = (mcLine + 1) % colorHeight;;
+            int curMcLine = ((line + 7) / 8) % colorHeight;
+            int curLastMcLine = (curMcLine + 23) % colorHeight;
+
+            int prevMcLine = (curMcLine + 1) % colorHeight;;
+            int prevLastMcLine = (prevMcLine + 23) % colorHeight;
 
             // Draw next frame longer in  6 lines
             ticks -= kLineDurationInTicks * 7;
@@ -3034,22 +3035,27 @@ int serializeTimingData(
             }
 
 
-            int lineDt = multicolor.data[prevMcLine].mcStats.pos - multicolor.data[mcLine].mcStats.pos;
-            ticks += lineDt;
-            ticks += multicolor.data[lastMcLine].mcStats.pos;
+            int before = ticks;
+
+            ticks += multicolor.data[prevLastMcLine].mcStats.pos;
+            ticks -= multicolor.data[curLastMcLine].mcStats.pos;
+
+            ticks += multicolor.data[prevMcLine].mcStats.pos;
+            ticks -= multicolor.data[curMcLine].mcStats.pos;
+
             if (line == 0)
-                firstLineDelay = multicolor.data[mcLine].mcStats.pos;
+                firstLineDelay = ticks - before;
         }
         else
         {
             int mcLine = ((line + 7) / 8) % colorHeight;
             int lastMcLine = (mcLine + 23) % colorHeight;
 
-            //int lastOverhead = multicolor.data[lastMcLine].drawTicks - mcLineLen;
-            //ticks -= multicolor.data[mcLine].mcStats.pos;
+            int before = ticks;
             ticks += multicolor.data[lastMcLine].mcStats.pos;
+            if (line == imageHeight - 1)
+                firstLineDelay += ticks - before;
 
-            // Draw next frame faster in one line ( 6 times)
             ticks += kLineDurationInTicks;
         }
 
