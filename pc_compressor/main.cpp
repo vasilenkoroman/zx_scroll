@@ -1201,13 +1201,18 @@ void finilizeLine(
 
     // Calculate line min and max draw delay (point 0 is the ray in the begin of a line)
 
+    if (context.y == 16)
+    {
+        int gg = 4;
+    }
+
     std::vector<Register16> registers = {
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'")
     };
     int extraDelay = 0;
     Z80Parser parser;
-
+    int maxRayDelay = std::numeric_limits<int>::max();
     auto timingInfo = parser.parseCode(
         context.af,
         registers,
@@ -1230,10 +1235,16 @@ void finilizeLine(
                 int delay = rayTicks - info.ticks;
                 extraDelay = std::max(extraDelay, delay);
             }
+            else
+            {
+                maxRayDelay = std::min(maxRayDelay, rayTicks + 224 - info.ticks);
+            }
 
             return false;
         });
     result.mcStats.min = extraDelay;
+    if (maxRayDelay < result.mcStats.max)
+        result.mcStats.max = maxRayDelay;
 
     if (result.mcStats.min > result.mcStats.max)
     {
