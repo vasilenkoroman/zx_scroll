@@ -1491,7 +1491,7 @@ bool rebalanceStep(CompressedData& compressedData)
         {
             // try to reduce max tics, next line will be drawn later
             int available = nextLine.mcStats.max - nextLine.mcStats.pos;
-            if (available <= 0)
+            if (available <= 0 || nextLine.mcStats.pos >= 28)
                 return false;
             maxLines.insert(i);
         }
@@ -1596,7 +1596,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
             {
                 // Put delay to the begin only instead begin/end delay if possible.
                 int endLineDelay = maxVirtualTicks - beginDelay - line.mcStats.virtualTicks;
-                if (line.mcStats.max - line.mcStats.pos < beginDelay + endLineDelay)
+                if (line.mcStats.max - line.mcStats.pos >= beginDelay + endLineDelay)
                     beginDelay += endLineDelay;
             }
 
