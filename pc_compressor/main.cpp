@@ -1484,7 +1484,7 @@ bool rebalanceStep(CompressedData& compressedData)
     std::set<int> maxLines;
     for (int i = 0; i < imageHeight; ++i)
     {
-        int nextIndex = i < imageHeight - 1 ? i+1 : 0;
+        int nextIndex = i > 0 ? i-1 : imageHeight-1;
         auto& line = compressedData.data[i];
         auto& nextLine = compressedData.data[nextIndex];
         if (line.mcStats.virtualTicks == maxTicks)
@@ -1499,7 +1499,7 @@ bool rebalanceStep(CompressedData& compressedData)
 
     for (int i: maxLines)
     {
-        int nextIndex = i < imageHeight - 1 ? i+1 : 0;
+        int nextIndex = i > 0 ? i - 1 : imageHeight - 1;
         auto& line = compressedData.data[i];
         auto& nextLine = compressedData.data[nextIndex];
 
@@ -1549,12 +1549,22 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         const auto& line = compressedData.data[i];
         maxVirtualTicks = std::max(line.mcStats.virtualTicks, maxVirtualTicks);
     }
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        const auto& line = compressedData.data[i];
+        if (line.mcStats.virtualTicks < maxVirtualTicks && maxVirtualTicks - line.mcStats.virtualTicks < 4)
+        {
+            maxVirtualTicks += 4;
+            break;
+        }
+    }
+
     std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << std::endl;
 
     for (int i = 0; i < imageHeight; ++i)
     {
         int endLine = (i + 23) % imageHeight;
-        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << ", " << compressedData.data[endLine].mcStats.pos << std::endl;
+        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << ", ticks=" << compressedData.data[i].drawTicks << std::endl;
     }
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
@@ -2972,6 +2982,34 @@ int getColorTicksForWholeFrame(
     return result;
 }
 
+int getTicksChainForMc(
+    int line, 
+    int mcLineLen,
+    const CompressedData& multicolor)
+{
+    if (line == 192 * 2 - 1)
+    {
+        int gg = 1;
+    }
+
+    int colorHeight = multicolor.data.size();
+    int mcLine = ((line + 0) / 8) % colorHeight;
+    int result = 0;
+    for (int i = 0; i < 24; ++i)
+    {
+        result += multicolor.data[mcLine].drawTicks;
+        mcLine++;
+        if (mcLine == colorHeight)
+            mcLine = 0;
+    }
+
+    int totalTicks = kLineDurationInTicks * 8;
+    int rastrTicksFor8Lines = totalTicks - mcLineLen;
+
+    return result + rastrTicksFor8Lines * 24;
+}
+
+
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
@@ -3012,50 +3050,25 @@ int serializeTimingData(
         ticks += colorTicks;
 
 
-        //int mcRastrTicks = ((kLineDurationInTicks * 8) - mcLineLen) * 24;
-        //ticks += mcRastrTicks;
-        ticks += kLineDurationInTicks * 192; //< Rastr for multicolor + multicolor
-
-
         if (line % 8 == 0)
         {
-            int curMcLine = ((line + 7) / 8) % colorHeight;
-            int curLastMcLine = (curMcLine + 23) % colorHeight;
-
-            int prevMcLine = (curMcLine + 1) % colorHeight;;
-            int prevLastMcLine = (prevMcLine + 23) % colorHeight;
-
             // Draw next frame longer in  6 lines
             ticks -= kLineDurationInTicks * 7;
+            int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
+            ticks += mcTicks;
             ticks -= mcLineLen * 24;
 
-            if (line == 192 * 2 - 8)
-            {
-                int gg = 4;
-            }
-
-
-            int before = ticks;
-
-            ticks += multicolor.data[prevLastMcLine].mcStats.pos;
-            ticks -= multicolor.data[curLastMcLine].mcStats.pos;
-
-            ticks += multicolor.data[prevMcLine].mcStats.pos;
-            ticks -= multicolor.data[curMcLine].mcStats.pos;
-
-            if (line == 0)
-                firstLineDelay = ticks - before;
+            int curMcLine = (line / 8) % colorHeight;
+            int prevMcLine = (curMcLine + 1) % colorHeight;;
+            ticks -= multicolor.data[curMcLine].mcStats.pos - multicolor.data[prevMcLine].mcStats.pos;
         }
         else
         {
-            int mcLine = ((line + 7) / 8) % colorHeight;
-            int lastMcLine = (mcLine + 23) % colorHeight;
-
-            int before = ticks;
-            ticks += multicolor.data[lastMcLine].mcStats.pos;
-            if (line == imageHeight - 1)
-                firstLineDelay += ticks - before;
-
+            int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
+            if (line % 8 == 7)
+                ticks += 224 * 192; 
+            else
+                ticks += mcTicks;
             ticks += kLineDurationInTicks;
         }
 
