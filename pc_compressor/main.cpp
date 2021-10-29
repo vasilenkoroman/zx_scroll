@@ -1549,6 +1549,25 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         const auto& line = compressedData.data[i];
         maxVirtualTicks = std::max(line.mcStats.virtualTicks, maxVirtualTicks);
     }
+
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        if (i == 20)
+        {
+            int gg = 4;
+        }
+        const auto& line = compressedData.data[i];
+        if (line.mcStats.pos < line.mcStats.min)
+            maxVirtualTicks = std::max(maxVirtualTicks, line.mcStats.virtualTicks + (line.mcStats.min - line.mcStats.pos));
+    }
+
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        int endLine = (i + 23) % imageHeight;
+        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
+            << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
+    }
+
     for (int i = 0; i < imageHeight; ++i)
     {
         const auto& line = compressedData.data[i];
@@ -1558,31 +1577,37 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
             break;
         }
     }
-
     std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << std::endl;
-
-    for (int i = 0; i < imageHeight; ++i)
-    {
-        int endLine = (i + 23) % imageHeight;
-        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << ", ticks=" << compressedData.data[i].drawTicks << std::endl;
-    }
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
     int i = 0;
     for (auto& line : compressedData.data)
     {
+        if (i == 22)
+        {
+            int gg = 4;
+        }
+
 
         if (line.mcStats.pos < line.mcStats.min)
         {
-            int dt = line.mcStats.pos - line.mcStats.min;
-            dt = std::max(4, dt);
-            const auto delay = Z80Parser::genDelay(dt);
-            line.push_front(delay);
-            line.mcStats.virtualTicks += dt;
-            line.drawTicks += dt;
-            if (dt + line.mcStats.pos > line.mcStats.max)
+            int beginDelay = line.mcStats.min - line.mcStats.pos;
+            if (beginDelay > 0)
             {
-                std::cerr << "Error. pos > max after alignment at line " << i << ". pos=" << line.mcStats.pos << " . max=" << line.mcStats.max << ". dt=" << dt << std::endl;
+                // Put delay to the begin only instead begin/end delay if possible.
+                int endLineDelay = maxVirtualTicks - beginDelay - line.mcStats.virtualTicks;
+                if (line.mcStats.max - line.mcStats.pos < beginDelay + endLineDelay)
+                    beginDelay += endLineDelay;
+            }
+
+            beginDelay = std::max(4, beginDelay);
+            const auto delay = Z80Parser::genDelay(beginDelay);
+            line.push_front(delay);
+            line.mcStats.virtualTicks += beginDelay;
+            line.drawTicks += beginDelay;
+            if (beginDelay + line.mcStats.pos > line.mcStats.max)
+            {
+                std::cerr << "Error. pos > max after alignment at line " << i << ". pos=" << line.mcStats.pos << " . max=" << line.mcStats.max << ". dt=" << beginDelay << std::endl;
                 abort();
             }
         }
@@ -1591,16 +1616,6 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
 
 
     // 2. Add delay to the end of lines to make them equal duration
-    for (auto& line : compressedData.data)
-    {
-        if (maxVirtualTicks != line.mcStats.virtualTicks && maxVirtualTicks - line.mcStats.virtualTicks < 4)
-        {
-            maxVirtualTicks += 4;
-            break;
-        }
-    }
-    std::cout << "INFO: Align virtual ticks to: " << maxVirtualTicks << std::endl;
-
 
     for (int y = 0; y < compressedData.data.size(); ++y)
     {
@@ -2983,7 +2998,7 @@ int getColorTicksForWholeFrame(
 }
 
 int getTicksChainForMc(
-    int line, 
+    int line,
     int mcLineLen,
     const CompressedData& multicolor)
 {
@@ -3066,7 +3081,7 @@ int serializeTimingData(
         {
             int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
             if (line % 8 == 7)
-                ticks += 224 * 192; 
+                ticks += 224 * 192;
             else
                 ticks += mcTicks;
             ticks += kLineDurationInTicks;
