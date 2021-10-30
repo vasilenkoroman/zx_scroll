@@ -3088,7 +3088,7 @@ int serializeTimingData(
             int prevMcLine = (curMcLine + 1) % colorHeight;
             
             int curMcLastLine = (curMcLine+23) % colorHeight;
-            int nextMcLastLine = curMcLastLine > 0 ? curMcLastLine - 1 : imageHeight - 1;
+            int nextMcLastLine = curMcLastLine > 0 ? curMcLastLine - 1 : colorHeight - 1;
 
             ticks -= multicolor.data[nextMcLastLine].mcStats.pos - multicolor.data[curMcLastLine].mcStats.pos;
         }

@@ -335,7 +335,7 @@ ticks_per_line                  equ  224
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 42554
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - MULTICOLOR_DRAW_PHASE
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
@@ -357,7 +357,7 @@ max_scroll_offset equ imageHeight - 1
         exx
         jp loop1
 lower_limit_reached:
-        ld iy,  max_scroll_offset       ; 10 ticks
+        ld iy,  max_scroll_offset       ; 14 ticks
 loop:  
         ld bc, iy
 jp_ix_line_delta_in_bank EQU 2 * 6*4
