@@ -70,7 +70,7 @@ DEBUG_MODE              EQU 0
         ; store original data to HL
         ; store end exec address to de
         ld sp, hl                                       ; 6
-        ld de, JP_IX_CODE                               ; 10
+        ld de, JP_VIA_HL_CODE                           ; 10
         ex de, hl                                       ; 4
         ex (sp), hl                                     ; 19
         ld (color_data_to_restore), hl
@@ -82,12 +82,13 @@ DEBUG_MODE              EQU 0
                 ENDIF
 OFF_BASE_N?                
                 IF (N? == Prev?)
-                        ld ix, $ + 7     ; 14
+                        ld hl, $ + 7     ; 10
                 ELSEIF (high(OFF_BASE_N? + 7) == high(OFF_BASE_Prev? + 7))
-                        ld ixl, low($+6) ; 11
+                        ld l, low($+6)   ; 7
                 ELSE
-                        ld ix, $ + 7     ; 14
+                        ld hl, $ + 7     ; 10
                 ENDIF                        
+                exx
 OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 24
         ENDM                
@@ -98,12 +99,13 @@ OFF_RASTR_N?    jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 ENDIF
 OFF_BASE2_N?                
                 IF (N? == Prev?)
-                        ld ix, $ + 7     ; 14
+                        ld hl, $ + 7     ; 10
                 ELSEIF (high(OFF_BASE2_N? + 7) == high(OFF_BASE2_Prev? + 7))
-                        ld ixl, low($+6) ; 11
+                        ld l, low($+6)  ; 7
                 ELSE
-                        ld ix, $ + 7     ; 14
+                        ld hl, $ + 7     ; 10
                 ENDIF                        
+                exx
 OFF_RASTR2_N?   jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
                 // total ticks: 24
         ENDM 
@@ -132,7 +134,8 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
     MACRO DRAW_ONLY_RASTR_LINE N?
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld ix, $ + 7
+                ld hl, $ + 7
+                exx
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
     ENDM                
 
@@ -144,7 +147,8 @@ MC_LINE_N?      jp 00                                   ; 10
 
     MACRO DRAW_RASTR_LINE N?:
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld ix, $ + 7                                            ; 14
+                ld hl, $ + 7                                           ; 10
+                exx                                                    ; 4
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
@@ -333,7 +337,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42554
+fixed_startup_delay     equ 42554 - 8
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -354,7 +358,6 @@ max_scroll_offset equ imageHeight - 1
 
         ld iy, 0h                       ; 14  ticks
         ld bc, 0h                       ; 10  ticks
-        exx
         jp loop1
 lower_limit_reached:
         ld iy,  max_scroll_offset       ; 14 ticks
@@ -389,7 +392,7 @@ no:
         ld sp, hl
 
         exx
-        ld bc, JP_IX_CODE
+        ld bc, JP_VIA_HL_CODE
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
         .2 restore_jp_ix
@@ -397,6 +400,7 @@ no:
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
         // total: 562/560 (with switching page)
+        exx     ; go main regs
         // ------------------------- update jpix table end
         scf
         DRAW_RASTR_LINE 23
@@ -412,7 +416,6 @@ loop1:
         
         // calculate address of the MC descriptors
         // Draw from 0 to 23 is backward direction
-        exx     ; go main regs
         ld hl, mc_descriptors
 
         // prepare  multicolor drawing (for next 7 mc steps)
@@ -447,12 +450,11 @@ loop1:
         PREPARE_MC_DRAWING 0
 
         update_colors_jpix        
-        exx                                             ; 4
         ld sp, color_addr + 768                         ; 10
-        ld ix, $ + 7                                    ; 14
+        ld hl, $ + 7                                    ; 10
+        exx                                             ; 4
 start_draw_colors0:
         jp 00                                           ; 8
-        exx
         //MACRO prepare_rastr_drawing (for the current step)
 
         sla c : rl b    // bc*2
@@ -508,16 +510,18 @@ start_draw_colors0:
         ld (hl), 0x21   // comment JP command by modify this byte
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
+
+
+
         jp draw_off_rastr_even
 
 //*************************************************************************************
 mc_step_drawing:
-        // enter  on alt regs
         ld sp, color_addr + 768                         ; 10
-        ld ix, $ + 7                                    ; 14
+        ld hl, $ + 7                                    ; 14
+        exx
 start_draw_colors:
         jp 00                                           ; 8
-        exx                                             ; 4
 
         //MACRO prepare_rastr_drawing
         sla c : rl b    // bc*2
@@ -577,7 +581,6 @@ start_draw_colors:
 draw_off_rastr_even
                 set_page_by_logical_num
                 scf
-                exx
 
                 DRAW_OFFSCREEN_LINES 17, 17
                 DRAW_OFFSCREEN_LINES 16, 17
@@ -588,7 +591,7 @@ draw_off_rastr_even
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES 19, 0
+                DRAW_OFFSCREEN_LINES 19, 19
                 DRAW_OFFSCREEN_LINES 18, 19
                 DRAW_OFFSCREEN_LINES 11, 18
                 DRAW_OFFSCREEN_LINES 10, 11
@@ -597,7 +600,7 @@ draw_off_rastr_even
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES 21, 2
+                DRAW_OFFSCREEN_LINES 21, 21
                 DRAW_OFFSCREEN_LINES 20, 21
                 DRAW_OFFSCREEN_LINES 13, 20
                 DRAW_OFFSCREEN_LINES 12, 13
@@ -606,19 +609,17 @@ draw_off_rastr_even
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES 23, 4
+                DRAW_OFFSCREEN_LINES 23, 23
                 DRAW_OFFSCREEN_LINES 22, 23
                 DRAW_OFFSCREEN_LINES 15, 22
                 DRAW_OFFSCREEN_LINES 14, 15
                 DRAW_OFFSCREEN_LINES 7, 14
                 DRAW_OFFSCREEN_LINES 6, 7
-                exx
 
 before_draw_only_rastr:
                 jp bank_drawing_common
 
                 // render screen in non-mc mode (before delay)
-                exx
                 scf
                 DRAW_ONLY_RASTR_LINE 0
                 DRAW_ONLY_RASTR_LINE 1
@@ -645,7 +646,6 @@ before_draw_only_rastr:
                 DRAW_ONLY_RASTR_LINE 20
                 DRAW_ONLY_RASTR_LINE 21
                 DRAW_ONLY_RASTR_LINE 22
-                exx
 
                 jp bank_drawing_common
                 
@@ -697,7 +697,6 @@ odd_bank_drawing:
 
                 set_page_by_logical_num
                 scf
-                exx
 
                 DRAW_OFFSCREEN_LINES2 23, 23
                 DRAW_OFFSCREEN_LINES2 16, 23
@@ -708,7 +707,7 @@ odd_bank_drawing:
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES2 18, 0
+                DRAW_OFFSCREEN_LINES2 18, 18
                 DRAW_OFFSCREEN_LINES2 17, 18
                 DRAW_OFFSCREEN_LINES2 10, 17
                 DRAW_OFFSCREEN_LINES2 9, 10
@@ -717,7 +716,7 @@ odd_bank_drawing:
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES2 20, 1
+                DRAW_OFFSCREEN_LINES2 20, 20
                 DRAW_OFFSCREEN_LINES2 19, 20
                 DRAW_OFFSCREEN_LINES2 12, 19
                 DRAW_OFFSCREEN_LINES2 11, 12
@@ -726,14 +725,13 @@ odd_bank_drawing:
 
                 next_page
 
-                DRAW_OFFSCREEN_LINES2 22, 3
+                DRAW_OFFSCREEN_LINES2 22, 22
                 DRAW_OFFSCREEN_LINES2 21, 22
                 DRAW_OFFSCREEN_LINES2 14, 21
                 DRAW_OFFSCREEN_LINES2 13, 14
                 DRAW_OFFSCREEN_LINES2 6, 13
                 DRAW_OFFSCREEN_LINES2 5, 6
 
-                exx
 bank_drawing_common:
         ; delay
         ld hl, timings_data
@@ -833,7 +831,8 @@ after_interrupt:
         ldir
         ret
 
-JP_IX_CODE      equ #e9dd
+//JP_IX_CODE          equ #e9dd
+JP_VIA_HL_CODE      equ #e9d9
 
 jp_ix_record_size       equ 12
 jp_write_data_offset    equ 8
@@ -854,7 +853,7 @@ continue_page:
         set_page_by_bank
         ld a, c
 
-        ld de, JP_IX_CODE
+        ld de, JP_VIA_HL_CODE
 .rep:   write_jp_ix_data_via_de
         write_jp_ix_data_via_de
         ld hl, jp_ix_record_size - 4

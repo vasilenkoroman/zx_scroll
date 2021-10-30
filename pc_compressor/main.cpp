@@ -2055,7 +2055,7 @@ struct DescriptorState
         addToPreambule(firstCommands);
 
         if (!omitedDataInfo.hasJump)
-            addJpIx(lineStartPtr + firstCommandsSize);
+            addJumpTo(lineStartPtr + firstCommandsSize);
     }
 
     void serializeSetPageCode(int pageNum)
@@ -2151,7 +2151,7 @@ private:
         data.serialize(preambula);
     }
 
-    void addJpIx(uint16_t value)
+    void addJumpTo(uint16_t value)
     {
         preambula.push_back(0xc3); //< JP XXXX
         preambula.push_back((uint8_t)value);
@@ -3105,15 +3105,15 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2951;
+        int kZ80CodeDelay = 2951 + 1;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864;
+            kZ80CodeDelay += 2864 - 16;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
         else if (line % 2 == 1)
-            kZ80CodeDelay -= 8;
+            kZ80CodeDelay -= 11;
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
