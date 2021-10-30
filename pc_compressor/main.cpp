@@ -2790,7 +2790,7 @@ void serializeAsmFile(
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
-    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[0].mcStats.pos << std::endl;
+    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[22].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
@@ -3085,8 +3085,12 @@ int serializeTimingData(
             ticks -= mcLineLen * 24;
 
             int curMcLine = (line / 8) % colorHeight;
-            int prevMcLine = (curMcLine + 1) % colorHeight;;
-            ticks -= multicolor.data[curMcLine].mcStats.pos - multicolor.data[prevMcLine].mcStats.pos;
+            int prevMcLine = (curMcLine + 1) % colorHeight;
+            
+            int curMcLastLine = (curMcLine+23) % colorHeight;
+            int nextMcLastLine = curMcLastLine > 0 ? curMcLastLine - 1 : imageHeight - 1;
+
+            ticks -= multicolor.data[nextMcLastLine].mcStats.pos - multicolor.data[curMcLastLine].mcStats.pos;
         }
         else
         {
