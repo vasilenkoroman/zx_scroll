@@ -151,6 +151,14 @@ void CompressedLine::push_front(const std::vector<uint8_t>& v)
 
 }
 
+void CompressedLine::erase(int index, int count)
+{
+    data.erase(index, count);
+    if (spPosHint > index)
+        spPosHint -= count;
+
+}
+
 void CompressedLine::push_front(const ZxData& buffer)
 {
     for (int i = buffer.size() - 1; i >= 0; --i)

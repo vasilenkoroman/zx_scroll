@@ -31,6 +31,7 @@ static const int kMinDelay = 78;
 static const int kPagesForData = 4;
 static const int kSetPageTicks = 18;
 static const int kPageNumPrefix = 0x50;
+static const int kMinOffscreenBytes = 4; // < It contains at least 4 writted bytes to the screen
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -1425,6 +1426,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     return result;
 }
 
+
 Register16 findBestWord(uint8_t* buffer, int imageHeight, const std::vector<int>& sameBytesCount, int flags, int* usageCount)
 {
     Register16 af("af");
@@ -1483,10 +1485,129 @@ void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
 int maxMcPhaseForLine(CompressedData& compressedData)
 {
     static const int kRastrToMcSwitchDelay = 28;
-    return kRastrToMcSwitchDelay;
+    return kRastrToMcSwitchDelay + kMinOffscreenBytes * kTicksOnScreenPerByte;
 }
 
-bool rebalanceStep(CompressedData& compressedData)
+struct BorrowResult
+{
+    Register16 ix{"ix"};
+    Register16 iy{ "iy" };
+    bool success = false;
+    int borrowFrom = -1;
+    int borrowTo = -1;
+};
+
+BorrowResult borrowIndexRegForLine(int line, CompressedData& compressedData)
+{
+    BorrowResult result;
+    const int imageHeight = compressedData.data.size();
+    auto& dstLine = compressedData.data[line];
+    int borrowLine = line;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        borrowLine = (borrowLine+1) % imageHeight;
+        auto& srcLine = compressedData.data[borrowLine];
+
+        if (srcLine.mcStats.lendIx.has_value())
+            break;
+
+        int dt = dstLine.drawTicks - srcLine.drawTicks;
+        if (dt < 20)
+            continue;
+        result.borrowFrom = borrowLine;
+        result.borrowTo = line;
+        result.success = true;
+        break;
+    }
+
+    return result;
+}
+
+bool repackLine(CompressedLine& line, BorrowResult* borrowedRegs)
+{
+    CompressedLine result = line;
+
+    Z80Parser parser;
+
+    auto replaceToIndexReg = 
+        [&](int offset)
+        {
+            uint8_t* ldRegPtr = result.data.buffer() + offset;
+            uint16_t* prevValue = (uint16_t*)(ldRegPtr + 1);
+            borrowedRegs->ix.setValue(*prevValue);
+            result.data.erase(offset, 2);
+            ldRegPtr[0] = 0xdd; // IX prefix
+            result.drawTicks -= 6;
+        };
+
+    auto regUseMask =
+        [&](int offset)
+    {
+        std::vector<Register16> registers = {
+            Register16("bc"), Register16("de"), Register16("hl"),
+            Register16("bc'"), Register16("de'"), Register16("hl'")
+        };
+        auto info = parser.parseCode(
+            *line.inputAf,
+            registers,
+            line.data.buffer(), line.data.size(),
+            offset, line.data.size(), 0);
+        return info.regUsage.regUseMask;
+    };
+
+    std::vector<Register16> registers = {
+        Register16("bc"), Register16("de"), Register16("hl"),
+        Register16("bc'"), Register16("de'"), Register16("hl'")
+    };
+
+    bool success = false;
+    auto info = parser.parseCode(
+        *line.inputAf,
+        registers,
+        line.data.buffer(), line.data.size(),
+        0, line.data.size(), 0);
+
+    for (int i = info.commands.size() - 1; i > 0; --i)
+    {
+        if (info.commands[i].opCode == 0xc5 && info.commands[i - 1].opCode == 0x01)
+        {
+            // LD BC, XX: PUSH BC
+            if ((regUseMask(info.commands[i].ptr + 1) & 3) == 0)
+            {
+                replaceToIndexReg(info.commands[i - 1].ptr);
+                success = true;
+                break;
+            }
+        }
+        else if (info.commands[i].opCode == 0xd5 && info.commands[i - 1].opCode == 0x11)
+        {
+            // LD DE, XX: PUSH DE
+            if ((regUseMask(info.commands[i].ptr + 1) & 0x0c) == 0)
+            {
+                replaceToIndexReg(info.commands[i - 1].ptr);
+                success = true;
+                break;
+            }
+        }
+        else if (info.commands[i].opCode == 0xe5 && info.commands[i - 1].opCode == 0x21)
+        {
+            // LD HL, XX: PUSH HL
+            if ((regUseMask(info.commands[i].ptr + 1) & 0x30) == 0)
+            {
+                replaceToIndexReg(info.commands[i-1].ptr);
+                success = true;
+                break;
+            }
+        }
+    };
+
+    if (success)
+        line = result;
+
+    return success;
+}
+
+bool borrowIndexRegStep(CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
 
@@ -1494,37 +1615,67 @@ bool rebalanceStep(CompressedData& compressedData)
     for (int i = 0; i < imageHeight; ++i)
     {
         const auto& line = compressedData.data[i];
-        maxTicks = std::max(line.mcStats.virtualTicks, maxTicks);
+        maxTicks = std::max(line.drawTicks, maxTicks);
     }
 
-    // Try to rerduce virtual line duration in ticks
-    std::set<int> maxLines;
     for (int i = 0; i < imageHeight; ++i)
     {
-        int nextIndex = i > 0 ? i-1 : imageHeight-1;
         auto& line = compressedData.data[i];
-        auto& nextLine = compressedData.data[nextIndex];
-        if (line.mcStats.virtualTicks == maxTicks)
+        if (line.drawTicks == maxTicks)
         {
-            // try to reduce max tics, next line will be drawn later
-            int available = nextLine.mcStats.max - nextLine.mcStats.pos;
-            if (available <= 0 || nextLine.mcStats.pos >= maxMcPhaseForLine(compressedData))
-                return false;
-            maxLines.insert(i);
+            BorrowResult borrowRes = borrowIndexRegForLine(i, compressedData);
+            if (borrowRes.success)
+            {
+                if (!repackLine(line, &borrowRes))
+                    return false;
+
+                auto& borrowLine = compressedData.data[borrowRes.borrowFrom];
+                CompressedLine temp;
+                if (!borrowRes.ix.isEmpty())
+                    borrowRes.ix.loadXX(temp, borrowRes.ix.value16());
+                if (!borrowRes.iy.isEmpty())
+                    borrowRes.iy.loadXX(temp, borrowRes.iy.value16());
+                borrowLine.push_front(temp.data);
+                borrowLine.drawTicks += temp.drawTicks;
+
+                for (int j = borrowRes.borrowFrom; j != i;)
+                {
+                    compressedData.data[j].mcStats.lendIx = borrowRes.ix.value16();
+                    --j;
+                    if (j < 0)
+                        j = imageHeight - 1;
+                }
+
+            }
+            return borrowRes.success;
         }
     }
+    return false;
+}
 
-    for (int i: maxLines)
+bool rebalanceStep(CompressedData& compressedData)
+{
+    const int imageHeight = compressedData.data.size();
+
+    for (int i = 0; i < imageHeight; ++i)
     {
         int nextIndex = i > 0 ? i - 1 : imageHeight - 1;
         auto& line = compressedData.data[i];
         auto& nextLine = compressedData.data[nextIndex];
 
-        --line.mcStats.virtualTicks;
-        ++nextLine.mcStats.pos;
-        ++nextLine.mcStats.virtualTicks;
+        // try to reduce max tics, next line will be drawn later
+        int available = nextLine.mcStats.max - nextLine.mcStats.pos;
+        if (available > 0
+            && nextLine.mcStats.pos < maxMcPhaseForLine(compressedData)
+            && line.mcStats.virtualTicks - nextLine.mcStats.virtualTicks > 1)
+        {
+            --line.mcStats.virtualTicks;
+            ++nextLine.mcStats.pos;
+            ++nextLine.mcStats.virtualTicks;
+            return true;
+        }
     }
-    return true;
+    return false;
 }
 
 int alignMulticolorTimings(int flags, CompressedData& compressedData)
@@ -1554,10 +1705,26 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         regularTicks += line.drawTicks;
     }
     std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * 24 - regularTicks << std::endl;
+    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * imageHeight - regularTicks << std::endl;
+
 
     if (flags & OptimizeMcTicks)
+    {
+        // 1. Sink LD IX,nn, LD IY,nn from fast lines to slow lines
+#if 0
+        while (borrowIndexRegStep(compressedData));
+        maxTicks = 0;
+        for (int i = 0; i < imageHeight; ++i)
+        {
+            auto& line = compressedData.data[i];
+            line.mcStats.virtualTicks = line.drawTicks;
+            if (line.drawTicks > maxTicks)
+                maxTicks = line.drawTicks;
+        }
+#endif
+        // 2. Use advanced ray model. MC line drawing could start when ray already inside line in case of enough ticks for drawing
         while (rebalanceStep(compressedData));
+    }
 
 
     int maxVirtualTicks = 0;
@@ -1594,7 +1761,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
             break;
         }
     }
-    std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << std::endl;
+    std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
     int i = 0;
@@ -2568,6 +2735,13 @@ int serializeMainData(
                 {
                     #ifdef LOG_DEBUG
                         std::cout << "break due to size at line " << d << std::endl;
+                    #endif
+                    success = false;
+                }
+                if (info.spOffset > 32*8 - kMinOffscreenBytes)
+                {
+                    #ifdef LOG_DEBUG
+                        std::cout << "break due to stack moving at line " << d << std::endl;
                     #endif
                     success = false;
                 }

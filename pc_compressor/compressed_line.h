@@ -46,6 +46,12 @@ public:
         m_buffer[m_size++] = value;
     }
 
+    void erase(int index, int count)
+    {
+        memmove(m_buffer + index, m_buffer + index + count, m_size - index - count);
+        m_size -= count;
+    }
+
     inline void push_front(uint8_t value)
     {
         assert(m_size < sizeof(m_buffer));
@@ -160,6 +166,7 @@ struct CompressedLine
     void appendCommand(const z80Command& data);
     void push_front(const std::vector<uint8_t>& data);
     void push_front(const ZxData& buffer);
+    void erase(int index, int count);
 
     std::vector<Register16> getUsedRegisters() const;
     CompressedLine getSerializedUsedRegisters(const Register16& af) const;
@@ -174,6 +181,8 @@ public:
         int pos = 0;
         int max = 0;
         int virtualTicks = 0;
+        std::optional<uint16_t> lendIx;
+        std::optional<uint16_t> lendIy;
     };
 
     ZxData data;
