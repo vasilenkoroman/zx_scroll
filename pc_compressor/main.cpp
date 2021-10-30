@@ -1480,6 +1480,12 @@ void markByteAsSame(std::vector<int8_t>& rastrSameBytes, int y, int x)
     }
 }
 
+int maxMcPhaseForLine(CompressedData& compressedData)
+{
+    static const int kRastrToMcSwitchDelay = 28;
+    return kRastrToMcSwitchDelay;
+}
+
 bool rebalanceStep(CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
@@ -1502,7 +1508,7 @@ bool rebalanceStep(CompressedData& compressedData)
         {
             // try to reduce max tics, next line will be drawn later
             int available = nextLine.mcStats.max - nextLine.mcStats.pos;
-            if (available <= 0 || nextLine.mcStats.pos >= 28)
+            if (available <= 0 || nextLine.mcStats.pos >= maxMcPhaseForLine(compressedData))
                 return false;
             maxLines.insert(i);
         }
@@ -3076,36 +3082,33 @@ int serializeTimingData(
         ticks += colorTicks;
 
 
+        int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
         if (line % 8 == 0)
         {
-            // Draw next frame longer in  6 lines
-            ticks -= kLineDurationInTicks * 7;
-            int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
-            ticks += mcTicks;
-            ticks -= mcLineLen * 24;
+            ticks += mcTicks - mcLineLen * 24; //< Take into accout delay from the last MC line
 
+            // Update MC phase for line
             int curMcLine = (line / 8) % colorHeight;
-            int prevMcLine = (curMcLine + 1) % colorHeight;
-            
             int curMcLastLine = (curMcLine+23) % colorHeight;
             int nextMcLastLine = curMcLastLine > 0 ? curMcLastLine - 1 : colorHeight - 1;
-
             ticks -= multicolor.data[nextMcLastLine].mcStats.pos - multicolor.data[curMcLastLine].mcStats.pos;
+
+            ticks -= kLineDurationInTicks * 7; //< Draw next frame longer in  6 lines
         }
         else
         {
-            int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
             if (line % 8 == 7)
-                ticks += 224 * 192;
+                ticks += kLineDurationInTicks * 192;
             else
                 ticks += mcTicks;
-            ticks += kLineDurationInTicks;
+
+            ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2955 - 4;
+        int kZ80CodeDelay = 2951;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2856 + 8;
+            kZ80CodeDelay += 2864;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
