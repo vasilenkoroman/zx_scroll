@@ -36,8 +36,8 @@ static const int kMinOffscreenBytes = 4; // < It contains at least 4 writted byt
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
 
-// Page 7
-static const uint16_t kColorDataStartAddr = 0xc000 + 0x1b00;
+// Page 6
+static const uint16_t kColorDataStartAddr = 0xc000;
 
 enum Flags
 {
@@ -2293,8 +2293,8 @@ struct DescriptorState
          * directly in descriptor preambula. Additionally, preambula contains alignment delay and correction for SP register if need.
          */
 
-        if (startSpDelta > 0)
-            serializeSpDelta(startSpDelta);
+        //if (startSpDelta > 0)
+        //    serializeSpDelta(startSpDelta);
 
         serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, 0);
     }
@@ -3075,22 +3075,40 @@ int serializeRastrDescriptors(
     int imageHeight = descriptors.size();
 
 
-    ofstream file;
-    std::string fileName = inputFileName + ".rastr.descriptors";
-    file.open(fileName, std::ios::binary);
-    if (!file.is_open())
+    ofstream offRastrFile, mcRastrFile;
     {
-        std::cerr << "Can not write destination file" << std::endl;
-        return -1;
+        std::string fileName = inputFileName + ".off_rastr.descriptors";
+        offRastrFile.open(fileName, std::ios::binary);
+        if (!offRastrFile.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
+    }
+    {
+        std::string fileName = inputFileName + ".mc_rastr.descriptors";
+        mcRastrFile.open(fileName, std::ios::binary);
+        if (!mcRastrFile.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
     }
 
     for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
     {
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
+        mcRastrFile.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+    }
 
-        file.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
-        file.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+    for (int i = -7; i < imageHeight + kmaxDescriptorOffset; ++i)
+    {
+        int line = i < 0 ? imageHeight - i : i;
+        line = line % imageHeight;
+        const auto& descriptor = descriptors[line];
+        offRastrFile.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
+        offRastrFile.write((const char*)&descriptor.rastrForOffscreen.startSpDelta, 2);
     }
 }
 

@@ -7,9 +7,9 @@
  * 2 - static page 0x8000
  * 5 - static page 0x4000
  * Pages 2,5 include: reach descriptors, MC data
- * 6 - music data
- * 7 - second screen, second screen code, other descriptors
- * page 7: color data from address #1b00
+ * 7 - music data
+ * 6 - second screen, second screen code, other descriptors
+ * page 6: color data from address #1b00
  * short port page selection:
  *    LD A, #50 + screen_num*8 + page_number
  *    OUT (#fd), A
@@ -171,21 +171,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
-/*
-        MACRO set_page_by_bank
-                ; a - bank number
-                rra
-                set_page_by_logical_num
-        ENDM
-*/        
-        MACRO set_page_by_bank
-                ; a - bank number
-                ld h, high(SET_PAGE_HELPER)     ; 7
-                ld l, a                         ; 11
-                ld a, (hl)                      ; 18
-                out (0xfd), a
-        ENDM
-
         MACRO set_page_by_logical_num
                 ; a - bank number
                 cp 2
@@ -194,12 +179,10 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 out (0xfd), a
         ENDM
 
-        MACRO next_page
-                ld h, high(SET_PAGE_HELPER)     ; 7
-                ld l, a                         ; 4
-                ld a, (hl)                      ; 7
-                out (0xfd), a                   ; 11
-                ; total: 29
+        MACRO set_page_by_bank
+                ; a - bank number
+                rra
+                set_page_by_logical_num
         ENDM
 
 /************* Routines **********************/
@@ -217,23 +200,26 @@ create_page_helper
         ld (hl), 0x50   ; 4-th
         inc l
 
-        ld hl, high(SET_PAGE_HELPER)*256
-        ld (hl), 0x50
-        inc l
-        ld (hl), 0x50
-        inc l
-        ld (hl), 0x51
-        inc l
-        ld (hl), 0x51
-        inc l
-        ld (hl), 0x53
-        inc l
-        ld (hl), 0x53
-        inc l
-        ld (hl), 0x54
-        inc l
-        ld (hl), 0x54
-        
+        ret
+
+create_write_off_rastr_helper
+        ld hl, draw_off_rastr_0
+        ld (draw_offrastr_offset), hl
+        ld hl, draw_off_rastr_1
+        ld (draw_offrastr_offset + 2), hl
+        ld hl, draw_off_rastr_2
+        ld (draw_offrastr_offset + 4), hl
+        ld hl, draw_off_rastr_3
+        ld (draw_offrastr_offset + 6), hl
+        ld hl, draw_off_rastr_4
+        ld (draw_offrastr_offset + 8), hl
+        ld hl, draw_off_rastr_5
+        ld (draw_offrastr_offset + 10), hl
+        ld hl, draw_off_rastr_6
+        ld (draw_offrastr_offset + 12), hl
+        ld hl, draw_off_rastr_7
+        ld (draw_offrastr_offset + 14), hl
+
         ret
 
 /************** delay routine *************/
@@ -320,6 +306,7 @@ ticks_per_line                  equ  224
 
 
         call create_page_helper
+        call create_write_off_rastr_helper
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
@@ -392,7 +379,7 @@ no:
         DRAW_RASTR_LINE 23
 
 loop1:
-        SET_PAGE 7
+        SET_PAGE 6
 
         ld a, 7
         and iyl
@@ -735,7 +722,7 @@ continue_page:
         jr nz, page_loop
 
         // write initial color data to restore
-        SET_PAGE 7
+        SET_PAGE 6
 
         ld hl, color_descriptor + 4                     ; 10
         ld sp, hl                                       ; 6
@@ -859,16 +846,16 @@ jpix_table EQU 0xc000
         INCBIN "resources/compressed_data.main3"
         INCBIN "resources/compressed_data.reach_descriptor3"
 
-        ORG 0xc000 + 0x1b00
-        PAGE 7
+        ORG 0xc000
+        PAGE 6
 color_code
         INCBIN "resources/compressed_data.color"
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 off_rastr_descriptors
-        INCBIN "resources/compressed_data.rastr.descriptors"
+        INCBIN "resources/compressed_data.off_rastr.descriptors"
 mc_rastr_descriptors
-        INCBIN "resources/compressed_data.rastr.descriptors"
+        INCBIN "resources/compressed_data.mc_rastr.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 
