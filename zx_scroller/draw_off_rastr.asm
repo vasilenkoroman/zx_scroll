@@ -1,3 +1,11 @@
+    MACRO DRAW_ONLY_RASTR_LINE N?
+                ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld hl, $ + 7
+                exx
+RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
+    ENDM                
+
+
         MACRO DRAW_OFFSCREEN_LINES Step?, Iteration?
 OFF_Step?_Iteration?_SP
                 ld sp, 00        
@@ -10,7 +18,7 @@ OFF_Step?_Iteration?_JP
 
 
 draw_off_rastr_0
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 0, 23
@@ -20,7 +28,7 @@ draw_off_rastr_0
                 DRAW_OFFSCREEN_LINES 0, 7
                 DRAW_OFFSCREEN_LINES 0, 6
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 0, 21
@@ -30,7 +38,7 @@ draw_off_rastr_0
                 DRAW_OFFSCREEN_LINES 0, 5
                 DRAW_OFFSCREEN_LINES 0, 4
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 0, 19
@@ -40,7 +48,7 @@ draw_off_rastr_0
                 DRAW_OFFSCREEN_LINES 0, 3
                 DRAW_OFFSCREEN_LINES 0, 2
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 0, 17
@@ -81,7 +89,7 @@ draw_off_rastr_0
                 jp bank_drawing_common
 
 draw_off_rastr_1
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 1, 23
@@ -91,7 +99,7 @@ draw_off_rastr_1
                 DRAW_OFFSCREEN_LINES 1, 7
                 DRAW_OFFSCREEN_LINES 1, 0
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 1, 22
@@ -101,7 +109,7 @@ draw_off_rastr_1
                 DRAW_OFFSCREEN_LINES 1, 6
                 DRAW_OFFSCREEN_LINES 1, 5
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 1, 20
@@ -111,7 +119,7 @@ draw_off_rastr_1
                 DRAW_OFFSCREEN_LINES 1, 4
                 DRAW_OFFSCREEN_LINES 1, 3
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 1, 18
@@ -124,7 +132,7 @@ draw_off_rastr_1
                 jp bank_drawing_common
 
 draw_off_rastr_2
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 2, 23
@@ -134,7 +142,7 @@ draw_off_rastr_2
                 DRAW_OFFSCREEN_LINES 2, 7
                 DRAW_OFFSCREEN_LINES 2, 6
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 2, 21
@@ -144,7 +152,7 @@ draw_off_rastr_2
                 DRAW_OFFSCREEN_LINES 2, 5
                 DRAW_OFFSCREEN_LINES 2, 4
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 2, 19
@@ -154,7 +162,7 @@ draw_off_rastr_2
                 DRAW_OFFSCREEN_LINES 2, 3
                 DRAW_OFFSCREEN_LINES 2, 2
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 2, 17
@@ -167,7 +175,7 @@ draw_off_rastr_2
                 jp bank_drawing_common
 
 draw_off_rastr_3
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 3, 23
@@ -177,7 +185,7 @@ draw_off_rastr_3
                 DRAW_OFFSCREEN_LINES 3, 7
                 DRAW_OFFSCREEN_LINES 3, 0
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 3, 22
@@ -187,7 +195,7 @@ draw_off_rastr_3
                 DRAW_OFFSCREEN_LINES 3, 6
                 DRAW_OFFSCREEN_LINES 3, 5
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 3, 20
@@ -197,7 +205,7 @@ draw_off_rastr_3
                 DRAW_OFFSCREEN_LINES 3, 4
                 DRAW_OFFSCREEN_LINES 3, 3
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 3, 18
@@ -210,7 +218,7 @@ draw_off_rastr_3
                 jp bank_drawing_common
 
 draw_off_rastr_4
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 4, 23
@@ -220,7 +228,7 @@ draw_off_rastr_4
                 DRAW_OFFSCREEN_LINES 4, 7
                 DRAW_OFFSCREEN_LINES 4, 6
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 4, 21
@@ -230,7 +238,7 @@ draw_off_rastr_4
                 DRAW_OFFSCREEN_LINES 4, 5
                 DRAW_OFFSCREEN_LINES 4, 4
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 4, 19
@@ -240,7 +248,7 @@ draw_off_rastr_4
                 DRAW_OFFSCREEN_LINES 4, 3
                 DRAW_OFFSCREEN_LINES 4, 2
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 4, 17
@@ -253,7 +261,7 @@ draw_off_rastr_4
                 jp bank_drawing_common
 
 draw_off_rastr_5
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 5, 23
@@ -263,7 +271,7 @@ draw_off_rastr_5
                 DRAW_OFFSCREEN_LINES 5, 7
                 DRAW_OFFSCREEN_LINES 5, 0
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 5, 22
@@ -273,7 +281,7 @@ draw_off_rastr_5
                 DRAW_OFFSCREEN_LINES 5, 6
                 DRAW_OFFSCREEN_LINES 5, 5
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 5, 20
@@ -283,7 +291,7 @@ draw_off_rastr_5
                 DRAW_OFFSCREEN_LINES 5, 4
                 DRAW_OFFSCREEN_LINES 5, 3
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 5, 18
@@ -296,7 +304,7 @@ draw_off_rastr_5
                 jp bank_drawing_common
 
 draw_off_rastr_6
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 6, 23
@@ -306,7 +314,7 @@ draw_off_rastr_6
                 DRAW_OFFSCREEN_LINES 6, 7
                 DRAW_OFFSCREEN_LINES 6, 6
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 6, 21
@@ -316,7 +324,7 @@ draw_off_rastr_6
                 DRAW_OFFSCREEN_LINES 6, 5
                 DRAW_OFFSCREEN_LINES 6, 4
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 6, 19
@@ -326,7 +334,7 @@ draw_off_rastr_6
                 DRAW_OFFSCREEN_LINES 6, 3
                 DRAW_OFFSCREEN_LINES 6, 2
 
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 6, 17
@@ -339,7 +347,7 @@ draw_off_rastr_6
                 jp bank_drawing_common
 
 draw_off_rastr_7
-                ld a, 54
+                ld a, 0x54
                 out (0xfd), a
                 scf
                 DRAW_OFFSCREEN_LINES 7, 23
@@ -349,7 +357,7 @@ draw_off_rastr_7
                 DRAW_OFFSCREEN_LINES 7, 7
                 DRAW_OFFSCREEN_LINES 7, 0
 
-                ld a, 53
+                ld a, 0x53
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 7, 22
@@ -359,7 +367,7 @@ draw_off_rastr_7
                 DRAW_OFFSCREEN_LINES 7, 6
                 DRAW_OFFSCREEN_LINES 7, 5
 
-                ld a, 51
+                ld a, 0x51
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 7, 20
@@ -369,7 +377,7 @@ draw_off_rastr_7
                 DRAW_OFFSCREEN_LINES 7, 4
                 DRAW_OFFSCREEN_LINES 7, 3
 
-                ld a, 50
+                ld a, 0x50
                 out (0xfd), a
 
                 DRAW_OFFSCREEN_LINES 7, 18
