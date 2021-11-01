@@ -24,19 +24,19 @@ start:          equ 5e00h
 
 draw_offrastr_offset    equ screen_end
 draw_offrastr_off_end   equ screen_end + 16
-SAVED_UPD_DATA          equ draw_offrastr_off_end
-SAVED_UPD_DATA_END      equ SAVED_UPD_DATA + 12
-SAVED_OFF_DATA          equ SAVED_UPD_DATA_END
-SAVED_OFF_DATA_END      equ SAVED_OFF_DATA + 16
-color_data_to_restore   equ SAVED_OFF_DATA_END          ; offset  [44..45]
-//saved_bc                equ color_data_to_restore + 2
 
-SET_PAGE_HELPER         EQU screen_end + 0x50
-SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
+off_rastr_dec_hl        EQU draw_offrastr_off_end
+off_rastr_dec_hl_end    EQU draw_offrastr_offset + 48
+
+color_data_to_restore   equ off_rastr_dec_hl_end          ; offset  [44..45]
+//saved_bc                equ color_data_to_restore + 2
 
 STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ SET_PAGE_HELPER_END
 stack_top               equ stack_bottom + STACK_SIZE * 2
+
+SET_PAGE_HELPER         EQU screen_end + 0x50
+SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
 
 DEBUG_MODE              EQU 0
 
@@ -45,6 +45,8 @@ DEBUG_MODE              EQU 0
     org 16384
     INCBIN "resources/jorg10.scr", 0, 6144+768
 
+EXX_DE_JP_HL_CODE       EQU 0xd9 + 0xe9 * 256
+
         MACRO DRAW_ONLY_RASTR_LINE N?
                 ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld hl, $ + 7
@@ -52,32 +54,34 @@ DEBUG_MODE              EQU 0
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
 
-        MACRO SET_UPD_END labelName?, step?
-                ld sp, labelName? + 1
-                ld hl, EXX_DE_JP_HL_CODE
-                exx (sp), hl
-                ld (SAVED_UPD_DATA - 4 + step? * 2), hl
+        MACRO RESTORE_OFF_END labelName?, value16?
+                ld hl, value16?
+                ld (labelName? + 1), hl
         ENDM
 
-        MACRO RESTORE_UPD_END labelName?, step?
-                ld sp, labelName? + 1
-                ld hl, (SAVED_UPD_DATA - 4 + step? * 2)
-                exx (sp), hl
+        MACRO DO_DEC_SP
+                pop hl
+                dec(hl)
         ENDM
 
-        MACRO SET_OFF_END labelName?, step?
-                ld sp, labelName? + 1
-                ld hl, EXX_DE_JP_HL_CODE
-                exx (sp), hl
-                ld (SAVED_OFF_DATA + step? * 2), hl
-        ENDM
+        MACRO DRAW_OFFSCREEN_LINES Iteration?, Step?
+OFF_Iteration?_Step?_SP
+                ld sp, 00        
+                ld hl, $ + 7     ; 10
+                exx
+OFF_Iteration?_Step?_JP    
+                jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
+                // total ticks: 24
+        ENDM          
 
-        MACRO RESTORE_OFF_END labelName?, step?
-                ld sp, labelName? + 1
-                ld hl, (SAVED_OFF_DATA + step? * 2)
-                exx (sp), hl
+        MACRO MOVE_OFF_LD_SP iteration?, d1?, d2?, d3?
+//.d1     equ 24 - iteration?
+//.d2     equ 16 - iteration?
+//.d3     equ 8 - iteration?
+                ld hl, (OFF_iteration?_0_SP): ld (OFF_0_d1?_SP), hl
+                ld hl, (OFF_iteration?_8_SP): ld (OFF_0_d2?_SP), hl
+                ld hl, (OFF_iteration?_16_SP): ld (OFF_0_d3?_SP), hl
         ENDM
-
 
     org start
 
@@ -118,10 +122,6 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
         ld (color_data_to_restore), hl
         ENDM
 
-        MACRO FILL_OFF_JP Step?, Iteration?
-                ld (OFF_Step?_Iteration?_JP + 1), hl
-        ENDM
-        
         MACRO FILL_OFF_SP Step?, Iteration?
                 ld de, color_addr
                 add hl, de
@@ -197,6 +197,51 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ld (hl), d
 
         ENDM               
+
+        MACRO FILL_SP_DATA iteration?
+            pop de                              ; 10
+            ld l, e                             ; 4
+            ld (OFF_iteration?_0_SP + 1), hl    ; 16
+            ld c, d                             ; 4
+            ld (OFF_iteration?_8_SP + 1), bc    ; 20
+        ENDM
+
+        MACRO FILL_SP_DATA2 iteration?
+            pop de                              ; 10
+            ld l, e                             ; 4
+            ld (OFF_7_16_SP + 1), hl            ; 16
+        ENDM
+
+        MACRO FILL_SP_DATA_ALL
+            exx
+            ld h, high(16384 + 6144) - 1        ; 7
+            ld b, high(16384 + 4096) - 1        ; 7
+
+            FILL_SP_DATA 7
+            FILL_SP_DATA 6
+            FILL_SP_DATA 5
+            FILL_SP_DATA 4
+            FILL_SP_DATA 3
+            FILL_SP_DATA 2
+            FILL_SP_DATA 1
+            FILL_SP_DATA 0
+
+            exx                                 ; 4
+            inc h                               ; 4
+            ld sp, hl                           ; 6
+            ld h, high(16384 + 2048) - 1        ; 7
+
+            FILL_SP_DATA2 7
+            FILL_SP_DATA2 6
+            FILL_SP_DATA2 5
+            FILL_SP_DATA2 4
+            FILL_SP_DATA2 3
+            FILL_SP_DATA2 2
+            FILL_SP_DATA2 1
+            FILL_SP_DATA2 0
+
+            // total:106
+        ENDM
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -457,33 +502,102 @@ loop1:
         exx                                             ; 4
 start_draw_colors0:
         jp 00                                           ; 8
-        //MACRO prepare_rastr_drawing (for the current step)
+
+        // Update off rastr drawing for then next 8 steps
+
+        // 1. Move LD, SP commands (values are calculated before)
+        MOVE_OFF_LD_SP 1,       7, 15, 23
+        MOVE_OFF_LD_SP 2,       6, 14, 22
+        MOVE_OFF_LD_SP 3,       5, 13, 21
+        MOVE_OFF_LD_SP 4,       4, 12, 20
+        MOVE_OFF_LD_SP 5,       3, 11, 19
+        MOVE_OFF_LD_SP 6,       2, 10, 18
+        MOVE_OFF_LD_SP 7,       1, 9,  17
 
         sla c : rl b    // bc*2
         ld hl, off_rastr_descriptors
         add hl,bc       // * 2
-        add hl,bc       // * 4
         ld sp, hl
 
-        // Move LD, SP commands
-        ld hl, (OFF_Iteration_-1_0_SP): ld (OFF_Iteration_0_7_SP), hl
-        ld hl, (OFF_Iteration_-1_8_SP): ld (OFF_Iteration_0_15_SP), hl
-        ld hl, (OFF_Iteration_-1_16_SP): ld (OFF_Iteration_0_23_SP), hl
+        // 2. Fill JP commands
 
+        pop hl: ld(OFF_7_0_JP+1), hl
+        pop hl: ld(OFF_6_0_JP+1), hl
+        pop hl: ld(OFF_5_0_JP+1), hl
+        pop hl: ld(OFF_4_0_JP+1), hl
+        pop hl: ld(OFF_3_0_JP+1), hl
+        pop hl: ld(OFF_2_0_JP+1), hl
+        pop hl: ld(OFF_1_0_JP+1), hl
         
-        pop hl: ld(OFF_-7_0_JP), hl
-        pop hl: ld(OFF_-6_0_JP), hl
-        pop hl: ld(OFF_-5_0_JP), hl
-        pop hl: ld(OFF_-4_0_JP), hl
-        pop hl: ld(OFF_-3_0_JP), hl
-        pop hl: ld(OFF_-2_0_JP), hl
-        pop hl: ld(OFF_-1_0_JP), hl
-        pop hl: ld(OFF_0_0_JP), hl
+        pop hl: ld(OFF_0_0_JP+1), hl
+        pop hl: ld(OFF_0_1_JP+1), hl
+        pop hl: ld(OFF_0_2_JP+1), hl
+        pop hl: ld(OFF_0_3_JP+1), hl
+        pop hl: ld(OFF_0_4_JP+1), hl
+        pop hl: ld(OFF_0_5_JP+1), hl
+        pop hl: ld(OFF_0_6_JP+1), hl
+        pop hl: ld(OFF_0_7_JP+1), hl
 
 
-        ld hl, (64-8) * 2
+        ld hl, (64-15) * 2
         add hl, sp
         ld sp, hl
+
+        pop hl: ld(OFF_7_8_JP+1), hl
+        pop hl: ld(OFF_6_8_JP+1), hl
+        pop hl: ld(OFF_5_8_JP+1), hl
+        pop hl: ld(OFF_4_8_JP+1), hl
+        pop hl: ld(OFF_3_8_JP+1), hl
+        pop hl: ld(OFF_2_8_JP+1), hl
+        pop hl: ld(OFF_1_8_JP+1), hl
+        
+        pop hl: ld(OFF_0_8_JP+1), hl
+        pop hl: ld(OFF_0_9_JP+1), hl
+        pop hl: ld(OFF_0_10_JP+1), hl
+        pop hl: ld(OFF_0_11_JP+1), hl
+        pop hl: ld(OFF_0_12_JP+1), hl
+        pop hl: ld(OFF_0_13_JP+1), hl
+        pop hl: ld(OFF_0_14_JP+1), hl
+        pop hl: ld(OFF_0_15_JP+1), hl
+
+        ld hl, (64-15) * 2
+        add hl, sp
+        ld sp, hl
+
+        pop hl: ld(OFF_7_16_JP+1), hl
+        pop hl: ld(OFF_6_16_JP+1), hl
+        pop hl: ld(OFF_5_16_JP+1), hl
+        pop hl: ld(OFF_4_16_JP+1), hl
+        pop hl: ld(OFF_3_16_JP+1), hl
+        pop hl: ld(OFF_2_16_JP+1), hl
+        pop hl: ld(OFF_1_16_JP+1), hl
+        
+        pop hl: ld(OFF_0_16_JP+1), hl
+        pop hl: ld(OFF_0_17_JP+1), hl
+        pop hl: ld(OFF_0_18_JP+1), hl
+        pop hl: ld(OFF_0_19_JP+1), hl
+        pop hl: ld(OFF_0_20_JP+1), hl
+        pop hl: ld(OFF_0_21_JP+1), hl
+        pop hl: ld(OFF_0_22_JP+1), hl
+        pop hl: ld(OFF_0_23_JP+1), hl
+
+        // 3. prepare offscreen last lines
+
+        ld hl, off_rastr_sp_delta
+        add hl, bc
+        ld sp, hl
+        FILL_SP_DATA_ALL
+
+        // 4. prepare offscreen exec data
+
+        ld hl, EXX_DE_JP_HL_CODE
+        ld (it0_end), hl
+        ld (it7_end), hl
+        ld (it6_end), hl
+        ld (it5_end), hl
+        ld (it4_end), hl
+        ld (it3_end), hl
+        ld (it2_end), hl
 
         // -------------------- MC rastr descriptors
 
@@ -532,24 +646,6 @@ start_draw_colors0:
          pop hl: ld (RASTR0_16+1), hl
 
 
-        // prepare offscreen exec/upd data
-
-        SET_UPD_END it-1_upd, 7
-        SET_UPD_END it-2_upd, 6
-        SET_UPD_END it-3_upd, 5
-        SET_UPD_END it-4_upd, 4
-        SET_UPD_END it-5_upd, 3
-        SET_UPD_END it-6_upd, 2
-
-        SET_OFF_END it0_end,  0
-        SET_OFF_END it7_end,  7
-        SET_OFF_END it6_end,  6
-        SET_OFF_END it5_end,  5
-        SET_OFF_END it4_end,  4
-        SET_OFF_END it3_end,  3
-        SET_OFF_END it2_end,  2
-
-
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
 
@@ -557,9 +653,6 @@ start_draw_colors0:
         ld hl, $ + 7
         exx
         jp it0_start
-        // finalize off rastr drawing here
-        RESTORE_UPD_END it-1_upd, 0
-        RESTORE_OFF_END it0_end, 0
 
         // MC part rastr
 
@@ -647,11 +740,19 @@ start_draw_colors:
         pop hl: ld (RASTR_16+1), hl
                 
 
-        ld hl, off_rastr_descriptors
-        add hl, bc      // *2
+        // Perform dec(hl) for offrastr drawing
+        ld hl, off_rastr_dec_hl
+        ld a, 15
+        and c   // *2
+        ld e, a
+        add a   // *4
+        add e   // *6
+        add l
+        ld l, a
         ld sp, hl
-        ld de, (64-2) * 2
+        .21 DO_DEC_SP
 
+        // Exec off rastr
 
         ld hl, draw_offrastr_offset
         add hl, bc
@@ -873,8 +974,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 30000
-         ORG 30000
+        ASSERT $ <= 27500
+         ORG 27500
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
@@ -924,6 +1025,8 @@ color_code
 color_descriptor
         INCBIN "resources/compressed_data.color_descriptor"
 off_rastr_descriptors
+        INCBIN "resources/compressed_data.off_rastr.descriptors"
+off_rastr_sp_delta
         INCBIN "resources/compressed_data.off_rastr.descriptors"
 mc_rastr_descriptors
         INCBIN "resources/compressed_data.mc_rastr.descriptors"
