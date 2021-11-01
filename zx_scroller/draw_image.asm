@@ -23,15 +23,20 @@ start:          equ 5e00h
 
 
 draw_offrastr_offset    equ screen_end
-
-STACK_SIZE:             equ 4  ; in words
-stack_bottom            equ screen_end + 16
-stack_top               equ stack_bottom + STACK_SIZE * 2
-color_data_to_restore   equ stack_top
+draw_offrastr_off_end   equ screen_end + 16
+SAVED_UPD_DATA          equ draw_offrastr_off_end
+SAVED_UPD_DATA_END      equ SAVED_UPD_DATA + 12
+SAVED_OFF_DATA          equ SAVED_UPD_DATA_END
+SAVED_OFF_DATA_END      equ SAVED_OFF_DATA + 16
+color_data_to_restore   equ SAVED_OFF_DATA_END          ; offset  [44..45]
 //saved_bc                equ color_data_to_restore + 2
 
 SET_PAGE_HELPER         EQU screen_end + 0x50
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
+
+STACK_SIZE:             equ 4  ; in words
+stack_bottom            equ SET_PAGE_HELPER_END
+stack_top               equ stack_bottom + STACK_SIZE * 2
 
 DEBUG_MODE              EQU 0
 
@@ -47,56 +52,30 @@ DEBUG_MODE              EQU 0
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
 
+        MACRO SET_UPD_END labelName?, step?
+                ld sp, labelName? + 1
+                ld hl, EXX_DE_JP_HL_CODE
+                exx (sp), hl
+                ld (SAVED_UPD_DATA - 4 + step? * 2), hl
+        ENDM
 
+        MACRO RESTORE_UPD_END labelName?, step?
+                ld sp, labelName? + 1
+                ld hl, (SAVED_UPD_DATA - 4 + step? * 2)
+                exx (sp), hl
+        ENDM
 
-        MACRO FILL_OFF_RASTR_64_0
+        MACRO SET_OFF_END labelName?, step?
+                ld sp, labelName? + 1
+                ld hl, EXX_DE_JP_HL_CODE
+                exx (sp), hl
+                ld (SAVED_OFF_DATA + step? * 2), hl
+        ENDM
 
-        pop hl: FILL_OFF_JP 0, 0
-        pop hl: FILL_OFF_SP 0, 0
-
-        pop hl: FILL_OFF_JP 0, 1: FILL_OFF_JP 1, 0
-        pop hl: FILL_OFF_SP 0, 1: CONT_OFF_SP 1, 0
-
-        pop hl: FILL_OFF_JP 0, 2: FILL_OFF_JP 1, 1: FILL_OFF_JP 2, 0
-        pop hl: FILL_OFF_SP 0, 2: CONT_OFF_SP 1, 1: CONT_OFF_SP 2, 0
-
-        pop hl: FILL_OFF_JP 0, 3: FILL_OFF_JP 1, 2: FILL_OFF_JP 2, 1: FILL_OFF_JP 3, 0
-        pop hl: FILL_OFF_SP 0, 3: CONT_OFF_SP 1, 2: CONT_OFF_SP 2, 1: CONT_OFF_SP 3, 0
-
-        pop hl: FILL_OFF_JP 0, 4: FILL_OFF_JP 1, 3: FILL_OFF_JP 2, 2: FILL_OFF_JP 3, 1: FILL_OFF_JP 4, 0
-        pop hl: FILL_OFF_SP 0, 4: CONT_OFF_SP 1, 3: CONT_OFF_SP 2, 2: CONT_OFF_SP 3, 1: CONT_OFF_SP 4, 0
-
-        pop hl: FILL_OFF_JP 0, 5: FILL_OFF_JP 1, 4: FILL_OFF_JP 2, 3: FILL_OFF_JP 3, 2: FILL_OFF_JP 4, 1: FILL_OFF_JP 5, 0
-        pop hl: FILL_OFF_SP 0, 5: CONT_OFF_SP 1, 4: CONT_OFF_SP 2, 3: CONT_OFF_SP 3, 2: CONT_OFF_SP 4, 1: CONT_OFF_SP 5, 0
-
-        pop hl: FILL_OFF_JP 0, 6: FILL_OFF_JP 1, 5: FILL_OFF_JP 2, 4: FILL_OFF_JP 3, 3: FILL_OFF_JP 4, 2: FILL_OFF_JP 5, 1: FILL_OFF_JP 6, 0
-        pop hl: FILL_OFF_SP 0, 6: CONT_OFF_SP 1, 5: CONT_OFF_SP 2, 4: CONT_OFF_SP 3, 3: CONT_OFF_SP 4, 2: CONT_OFF_SP 5, 1: CONT_OFF_SP 6, 0
-
-        pop hl: FILL_OFF_JP 0, 7: FILL_OFF_JP 1, 6: FILL_OFF_JP 2, 5: FILL_OFF_JP 3, 4: FILL_OFF_JP 4, 3: FILL_OFF_JP 5, 2: FILL_OFF_JP 6, 1: FILL_OFF_JP 7, 0
-        pop hl: FILL_OFF_SP 0, 7: CONT_OFF_SP 1, 6: CONT_OFF_SP 2, 5: CONT_OFF_SP 3, 4: CONT_OFF_SP 4, 3: CONT_OFF_SP 5, 2: CONT_OFF_SP 6, 1: CONT_OFF_SP 7, 0
-
-        pop hl:                   FILL_OFF_JP 1, 7: FILL_OFF_JP 2, 6: FILL_OFF_JP 3, 5: FILL_OFF_JP 4, 4: FILL_OFF_JP 5, 3: FILL_OFF_JP 6, 2: FILL_OFF_JP 7, 1
-        pop hl:                   FILL_OFF_SP 1, 7: CONT_OFF_SP 2, 6: CONT_OFF_SP 3, 5: CONT_OFF_SP 4, 4: CONT_OFF_SP 5, 3: CONT_OFF_SP 6, 2: CONT_OFF_SP 7, 1
-
-        pop hl:                                     FILL_OFF_JP 2, 7: FILL_OFF_JP 3, 6: FILL_OFF_JP 4, 5: FILL_OFF_JP 5, 4: FILL_OFF_JP 6, 3: FILL_OFF_JP 7, 2
-        pop hl:                                     FILL_OFF_SP 2, 7: CONT_OFF_SP 3, 6: CONT_OFF_SP 4, 5: CONT_OFF_SP 5, 4: CONT_OFF_SP 6, 3: CONT_OFF_SP 7, 2
-
-        pop hl:                                                       FILL_OFF_JP 3, 7: FILL_OFF_JP 4, 6: FILL_OFF_JP 5, 5: FILL_OFF_JP 6, 4: FILL_OFF_JP 7, 3
-        pop hl:                                                       FILL_OFF_SP 3, 7: CONT_OFF_SP 4, 6: CONT_OFF_SP 5, 5: CONT_OFF_SP 6, 4: CONT_OFF_SP 7, 3
-
-        pop hl:                                                                         FILL_OFF_JP 4, 7: FILL_OFF_JP 5, 6: FILL_OFF_JP 6, 5: FILL_OFF_JP 7, 4
-        pop hl:                                                                         FILL_OFF_SP 4, 7: CONT_OFF_SP 5, 6: CONT_OFF_SP 6, 5: CONT_OFF_SP 7, 4
-
-        pop hl:                                                                                           FILL_OFF_JP 5, 7: FILL_OFF_JP 6, 6: FILL_OFF_JP 7, 5
-        pop hl:                                                                                           FILL_OFF_SP 5, 7: CONT_OFF_SP 6, 6: CONT_OFF_SP 7, 5
-
-        pop hl:                                                                                                             FILL_OFF_JP 6, 7: FILL_OFF_JP 7, 6
-        pop hl:                                                                                                             FILL_OFF_SP 6, 7: CONT_OFF_SP 7, 6
-
-        pop hl:                                                                                                                               FILL_OFF_JP 7, 7
-        pop hl:                                                                                                                               FILL_OFF_SP 7, 7
-
-
+        MACRO RESTORE_OFF_END labelName?, step?
+                ld sp, labelName? + 1
+                ld hl, (SAVED_OFF_DATA + step? * 2)
+                exx (sp), hl
         ENDM
 
 
@@ -256,8 +235,7 @@ create_page_helper
         ret
 
 create_write_off_rastr_helper
-        ld hl, draw_off_rastr_0
-        ld (draw_offrastr_offset), hl
+        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
         ld hl, draw_off_rastr_1
         ld (draw_offrastr_offset + 2), hl
         ld hl, draw_off_rastr_2
@@ -507,6 +485,7 @@ start_draw_colors0:
         add hl, sp
         ld sp, hl
 
+        // -------------------- MC rastr descriptors
 
         ld hl, mc_rastr_descriptors
         add hl,bc       // * 2
@@ -553,11 +532,65 @@ start_draw_colors0:
          pop hl: ld (RASTR0_16+1), hl
 
 
+        // prepare offscreen exec/upd data
+
+        SET_UPD_END it-1_upd, 7
+        SET_UPD_END it-2_upd, 6
+        SET_UPD_END it-3_upd, 5
+        SET_UPD_END it-4_upd, 4
+        SET_UPD_END it-5_upd, 3
+        SET_UPD_END it-6_upd, 2
+
+        SET_OFF_END it0_end,  0
+        SET_OFF_END it7_end,  7
+        SET_OFF_END it6_end,  6
+        SET_OFF_END it5_end,  5
+        SET_OFF_END it4_end,  4
+        SET_OFF_END it3_end,  3
+        SET_OFF_END it2_end,  2
+
+
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
 
         scf
+        ld hl, $ + 7
+        exx
         jp it0_start
+        // finalize off rastr drawing here
+        RESTORE_UPD_END it-1_upd, 0
+        RESTORE_OFF_END it0_end, 0
+
+        // MC part rastr
+
+        DRAW_ONLY_RASTR_LINE 0
+        DRAW_ONLY_RASTR_LINE 1
+        DRAW_ONLY_RASTR_LINE 2
+        DRAW_ONLY_RASTR_LINE 3
+        DRAW_ONLY_RASTR_LINE 4
+        DRAW_ONLY_RASTR_LINE 5
+        DRAW_ONLY_RASTR_LINE 6
+        DRAW_ONLY_RASTR_LINE 7
+        
+        DRAW_ONLY_RASTR_LINE 8
+        DRAW_ONLY_RASTR_LINE 9
+        DRAW_ONLY_RASTR_LINE 10
+        DRAW_ONLY_RASTR_LINE 11
+        DRAW_ONLY_RASTR_LINE 12
+        DRAW_ONLY_RASTR_LINE 13
+        DRAW_ONLY_RASTR_LINE 14
+        DRAW_ONLY_RASTR_LINE 15
+
+        DRAW_ONLY_RASTR_LINE 16
+        DRAW_ONLY_RASTR_LINE 17
+        DRAW_ONLY_RASTR_LINE 18
+        DRAW_ONLY_RASTR_LINE 19
+        DRAW_ONLY_RASTR_LINE 20
+        DRAW_ONLY_RASTR_LINE 21
+        DRAW_ONLY_RASTR_LINE 22
+
+
+        jp bank_drawing_common
 
 //*************************************************************************************
 mc_step_drawing:
@@ -585,7 +618,7 @@ start_draw_colors:
 
         // Draw middle 3-th of rastr during top 3-th of colors
 
-        ld hl, (63-8) * 2
+        ld hl, (64-8) * 2
         add hl, sp
         ld sp, hl
 
@@ -613,6 +646,12 @@ start_draw_colors:
         pop hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR_16+1), hl
                 
+
+        ld hl, off_rastr_descriptors
+        add hl, bc      // *2
+        ld sp, hl
+        ld de, (64-2) * 2
+
 
         ld hl, draw_offrastr_offset
         add hl, bc

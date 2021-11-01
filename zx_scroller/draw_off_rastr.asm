@@ -155,3 +155,112 @@ it2_end:        ld a, 0x50
                 DRAW_OFFSCREEN_LINES -7, 0
 
 it1_end:        jp bank_drawing_common
+
+
+draw_off_rastr_7
+                pop hl: ld (OFF_-1_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-1_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-1_16), hl
+
+                ld de, $ + 6
+                jp it7_upd
+                ld de, $ + 6
+                jp it7_start
+
+                RESTORE_UPD_END it-2_upd, 7
+                RESTORE_OFF_END it7_end, 7
+                jp bank_drawing_common
+
+draw_off_rastr_6
+                pop hl: ld (OFF_-2_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-2_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-2_16), hl
+
+                ld de, $ + 6
+                jp it6_upd
+                ld de, $ + 6
+                jp it6_start
+
+                RESTORE_UPD_END it-3_upd, 6
+                RESTORE_OFF_END it6_end, 6
+                jp bank_drawing_common
+
+draw_off_rastr_5
+                pop hl: ld (OFF_-3_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-3_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-3_16), hl
+
+                ld de, $ + 6
+                jp it5_upd
+                ld de, $ + 6
+                jp it5_start
+
+                RESTORE_UPD_END it-4_upd, 5
+                RESTORE_OFF_END it5_end, 5
+                jp bank_drawing_common
+
+draw_off_rastr_4
+                pop hl: ld (OFF_-4_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-4_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-4_16), hl
+
+                ld de, $ + 6
+                jp it4_upd
+                ld de, $ + 6
+                jp it4_start
+
+                RESTORE_UPD_END it-5_upd, 4
+                RESTORE_OFF_END it4_end, 4
+                jp bank_drawing_common
+
+draw_off_rastr_3
+                pop hl: ld (OFF_-5_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-5_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-5_16), hl
+
+                ld de, $ + 6
+                jp it3_upd
+                ld de, $ + 6
+                jp it3_start
+
+                RESTORE_UPD_END it-6_upd, 3
+                RESTORE_OFF_END it3_end, 3
+                jp bank_drawing_common
+
+draw_off_rastr_2
+                pop hl: ld (OFF_-6_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-6_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-6_16), hl
+
+                ld de, $ + 6
+                jp it2_upd
+                ld de, $ + 6
+                jp it2_start
+
+                RESTORE_UPD_END it-7_upd, 2
+                RESTORE_OFF_END it2_end, 2
+                jp bank_drawing_common
+
+draw_off_rastr_1
+                pop hl: ld (OFF_-7_0), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-7_8), hl
+                add hl, de: ld sp, hl
+                pop hl: ld (OFF_-7_16), hl
+
+                ld de, $ + 6
+                jp it1_upd
+                ld de, bank_drawing_common
+                jp it1_start
