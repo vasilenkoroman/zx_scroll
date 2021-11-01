@@ -40,6 +40,15 @@ DEBUG_MODE              EQU 0
     org 16384
     INCBIN "resources/jorg10.scr", 0, 6144+768
 
+        MACRO DRAW_ONLY_RASTR_LINE N?
+                ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld hl, $ + 7
+                exx
+RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
+        ENDM                
+
+
+
         MACRO FILL_OFF_RASTR_64_0
 
         pop hl: FILL_OFF_JP 0, 0
@@ -87,104 +96,6 @@ DEBUG_MODE              EQU 0
         pop hl:                                                                                                                               FILL_OFF_JP 7, 7
         pop hl:                                                                                                                               FILL_OFF_SP 7, 7
 
-
-        ENDM
-
-        MACRO FILL_OFF_RASTR_64_8
-
-        pop hl: FILL_OFF_JP 0, 8
-        pop hl: FILL_OFF_SP 0, 8
-
-        pop hl: FILL_OFF_JP 0, 9: FILL_OFF_JP 1, 8
-        pop hl: FILL_OFF_SP 0, 9: CONT_OFF_SP 1, 8
-
-        pop hl: FILL_OFF_JP 0, 10: FILL_OFF_JP 1, 9: FILL_OFF_JP 2, 8
-        pop hl: FILL_OFF_SP 0, 10: CONT_OFF_SP 1, 9: CONT_OFF_SP 2, 8
-
-        pop hl: FILL_OFF_JP 0, 11: FILL_OFF_JP 1, 10: FILL_OFF_JP 2, 9: FILL_OFF_JP 3, 8
-        pop hl: FILL_OFF_SP 0, 11: CONT_OFF_SP 1, 10: CONT_OFF_SP 2, 9: CONT_OFF_SP 3, 8
-
-        pop hl: FILL_OFF_JP 0, 12: FILL_OFF_JP 1, 11: FILL_OFF_JP 2, 10: FILL_OFF_JP 3, 9: FILL_OFF_JP 4, 8
-        pop hl: FILL_OFF_SP 0, 12: CONT_OFF_SP 1, 11: CONT_OFF_SP 2, 10: CONT_OFF_SP 3, 9: CONT_OFF_SP 4, 8
-
-        pop hl: FILL_OFF_JP 0, 13: FILL_OFF_JP 1, 12: FILL_OFF_JP 2, 11: FILL_OFF_JP 3, 10: FILL_OFF_JP 4, 9: FILL_OFF_JP 5, 8
-        pop hl: FILL_OFF_SP 0, 13: CONT_OFF_SP 1, 12: CONT_OFF_SP 2, 11: CONT_OFF_SP 3, 10: CONT_OFF_SP 4, 9: CONT_OFF_SP 5, 8
-
-        pop hl: FILL_OFF_JP 0, 14: FILL_OFF_JP 1, 13: FILL_OFF_JP 2, 12: FILL_OFF_JP 3, 11: FILL_OFF_JP 4, 10: FILL_OFF_JP 5, 9: FILL_OFF_JP 6, 8
-        pop hl: FILL_OFF_SP 0, 14: CONT_OFF_SP 1, 13: CONT_OFF_SP 2, 12: CONT_OFF_SP 3, 11: CONT_OFF_SP 4, 10: CONT_OFF_SP 5, 9: CONT_OFF_SP 6, 8
-
-        pop hl: FILL_OFF_JP 0, 15: FILL_OFF_JP 1, 14: FILL_OFF_JP 2, 13: FILL_OFF_JP 3, 12: FILL_OFF_JP 4, 11: FILL_OFF_JP 5, 10: FILL_OFF_JP 6, 9: FILL_OFF_JP 7, 8
-        pop hl: FILL_OFF_SP 0, 15: CONT_OFF_SP 1, 14: CONT_OFF_SP 2, 13: CONT_OFF_SP 3, 12: CONT_OFF_SP 4, 11: CONT_OFF_SP 5, 10: CONT_OFF_SP 6, 9: CONT_OFF_SP 7, 8
-
-        pop hl:                    FILL_OFF_JP 1, 15: FILL_OFF_JP 2, 14: FILL_OFF_JP 3, 13: FILL_OFF_JP 4, 12: FILL_OFF_JP 5, 11: FILL_OFF_JP 6, 10: FILL_OFF_JP 7, 9
-        pop hl:                    FILL_OFF_SP 1, 15: CONT_OFF_SP 2, 14: CONT_OFF_SP 3, 13: CONT_OFF_SP 4, 12: CONT_OFF_SP 5, 11: CONT_OFF_SP 6, 10: CONT_OFF_SP 7, 9
-
-        pop hl:                                       FILL_OFF_JP 2, 15: FILL_OFF_JP 3, 14: FILL_OFF_JP 4, 13: FILL_OFF_JP 5, 12: FILL_OFF_JP 6, 11: FILL_OFF_JP 7, 10
-        pop hl:                                       FILL_OFF_SP 2, 15: CONT_OFF_SP 3, 14: CONT_OFF_SP 4, 13: CONT_OFF_SP 5, 12: CONT_OFF_SP 6, 11: CONT_OFF_SP 7, 10
-
-        pop hl:                                                          FILL_OFF_JP 3, 15: FILL_OFF_JP 4, 14: FILL_OFF_JP 5, 13: FILL_OFF_JP 6, 12: FILL_OFF_JP 7, 11
-        pop hl:                                                          FILL_OFF_SP 3, 15: CONT_OFF_SP 4, 14: CONT_OFF_SP 5, 13: CONT_OFF_SP 6, 12: CONT_OFF_SP 7, 11
-
-        pop hl:                                                                             FILL_OFF_JP 4, 15: FILL_OFF_JP 5, 14: FILL_OFF_JP 6, 13: FILL_OFF_JP 7, 12
-        pop hl:                                                                             FILL_OFF_SP 4, 15: CONT_OFF_SP 5, 14: CONT_OFF_SP 6, 13: CONT_OFF_SP 7, 12
-
-        pop hl:                                                                                                FILL_OFF_JP 5, 15: FILL_OFF_JP 6, 14: FILL_OFF_JP 7, 13
-        pop hl:                                                                                                FILL_OFF_SP 5, 15: CONT_OFF_SP 6, 14: CONT_OFF_SP 7, 13
-
-        pop hl:                                                                                                                   FILL_OFF_JP 6, 15: FILL_OFF_JP 7, 14
-        pop hl:                                                                                                                   FILL_OFF_SP 6, 15: CONT_OFF_SP 7, 14
-
-        pop hl:                                                                                                                                      FILL_OFF_JP 7, 15
-        pop hl:                                                                                                                                      FILL_OFF_SP 7, 15
-
-        ENDM
-
-        MACRO FILL_OFF_RASTR_64_16
-
-        pop hl: FILL_OFF_JP 0, 16
-        pop hl: FILL_OFF_SP 0, 16
-
-        pop hl: FILL_OFF_JP 0, 17: FILL_OFF_JP 1, 16
-        pop hl: FILL_OFF_SP 0, 17: CONT_OFF_SP 1, 16
-
-        pop hl: FILL_OFF_JP 0, 18: FILL_OFF_JP 1, 17: FILL_OFF_JP 2, 16
-        pop hl: FILL_OFF_SP 0, 18: CONT_OFF_SP 1, 17: CONT_OFF_SP 2, 16
-
-        pop hl: FILL_OFF_JP 0, 19: FILL_OFF_JP 1, 18: FILL_OFF_JP 2, 17: FILL_OFF_JP 3, 16
-        pop hl: FILL_OFF_SP 0, 19: CONT_OFF_SP 1, 18: CONT_OFF_SP 2, 17: CONT_OFF_SP 3, 16
-
-        pop hl: FILL_OFF_JP 0, 20: FILL_OFF_JP 1, 19: FILL_OFF_JP 2, 18: FILL_OFF_JP 3, 17: FILL_OFF_JP 4, 16
-        pop hl: FILL_OFF_SP 0, 20: CONT_OFF_SP 1, 19: CONT_OFF_SP 2, 18: CONT_OFF_SP 3, 17: CONT_OFF_SP 4, 16
-
-        pop hl: FILL_OFF_JP 0, 21: FILL_OFF_JP 1, 20: FILL_OFF_JP 2, 19: FILL_OFF_JP 3, 18: FILL_OFF_JP 4, 17: FILL_OFF_JP 5, 16
-        pop hl: FILL_OFF_SP 0, 21: CONT_OFF_SP 1, 20: CONT_OFF_SP 2, 19: CONT_OFF_SP 3, 18: CONT_OFF_SP 4, 17: CONT_OFF_SP 5, 16
-
-        pop hl: FILL_OFF_JP 0, 22: FILL_OFF_JP 1, 21: FILL_OFF_JP 2, 20: FILL_OFF_JP 3, 19: FILL_OFF_JP 4, 18: FILL_OFF_JP 5, 17: FILL_OFF_JP 6, 16
-        pop hl: FILL_OFF_SP 0, 22: CONT_OFF_SP 1, 21: CONT_OFF_SP 2, 20: CONT_OFF_SP 3, 19: CONT_OFF_SP 4, 18: CONT_OFF_SP 5, 17: CONT_OFF_SP 6, 16
-
-        pop hl: FILL_OFF_JP 0, 23: FILL_OFF_JP 1, 22: FILL_OFF_JP 2, 21: FILL_OFF_JP 3, 20: FILL_OFF_JP 4, 19: FILL_OFF_JP 5, 18: FILL_OFF_JP 6, 17: FILL_OFF_JP 7, 16
-        pop hl: FILL_OFF_SP 0, 23: CONT_OFF_SP 1, 22: CONT_OFF_SP 2, 21: CONT_OFF_SP 3, 20: CONT_OFF_SP 4, 19: CONT_OFF_SP 5, 18: CONT_OFF_SP 6, 17: CONT_OFF_SP 7, 16
-
-        pop hl:                    FILL_OFF_JP 1, 23: FILL_OFF_JP 2, 22: FILL_OFF_JP 3, 21: FILL_OFF_JP 4, 20: FILL_OFF_JP 5, 19: FILL_OFF_JP 6, 18: FILL_OFF_JP 7, 17
-        pop hl:                    FILL_OFF_SP 1, 23: CONT_OFF_SP 2, 22: CONT_OFF_SP 3, 21: CONT_OFF_SP 4, 20: CONT_OFF_SP 5, 19: CONT_OFF_SP 6, 18: CONT_OFF_SP 7, 17
-
-        pop hl:                                       FILL_OFF_JP 2, 23: FILL_OFF_JP 3, 22: FILL_OFF_JP 4, 21: FILL_OFF_JP 5, 20: FILL_OFF_JP 6, 19: FILL_OFF_JP 7, 18
-        pop hl:                                       FILL_OFF_SP 2, 23: CONT_OFF_SP 3, 22: CONT_OFF_SP 4, 21: CONT_OFF_SP 5, 20: CONT_OFF_SP 6, 19: CONT_OFF_SP 7, 18
-
-        pop hl:                                                          FILL_OFF_JP 3, 23: FILL_OFF_JP 4, 22: FILL_OFF_JP 5, 21: FILL_OFF_JP 6, 20: FILL_OFF_JP 7, 19
-        pop hl:                                                          FILL_OFF_SP 3, 23: CONT_OFF_SP 4, 22: CONT_OFF_SP 5, 21: CONT_OFF_SP 6, 20: CONT_OFF_SP 7, 19
-
-        pop hl:                                                                             FILL_OFF_JP 4, 23: FILL_OFF_JP 5, 22: FILL_OFF_JP 6, 21: FILL_OFF_JP 7, 20
-        pop hl:                                                                             FILL_OFF_SP 4, 23: CONT_OFF_SP 5, 22: CONT_OFF_SP 6, 21: CONT_OFF_SP 7, 20
-
-        pop hl:                                                                                                FILL_OFF_JP 5, 23: FILL_OFF_JP 6, 22: FILL_OFF_JP 7, 21
-        pop hl:                                                                                                FILL_OFF_SP 5, 23: CONT_OFF_SP 6, 22: CONT_OFF_SP 7, 21
-
-        pop hl:                                                                                                                   FILL_OFF_JP 6, 23: FILL_OFF_JP 7, 22
-        pop hl:                                                                                                                   FILL_OFF_SP 6, 23: CONT_OFF_SP 7, 22
-
-        pop hl:                                                                                                                                      FILL_OFF_JP 7, 23
-        pop hl:                                                                                                                                      FILL_OFF_SP 7, 23
 
         ENDM
 
@@ -576,18 +487,25 @@ start_draw_colors0:
         add hl,bc       // * 4
         ld sp, hl
 
-        // arguments: step, iteration in step
-        FILL_OFF_RASTR_64_0
+        // Move LD, SP commands
+        ld hl, (OFF_Iteration_-1_0_SP): ld (OFF_Iteration_0_7_SP), hl
+        ld hl, (OFF_Iteration_-1_8_SP): ld (OFF_Iteration_0_15_SP), hl
+        ld hl, (OFF_Iteration_-1_16_SP): ld (OFF_Iteration_0_23_SP), hl
 
-        ld hl, (64-15) * 4
+        
+        pop hl: ld(OFF_-7_0_JP), hl
+        pop hl: ld(OFF_-6_0_JP), hl
+        pop hl: ld(OFF_-5_0_JP), hl
+        pop hl: ld(OFF_-4_0_JP), hl
+        pop hl: ld(OFF_-3_0_JP), hl
+        pop hl: ld(OFF_-2_0_JP), hl
+        pop hl: ld(OFF_-1_0_JP), hl
+        pop hl: ld(OFF_0_0_JP), hl
+
+
+        ld hl, (64-8) * 2
         add hl, sp
         ld sp, hl
-        FILL_OFF_RASTR_64_8
-
-        ld hl, (64-15) * 4
-        add hl, sp
-        ld sp, hl
-        FILL_OFF_RASTR_64_16
 
 
         ld hl, mc_rastr_descriptors
@@ -638,7 +556,8 @@ start_draw_colors0:
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
 
-        jp draw_off_rastr_0
+        scf
+        jp it0_start
 
 //*************************************************************************************
 mc_step_drawing:
@@ -694,6 +613,7 @@ start_draw_colors:
         pop hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR_16+1), hl
                 
+
         ld hl, draw_offrastr_offset
         add hl, bc
         jp hl
