@@ -74,12 +74,19 @@ OFF_Iteration?_Step?_JP
                 // total ticks: 24
         ENDM          
 
+        MACRO DRAW_OFFSCREEN_LINES_S Iteration?, Step?
+OFF_Iteration?_Step?_SP
+                ld sp, 00        
+                ld l, low($ + 6)
+                exx
+OFF_Iteration?_Step?_JP    
+                jp 00 ; rastr for multicolor ( up to 8 lines)
+                // total ticks: 21
+        ENDM          
+
         MACRO MOVE_OFF_LD_SP iteration?, d1?, d2?, d3?
-//.d1     equ 24 - iteration?
-//.d2     equ 16 - iteration?
-//.d3     equ 8 - iteration?
-                ld hl, (OFF_iteration?_0_SP): ld (OFF_0_d1?_SP), hl
-                ld hl, (OFF_iteration?_8_SP): ld (OFF_0_d2?_SP), hl
+                ld hl, (OFF_iteration?_0_SP):  ld (OFF_0_d1?_SP), hl
+                ld hl, (OFF_iteration?_8_SP):  ld (OFF_0_d2?_SP), hl
                 ld hl, (OFF_iteration?_16_SP): ld (OFF_0_d3?_SP), hl
         ENDM
 
@@ -305,6 +312,43 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************* Routines **********************/
 
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+
+        ret
+
+create_write_off_rastr_helper
+        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
+        ld hl, draw_off_rastr_1
+        ld (draw_offrastr_offset + 2), hl
+        ld hl, draw_off_rastr_2
+        ld (draw_offrastr_offset + 4), hl
+        ld hl, draw_off_rastr_3
+        ld (draw_offrastr_offset + 6), hl
+        ld hl, draw_off_rastr_4
+        ld (draw_offrastr_offset + 8), hl
+        ld hl, draw_off_rastr_5
+        ld (draw_offrastr_offset + 10), hl
+        ld hl, draw_off_rastr_6
+        ld (draw_offrastr_offset + 12), hl
+        ld hl, draw_off_rastr_7
+        ld (draw_offrastr_offset + 14), hl
+
+        ld hl, off_rastr_sp_delta
+        ld sp, hl
+        FILL_SP_DATA_INIT_ALL
+
+        ret
 
 /************** delay routine *************/
         MACRO DO_DELAY
@@ -747,26 +791,15 @@ start_draw_colors:
         pop hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR_16+1), hl
                 
-/*
-        // Perform dec(hl) for offrastr drawing
-        ld hl, off_rastr_dec_hl
+        // Exec off rastr
+        ld de, bank_drawing_common  // next jump
+
+        ld h, high(draw_offrastr_offset)
         ld a, 15
-        and c   // *2
-        ld e, a
-        add a   // *4
-        add e   // *6
-        add l
+        and c
         ld l, a
         ld sp, hl
-        .21 DO_DEC_SP
-*/        
-
-        // Exec off rastr
-
-        ld hl, draw_offrastr_offset
-        ld d, 0
-        add hl, de
-        ld de, bank_drawing_common  // next jump
+        pop hl
         jp hl
 
 bank_drawing_common:
@@ -826,44 +859,6 @@ continue_mc_drawing
         INCLUDE "draw_off_rastr.asm"
 
 /*********************** routines *************/
-
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-
-        ret
-
-create_write_off_rastr_helper
-        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
-        ld hl, draw_off_rastr_1
-        ld (draw_offrastr_offset + 2), hl
-        ld hl, draw_off_rastr_2
-        ld (draw_offrastr_offset + 4), hl
-        ld hl, draw_off_rastr_3
-        ld (draw_offrastr_offset + 6), hl
-        ld hl, draw_off_rastr_4
-        ld (draw_offrastr_offset + 8), hl
-        ld hl, draw_off_rastr_5
-        ld (draw_offrastr_offset + 10), hl
-        ld hl, draw_off_rastr_6
-        ld (draw_offrastr_offset + 12), hl
-        ld hl, draw_off_rastr_7
-        ld (draw_offrastr_offset + 14), hl
-
-        ld hl, off_rastr_sp_delta
-        ld sp, hl
-        FILL_SP_DATA_INIT_ALL
-
-        ret
 
 prepare_interruption_table:
 

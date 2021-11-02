@@ -26,53 +26,55 @@
                 ld (l1? + 1), a
         ENDM
 
+                ALIGN 32
+
 it0_start:      ld a, 0x54
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 23
-                DRAW_OFFSCREEN_LINES 0, 15
-                DRAW_OFFSCREEN_LINES 0, 7
+                DRAW_OFFSCREEN_LINES_S 0, 15
+                DRAW_OFFSCREEN_LINES_S 0, 7
 
 it7_start:      ld a, 0x54
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 22
-                DRAW_OFFSCREEN_LINES 0, 14
-                DRAW_OFFSCREEN_LINES 0, 6
+                DRAW_OFFSCREEN_LINES_S 0, 14
+                DRAW_OFFSCREEN_LINES_S 0, 6
 
 it6_start:      ld a, 0x53
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 21
-                DRAW_OFFSCREEN_LINES 0, 13
-                DRAW_OFFSCREEN_LINES 0, 5
+                DRAW_OFFSCREEN_LINES_S 0, 13
+                DRAW_OFFSCREEN_LINES_S 0, 5
 
 it5_start:      ld a, 0x53
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 20
-                DRAW_OFFSCREEN_LINES 0, 12
-                DRAW_OFFSCREEN_LINES 0, 4
+                DRAW_OFFSCREEN_LINES_S 0, 12
+                DRAW_OFFSCREEN_LINES_S 0, 4
 
 it4_start:      ld a, 0x51
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 19
-                DRAW_OFFSCREEN_LINES 0, 11
-                DRAW_OFFSCREEN_LINES 0, 3
+                DRAW_OFFSCREEN_LINES_S 0, 11
+                DRAW_OFFSCREEN_LINES_S 0, 3
 
 it3_start:      ld a, 0x51
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 18
-                DRAW_OFFSCREEN_LINES 0, 10
-                DRAW_OFFSCREEN_LINES 0, 2
+                DRAW_OFFSCREEN_LINES_S 0, 10
+                DRAW_OFFSCREEN_LINES_S 0, 2
 
 it2_start:      ld a, 0x50
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 17
-                DRAW_OFFSCREEN_LINES 0, 9
-                DRAW_OFFSCREEN_LINES 0, 1
+                DRAW_OFFSCREEN_LINES_S 0, 9
+                DRAW_OFFSCREEN_LINES_S 0, 1
 
 it1_start:      ld a, 0x50
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 16
-                DRAW_OFFSCREEN_LINES 0, 8
-                DRAW_OFFSCREEN_LINES 0, 0
+                DRAW_OFFSCREEN_LINES_S 0, 8
+                DRAW_OFFSCREEN_LINES_S 0, 0
 
                 // negative values (next 7 steps)
 
