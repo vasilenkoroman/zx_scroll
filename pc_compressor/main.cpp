@@ -3129,7 +3129,7 @@ int serializeRastrDescriptors(
         uint8_t value1 = 256 - (uint8_t)descriptor.rastrForOffscreen.startSpDelta;
         uint8_t value2 = 256 - (uint8_t)nextDescriptor.rastrForOffscreen.startSpDelta;
         uint16_t value = value1 + 256 * value2;
-        offRastrFile.write((const char*) &value, 2);
+        spDeltaFile.write((const char*) &value, 2);
     }
 }
 

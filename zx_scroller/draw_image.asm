@@ -45,7 +45,7 @@ DEBUG_MODE              EQU 0
     org 16384
     INCBIN "resources/jorg10.scr", 0, 6144+768
 
-EXX_DE_JP_HL_CODE       EQU 0xd9 + 0xe9 * 256
+EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
         MACRO DRAW_ONLY_RASTR_LINE N?
                 ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
@@ -85,9 +85,9 @@ OFF_Iteration?_Step?_JP
         ENDM          
 
         MACRO MOVE_OFF_LD_SP iteration?, d1?, d2?, d3?
-                ld hl, (OFF_iteration?_0_SP):  ld (OFF_0_d1?_SP), hl
-                ld hl, (OFF_iteration?_8_SP):  ld (OFF_0_d2?_SP), hl
-                ld hl, (OFF_iteration?_16_SP): ld (OFF_0_d3?_SP), hl
+                ld hl, (OFF_iteration?_0_SP+1):  dec h: ld (OFF_0_d1?_SP+1), hl
+                ld hl, (OFF_iteration?_8_SP+1):  dec h: ld (OFF_0_d2?_SP+1), hl
+                ld hl, (OFF_iteration?_16_SP+1): dec h: ld (OFF_0_d3?_SP+1), hl
         ENDM
 
     org start
@@ -250,43 +250,47 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
             // total:106
         ENDM
 
-        MACRO FILL_SP_DATA_INIT step1?, step2?
+        MACRO FILL_SP_DATA_INIT label1?, label2?, step1?, step2?
             pop de                              
             ld h, high(16384 + 6144 - step1? * 256) - 1
             ld l, e                             
-            ld (OFF_0_step1?_SP + 1), hl    
-            IF (step2? != -1)                
-                ld h, high(16384 + 6144 - step2? * 256) - 1
-                ld l, d
-                ld (OFF_0_step2?_SP + 1), hl    
-            ENDIF                
+            ld (label1? + 1), hl    
+            
+            ld h, high(16384 + 6144 - step2? * 256) - 1
+            ld l, d
+            ld (label2? + 1), hl    
+        ENDM
+
+        MACRO FILL_SP_DATA_INIT2 label1?, step1?
+            pop de                              
+            ld h, high(16384 + 6144 - step1? * 256) - 1
+            ld l, e                             
+            ld (label1? + 1), hl    
         ENDM
 
         MACRO FILL_SP_DATA_INIT_ALL
             exx
 
-            FILL_SP_DATA_INIT  0, 8
-            FILL_SP_DATA_INIT  1, 9
-            FILL_SP_DATA_INIT  2, 10
-            FILL_SP_DATA_INIT  3, 11
-            FILL_SP_DATA_INIT  4, 12
-            FILL_SP_DATA_INIT  5, 13
-            FILL_SP_DATA_INIT  6, 14
-            FILL_SP_DATA_INIT  7, 15
+            FILL_SP_DATA_INIT OFF_7_0_SP, OFF_7_8_SP, 0, 8
+            FILL_SP_DATA_INIT OFF_6_0_SP, OFF_6_8_SP, 1, 9
+            FILL_SP_DATA_INIT OFF_5_0_SP, OFF_5_8_SP, 2, 10
+            FILL_SP_DATA_INIT OFF_4_0_SP, OFF_4_8_SP, 3, 11
+            FILL_SP_DATA_INIT OFF_3_0_SP, OFF_3_8_SP, 4, 12
+            FILL_SP_DATA_INIT OFF_2_0_SP, OFF_2_8_SP, 5, 13
+            FILL_SP_DATA_INIT OFF_1_0_SP, OFF_1_8_SP, 6, 14
             exx
 
             inc h                               ; 4
             ld sp, hl                           ; 6
             ld h, high(16384 + 2048) - 1        ; 7
 
-            FILL_SP_DATA_INIT 16, -1
-            FILL_SP_DATA_INIT 17, -1
-            FILL_SP_DATA_INIT 18, -1
-            FILL_SP_DATA_INIT 19, -1
-            FILL_SP_DATA_INIT 20, -1
-            FILL_SP_DATA_INIT 21, -1
-            FILL_SP_DATA_INIT 22, -1
-            FILL_SP_DATA_INIT 23, -1
+            FILL_SP_DATA_INIT2 OFF_7_16_SP, 16
+            FILL_SP_DATA_INIT2 OFF_6_16_SP, 17
+            FILL_SP_DATA_INIT2 OFF_5_16_SP, 18
+            FILL_SP_DATA_INIT2 OFF_4_16_SP, 19
+            FILL_SP_DATA_INIT2 OFF_3_16_SP, 20
+            FILL_SP_DATA_INIT2 OFF_2_16_SP, 21
+            FILL_SP_DATA_INIT2 OFF_1_16_SP, 22
 
             // total:106
         ENDM
@@ -344,10 +348,11 @@ create_write_off_rastr_helper
         ld hl, draw_off_rastr_7
         ld (draw_offrastr_offset + 14), hl
 
-        ld hl, off_rastr_sp_delta
+        ld hl, off_rastr_sp_delta + 2
         ld sp, hl
         FILL_SP_DATA_INIT_ALL
 
+        ld sp, stack_top - 2
         ret
 
 /************** delay routine *************/
@@ -508,7 +513,7 @@ loop1:
         SET_PAGE 6
 
         ld a, 7
-        and iyl
+        and c
         jp nz, mc_step_drawing
 
         /************************* no-mc step drawing *********************************************/
@@ -701,13 +706,12 @@ start_draw_colors0:
         ld hl, after_delay
         ld (hl), 0x21   // comment JP command by modify this byte
 
-        scf
-        ld hl, $ + 7
-        exx
+        ld de, finish_off_drawing_0
+        ld h, high(it0_start)
         jp it0_start
-
+finish_off_drawing_0
         // MC part rastr
-
+        scf
         DRAW_ONLY_RASTR_LINE 0
         DRAW_ONLY_RASTR_LINE 1
         DRAW_ONLY_RASTR_LINE 2
