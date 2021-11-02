@@ -3075,7 +3075,16 @@ int serializeRastrDescriptors(
     int imageHeight = descriptors.size();
 
 
-    ofstream offRastrFile, mcRastrFile;
+    ofstream spDeltaFile, offRastrFile, mcRastrFile;
+    {
+        std::string fileName = inputFileName + ".sp_delta.descriptors";
+        spDeltaFile.open(fileName, std::ios::binary);
+        if (!spDeltaFile.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
+    }
     {
         std::string fileName = inputFileName + ".off_rastr.descriptors";
         offRastrFile.open(fileName, std::ios::binary);
@@ -3108,7 +3117,19 @@ int serializeRastrDescriptors(
         line = line % imageHeight;
         const auto& descriptor = descriptors[line];
         offRastrFile.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
-        offRastrFile.write((const char*)&descriptor.rastrForOffscreen.startSpDelta, 2);
+    }
+
+    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
+    {
+        int line = i % imageHeight;
+        int nextLine = (i+64) % imageHeight;
+        const auto& descriptor = descriptors[line];
+        const auto& nextDescriptor = descriptors[nextLine];
+        
+        uint8_t value1 = 256 - (uint8_t)descriptor.rastrForOffscreen.startSpDelta;
+        uint8_t value2 = 256 - (uint8_t)nextDescriptor.rastrForOffscreen.startSpDelta;
+        uint16_t value = value1 + 256 * value2;
+        offRastrFile.write((const char*) &value, 2);
     }
 }
 

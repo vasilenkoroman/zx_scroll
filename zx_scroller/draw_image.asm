@@ -1027,7 +1027,7 @@ color_descriptor
 off_rastr_descriptors
         INCBIN "resources/compressed_data.off_rastr.descriptors"
 off_rastr_sp_delta
-        INCBIN "resources/compressed_data.off_rastr.descriptors"
+        INCBIN "resources/compressed_data.sp_delta.descriptors"
 mc_rastr_descriptors
         INCBIN "resources/compressed_data.mc_rastr.descriptors"
 mc_descriptors
