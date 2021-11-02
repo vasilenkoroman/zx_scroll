@@ -243,6 +243,47 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
             // total:106
         ENDM
 
+        MACRO FILL_SP_DATA_INIT step1?, step2?
+            pop de                              
+            ld h, high(16384 + 6144 - step1? * 256) - 1
+            ld l, e                             
+            ld (OFF_0_step1?_SP + 1), hl    
+            IF (step2? != -1)                
+                ld h, high(16384 + 6144 - step2? * 256) - 1
+                ld l, d
+                ld (OFF_0_step2?_SP + 1), hl    
+            ENDIF                
+        ENDM
+
+        MACRO FILL_SP_DATA_INIT_ALL
+            exx
+
+            FILL_SP_DATA_INIT  0, 8
+            FILL_SP_DATA_INIT  1, 9
+            FILL_SP_DATA_INIT  2, 10
+            FILL_SP_DATA_INIT  3, 11
+            FILL_SP_DATA_INIT  4, 12
+            FILL_SP_DATA_INIT  5, 13
+            FILL_SP_DATA_INIT  6, 14
+            FILL_SP_DATA_INIT  7, 15
+            exx
+
+            inc h                               ; 4
+            ld sp, hl                           ; 6
+            ld h, high(16384 + 2048) - 1        ; 7
+
+            FILL_SP_DATA_INIT 16, -1
+            FILL_SP_DATA_INIT 17, -1
+            FILL_SP_DATA_INIT 18, -1
+            FILL_SP_DATA_INIT 19, -1
+            FILL_SP_DATA_INIT 20, -1
+            FILL_SP_DATA_INIT 21, -1
+            FILL_SP_DATA_INIT 22, -1
+            FILL_SP_DATA_INIT 23, -1
+
+            // total:106
+        ENDM
+
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
                 OUT (#fd), A
@@ -264,39 +305,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************* Routines **********************/
 
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-
-        ret
-
-create_write_off_rastr_helper
-        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
-        ld hl, draw_off_rastr_1
-        ld (draw_offrastr_offset + 2), hl
-        ld hl, draw_off_rastr_2
-        ld (draw_offrastr_offset + 4), hl
-        ld hl, draw_off_rastr_3
-        ld (draw_offrastr_offset + 6), hl
-        ld hl, draw_off_rastr_4
-        ld (draw_offrastr_offset + 8), hl
-        ld hl, draw_off_rastr_5
-        ld (draw_offrastr_offset + 10), hl
-        ld hl, draw_off_rastr_6
-        ld (draw_offrastr_offset + 12), hl
-        ld hl, draw_off_rastr_7
-        ld (draw_offrastr_offset + 14), hl
-
-        ret
 
 /************** delay routine *************/
         MACRO DO_DELAY
@@ -739,7 +747,7 @@ start_draw_colors:
         pop hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR_16+1), hl
                 
-
+/*
         // Perform dec(hl) for offrastr drawing
         ld hl, off_rastr_dec_hl
         ld a, 15
@@ -751,13 +759,15 @@ start_draw_colors:
         ld l, a
         ld sp, hl
         .21 DO_DEC_SP
+*/        
 
         // Exec off rastr
 
         ld hl, draw_offrastr_offset
-        add hl, bc
+        ld d, 0
+        add hl, de
+        ld de, bank_drawing_common  // next jump
         jp hl
-
 
 bank_drawing_common:
         ; delay
@@ -816,6 +826,44 @@ continue_mc_drawing
         INCLUDE "draw_off_rastr.asm"
 
 /*********************** routines *************/
+
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
+
+        ret
+
+create_write_off_rastr_helper
+        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
+        ld hl, draw_off_rastr_1
+        ld (draw_offrastr_offset + 2), hl
+        ld hl, draw_off_rastr_2
+        ld (draw_offrastr_offset + 4), hl
+        ld hl, draw_off_rastr_3
+        ld (draw_offrastr_offset + 6), hl
+        ld hl, draw_off_rastr_4
+        ld (draw_offrastr_offset + 8), hl
+        ld hl, draw_off_rastr_5
+        ld (draw_offrastr_offset + 10), hl
+        ld hl, draw_off_rastr_6
+        ld (draw_offrastr_offset + 12), hl
+        ld hl, draw_off_rastr_7
+        ld (draw_offrastr_offset + 14), hl
+
+        ld hl, off_rastr_sp_delta
+        ld sp, hl
+        FILL_SP_DATA_INIT_ALL
+
+        ret
 
 prepare_interruption_table:
 
@@ -974,8 +1022,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 27500
-         ORG 27500
+        ASSERT $ <= 28000
+         ORG 28000
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code

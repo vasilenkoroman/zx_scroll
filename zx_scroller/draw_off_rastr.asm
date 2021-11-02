@@ -1,58 +1,30 @@
-/*
-it7_upd:        ld hl, OFF_Iteration_0_6_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_14_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_0_22_SP + 1:   dec (hl)
+        MACRO UPDATE_SP l23?, l22?, l21?, l20?, l19?, l18?, l17?, l15?, l14?, l13?, l12?, l11?, l10?, l9?, l7?, l6?, l5?, l4?, l3?, l2?, l1?
+                ld a, high(16384)
 
-it6_upd:        ld hl, OFF_Iteration_0_5_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_13_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_0_21_SP + 1:   dec (hl)
-
-it5_upd:        ld hl, OFF_Iteration_0_4_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_12_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_0_20_SP + 1:   dec (hl)
-
-it4_upd:        ld hl, OFF_Iteration_0_3_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_11_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_0_19_SP + 1:   dec (hl)
-
-it3_upd:        ld hl, OFF_Iteration_0_2_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_10_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_0_18_SP + 1:   dec (hl)
-
-it2_upd:        ld hl, OFF_Iteration_0_1_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_9_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_17_SP + 1:   dec (hl)
-
-it1_upd:        ld hl, OFF_Iteration_0_0_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_8_SP + 1:    dec (hl)
-                ld hl, OFF_Iteration_0_16_SP + 1:   dec (hl)
-                
-it-1_upd:       ld hl, OFF_Iteration_-1_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-1_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-1_16_SP + 1:  dec (hl)
-
-it-2_upd:       ld hl, OFF_Iteration_-2_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-2_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-2_16_SP + 1:  dec (hl)
-
-it-3_upd:       ld hl, OFF_Iteration_-3_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-3_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-3_16_SP + 1:  dec (hl)
-
-it-4_upd:       ld hl, OFF_Iteration_-4_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-4_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-4_16_SP + 1:  dec (hl)
-
-it-5_upd:       ld hl, OFF_Iteration_-5_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-5_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-5_16_SP + 1:  dec (hl)
-
-it-6_upd:       ld hl, OFF_Iteration_-6_0_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-6_8_SP + 1:   dec (hl)
-                ld hl, OFF_Iteration_-6_16_SP + 1:  dec (hl)
-
-                jp it1_start
-*/                
+                ld (l23? + 1), a: inc a
+                ld (l22? + 1), a: inc a
+                ld (l21? + 1), a: inc a
+                ld (l20? + 1), a: inc a
+                ld (l19? + 1), a: inc a
+                ld (l18? + 1), a: inc a
+                ld (l17? + 1), a
+                add 2
+                ld (l15? + 1), a: inc a
+                ld (l14? + 1), a: inc a
+                ld (l13? + 1), a: inc a
+                ld (l12? + 1), a: inc a
+                ld (l11? + 1), a: inc a
+                ld (l10? + 1), a: inc a
+                ld (l9? + 1), a
+                add 2
+                ld (l7? + 1), a : inc a
+                ld (l6? + 1), a : inc a
+                ld (l5? + 1), a : inc a
+                ld (l4? + 1), a : inc a
+                ld (l3? + 1), a : inc a
+                ld (l2? + 1), a : inc a
+                ld (l1? + 1), a
+        ENDM
 
 it0_start:      ld a, 0x54
                 out (0xfd), a
@@ -150,37 +122,44 @@ it1_end:        jp bank_drawing_common
 
 
 draw_off_rastr_7
-                FILL_SP_DATA 1
+                UPDATE_SP OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_0_14_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP, OFF_0_6_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP
 
                 RESTORE_OFF_END it0_end, 0x3e + 0x54 * 256
-                ld de, bank_drawing_common
                 jp it7_start
 
 draw_off_rastr_6
+                UPDATE_SP OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP
+
                 RESTORE_OFF_END it7_end, 0x3e + 0x54 * 256
-                ld de, bank_drawing_common
                 jp it6_start
 
 draw_off_rastr_5
+                UPDATE_SP OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP
+
+
                 RESTORE_OFF_END it6_end, 0x3e + 0x53 * 256
-                ld de, bank_drawing_common
                 jp it5_start
 
 draw_off_rastr_4
+                UPDATE_SP OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP
+
                 RESTORE_OFF_END it5_end, 0x3e + 0x53 * 256
-                ld de, bank_drawing_common
                 jp it4_start
 
 draw_off_rastr_3
+                UPDATE_SP OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP
+
                 RESTORE_OFF_END it4_end, 0x3e + 0x51 * 256
-                ld de, bank_drawing_common
                 jp it3_start
 
 draw_off_rastr_2
+                UPDATE_SP OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP, OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP
+
                 RESTORE_OFF_END it3_end, 0x3e + 0x51 * 256
-                ld de, bank_drawing_common
                 jp it2_start
 
 draw_off_rastr_1
+                UPDATE_SP OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP, OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,  OFF_6_8_SP, OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP
+
                 RESTORE_OFF_END it2_end, 0x3e + 0x50 * 256
                 jp it2_start
