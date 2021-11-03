@@ -84,12 +84,6 @@ OFF_Iteration?_Step?_JP
                 // total ticks: 21
         ENDM          
 
-        MACRO MOVE_OFF_LD_SP iteration?, d1?, d2?, d3?
-                ld hl, (OFF_iteration?_0_SP+1):  dec h: ld (OFF_0_d1?_SP+1), hl
-                ld hl, (OFF_iteration?_8_SP+1):  dec h: ld (OFF_0_d2?_SP+1), hl
-                ld hl, (OFF_iteration?_16_SP+1): dec h: ld (OFF_0_d3?_SP+1), hl
-        ENDM
-
     org start
 
         MACRO update_colors_jpix
@@ -205,12 +199,24 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM               
 
-        MACRO FILL_SP_DATA iteration?
+        MACRO FILL_SP_DATA_MC_STEP iteration?
             pop de                              ; 10
             ld l, e                             ; 4
             ld (OFF_iteration?_0_SP + 1), hl    ; 16
             ld c, d                             ; 4
             ld (OFF_iteration?_8_SP + 1), bc    ; 20
+        ENDM
+
+        MACRO FILL_SP_DATA_NON_MC_STEP step1?, step2?
+            pop de                              ; 10
+            ld l, e                             ; 4
+            ld (OFF_0_step?_SP + 1), hl         ; 16
+            dec h
+            IF (step2? != -1)
+                ld c, d                             ; 4
+                ld (OFF_iteration?_8_SP + 1), bc    ; 20
+                dec b
+            ENDIF                
         ENDM
 
         MACRO FILL_SP_DATA2 iteration?
@@ -224,76 +230,48 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
             ld h, high(16384 + 6144) - 1        ; 7
             ld b, high(16384 + 4096) - 1        ; 7
 
-            FILL_SP_DATA 7
-            FILL_SP_DATA 6
-            FILL_SP_DATA 5
-            FILL_SP_DATA 4
-            FILL_SP_DATA 3
-            FILL_SP_DATA 2
-            FILL_SP_DATA 1
-            FILL_SP_DATA 0
-
-            exx                                 ; 4
-            inc h                               ; 4
-            ld sp, hl                           ; 6
-            ld h, high(16384 + 2048) - 1        ; 7
-
-            FILL_SP_DATA2 7
-            FILL_SP_DATA2 6
-            FILL_SP_DATA2 5
-            FILL_SP_DATA2 4
-            FILL_SP_DATA2 3
-            FILL_SP_DATA2 2
-            FILL_SP_DATA2 1
-            FILL_SP_DATA2 0
-
-            // total:106
-        ENDM
-
-        MACRO FILL_SP_DATA_INIT label1?, label2?, step1?, step2?
-            pop de                              
-            ld h, high(16384 + 6144 - step1? * 256) - 1
-            ld l, e                             
-            ld (label1? + 1), hl    
+            FILL_SP_DATA_MC_STEP 7
+            FILL_SP_DATA_MC_STEP 6
+            FILL_SP_DATA_MC_STEP 5
+            FILL_SP_DATA_MC_STEP 4
+            FILL_SP_DATA_MC_STEP 3
+            FILL_SP_DATA_MC_STEP 2
+            FILL_SP_DATA_MC_STEP 1
             
-            ld h, high(16384 + 6144 - step2? * 256) - 1
-            ld l, d
-            ld (label2? + 1), hl    
-        ENDM
-
-        MACRO FILL_SP_DATA_INIT2 label1?, step1?
-            pop de                              
-            ld h, high(16384 + 6144 - step1? * 256) - 1
-            ld l, e                             
-            ld (label1? + 1), hl    
-        ENDM
-
-        MACRO FILL_SP_DATA_INIT_ALL
-            exx
-
-            FILL_SP_DATA_INIT OFF_7_0_SP, OFF_7_8_SP, 0, 8
-            FILL_SP_DATA_INIT OFF_6_0_SP, OFF_6_8_SP, 1, 9
-            FILL_SP_DATA_INIT OFF_5_0_SP, OFF_5_8_SP, 2, 10
-            FILL_SP_DATA_INIT OFF_4_0_SP, OFF_4_8_SP, 3, 11
-            FILL_SP_DATA_INIT OFF_3_0_SP, OFF_3_8_SP, 4, 12
-            FILL_SP_DATA_INIT OFF_2_0_SP, OFF_2_8_SP, 5, 13
-            FILL_SP_DATA_INIT OFF_1_0_SP, OFF_1_8_SP, 6, 14
-            exx
+            FILL_SP_DATA_NON_MC_STEP 0, 8
+            FILL_SP_DATA_NON_MC_STEP 1, 9
+            FILL_SP_DATA_NON_MC_STEP 2, 10
+            FILL_SP_DATA_NON_MC_STEP 3, 11
+            FILL_SP_DATA_NON_MC_STEP 4, 12
+            FILL_SP_DATA_NON_MC_STEP 5, 13
+            FILL_SP_DATA_NON_MC_STEP 6, 14
+            FILL_SP_DATA_NON_MC_STEP 7, 15
+            exx                                 ; 4
 
             inc h                               ; 4
             ld sp, hl                           ; 6
             ld h, high(16384 + 2048) - 1        ; 7
 
-            FILL_SP_DATA_INIT2 OFF_7_16_SP, 16
-            FILL_SP_DATA_INIT2 OFF_6_16_SP, 17
-            FILL_SP_DATA_INIT2 OFF_5_16_SP, 18
-            FILL_SP_DATA_INIT2 OFF_4_16_SP, 19
-            FILL_SP_DATA_INIT2 OFF_3_16_SP, 20
-            FILL_SP_DATA_INIT2 OFF_2_16_SP, 21
-            FILL_SP_DATA_INIT2 OFF_1_16_SP, 22
+            FILL_SP_DATA_MC_STEP2 7
+            FILL_SP_DATA_MC_STEP2 6
+            FILL_SP_DATA_MC_STEP2 5
+            FILL_SP_DATA_MC_STEP2 4
+            FILL_SP_DATA_MC_STEP2 3
+            FILL_SP_DATA_MC_STEP2 2
+            FILL_SP_DATA_MC_STEP2 1
+
+            FILL_SP_DATA_NON_MC_STEP 16, -1
+            FILL_SP_DATA_NON_MC_STEP 17, -1
+            FILL_SP_DATA_NON_MC_STEP 18, -1
+            FILL_SP_DATA_NON_MC_STEP 19, -1
+            FILL_SP_DATA_NON_MC_STEP 20, -1
+            FILL_SP_DATA_NON_MC_STEP 21, -1
+            FILL_SP_DATA_NON_MC_STEP 22, -1
+            FILL_SP_DATA_NON_MC_STEP 23, -1
 
             // total:106
         ENDM
+
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -347,10 +325,6 @@ create_write_off_rastr_helper
         ld (draw_offrastr_offset + 12), hl
         ld hl, draw_off_rastr_7
         ld (draw_offrastr_offset + 14), hl
-
-        ld hl, off_rastr_sp_delta + 2
-        ld sp, hl
-        FILL_SP_DATA_INIT_ALL
 
         ld sp, stack_top - 2
         ret
@@ -561,15 +535,6 @@ start_draw_colors0:
         jp 00                                           ; 8
 
         // Update off rastr drawing for then next 8 steps
-
-        // 1. Move LD, SP commands (values are calculated before)
-        MOVE_OFF_LD_SP 1,       7, 15, 23
-        MOVE_OFF_LD_SP 2,       6, 14, 22
-        MOVE_OFF_LD_SP 3,       5, 13, 21
-        MOVE_OFF_LD_SP 4,       4, 12, 20
-        MOVE_OFF_LD_SP 5,       3, 11, 19
-        MOVE_OFF_LD_SP 6,       2, 10, 18
-        MOVE_OFF_LD_SP 7,       1, 9,  17
 
         sla c : rl b    // bc*2
         ld hl, off_rastr_descriptors
