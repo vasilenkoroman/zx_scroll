@@ -1,3 +1,31 @@
+        MACRO DRAW_OFFSCREEN_LINES1 Iteration?, Step?
+OFF_Iteration?_Step?_SP
+                ld sp, 00
+                IF (low($) + 6 < 256 && low($) -7 >= 0)
+                        ld l, low($ + 6)
+                ELSE                        
+                        ld hl, $ + 7
+                ENDIF
+                exx
+OFF_Iteration?_Step?_JP    
+                jp 00 ; rastr for multicolor ( up to 8 lines)
+                // total ticks: 21
+        ENDM          
+
+        MACRO DRAW_OFFSCREEN_LINES2 Iteration?, Step?
+OFF_Iteration?_Step?_SP
+                ld sp, 00
+                IF (low($) + 6 < 256 && low($) -3 >= 0)
+                        ld l, low($ + 6)
+                ELSE                        
+                        ld hl, $ + 7
+                ENDIF
+                exx
+OFF_Iteration?_Step?_JP    
+                jp 00 ; rastr for multicolor ( up to 8 lines)
+                // total ticks: 21
+        ENDM          
+
         MACRO START_OFF_DRAWING label?
             ld h, high(label?)
             jp label?
@@ -35,95 +63,95 @@
 
 it0_start:      ld a, 0x54
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 23
-                DRAW_OFFSCREEN_LINES_S 0, 15
-                DRAW_OFFSCREEN_LINES   0, 7
+                DRAW_OFFSCREEN_LINES1 0, 23
+                DRAW_OFFSCREEN_LINES2 0, 15
+                DRAW_OFFSCREEN_LINES2   0, 7
 
 it7_start:      ld a, 0x54
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 22
-                DRAW_OFFSCREEN_LINES_S 0, 14
-                DRAW_OFFSCREEN_LINES 0, 6
+                DRAW_OFFSCREEN_LINES1 0, 22
+                DRAW_OFFSCREEN_LINES2 0, 14
+                DRAW_OFFSCREEN_LINES2 0, 6
 
 it6_start:      ld a, 0x53
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 21
-                DRAW_OFFSCREEN_LINES_S 0, 13
-                DRAW_OFFSCREEN_LINES 0, 5
+                DRAW_OFFSCREEN_LINES1 0, 21
+                DRAW_OFFSCREEN_LINES2 0, 13
+                DRAW_OFFSCREEN_LINES2 0, 5
 
 it5_start:      ld a, 0x53
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 20
-                DRAW_OFFSCREEN_LINES_S 0, 12
-                DRAW_OFFSCREEN_LINES 0, 4
+                DRAW_OFFSCREEN_LINES1 0, 20
+                DRAW_OFFSCREEN_LINES2 0, 12
+                DRAW_OFFSCREEN_LINES2 0, 4
 
 it4_start:      ld a, 0x51
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 19
-                DRAW_OFFSCREEN_LINES_S 0, 11
-                DRAW_OFFSCREEN_LINES 0, 3
+                DRAW_OFFSCREEN_LINES1 0, 19
+                DRAW_OFFSCREEN_LINES2 0, 11
+                DRAW_OFFSCREEN_LINES2 0, 3
 
 it3_start:      ld a, 0x51
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 18
-                DRAW_OFFSCREEN_LINES_S 0, 10
-                DRAW_OFFSCREEN_LINES 0, 2
+                DRAW_OFFSCREEN_LINES1 0, 18
+                DRAW_OFFSCREEN_LINES2 0, 10
+                DRAW_OFFSCREEN_LINES2 0, 2
 
 it2_start:      ld a, 0x50
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 17
-                DRAW_OFFSCREEN_LINES_S 0, 9
-                DRAW_OFFSCREEN_LINES 0, 1
+                DRAW_OFFSCREEN_LINES1 0, 17
+                DRAW_OFFSCREEN_LINES2 0, 9
+                DRAW_OFFSCREEN_LINES2 0, 1
 
 it1_start:      ld a, 0x50
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 0, 16
-                DRAW_OFFSCREEN_LINES_S 0, 8
-                DRAW_OFFSCREEN_LINES 0, 0
+                DRAW_OFFSCREEN_LINES1 0, 16
+                DRAW_OFFSCREEN_LINES2 0, 8
+                DRAW_OFFSCREEN_LINES2 0, 0
 
                 // negative values (next 7 steps)
 
 it0_end:        ld a, 0x54
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 1, 16
-                DRAW_OFFSCREEN_LINES_S 1, 8
-                DRAW_OFFSCREEN_LINES 1, 0
+                DRAW_OFFSCREEN_LINES1 1, 16
+                DRAW_OFFSCREEN_LINES2 1, 8
+                DRAW_OFFSCREEN_LINES2 1, 0
 
 it7_end:        ld a, 0x54
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 2, 16
-                DRAW_OFFSCREEN_LINES_S 2, 8
-                DRAW_OFFSCREEN_LINES 2, 0
+                DRAW_OFFSCREEN_LINES1 2, 16
+                DRAW_OFFSCREEN_LINES2 2, 8
+                DRAW_OFFSCREEN_LINES2 2, 0
 
 it6_end:        ld a, 0x53
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 3, 16
-                DRAW_OFFSCREEN_LINES_S 3, 8
-                DRAW_OFFSCREEN_LINES 3, 0
+                DRAW_OFFSCREEN_LINES1 3, 16
+                DRAW_OFFSCREEN_LINES2 3, 8
+                DRAW_OFFSCREEN_LINES2 3, 0
 
 it5_end:        ld a, 0x53
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 4, 16
-                DRAW_OFFSCREEN_LINES_S 4, 8
-                DRAW_OFFSCREEN_LINES 4, 0
+                DRAW_OFFSCREEN_LINES1 4, 16
+                DRAW_OFFSCREEN_LINES2 4, 8
+                DRAW_OFFSCREEN_LINES2 4, 0
 
 it4_end:        ld a, 0x51
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 5, 16
-                DRAW_OFFSCREEN_LINES_S 5, 8
-                DRAW_OFFSCREEN_LINES 5, 0
+                DRAW_OFFSCREEN_LINES1 5, 16
+                DRAW_OFFSCREEN_LINES2 5, 8
+                DRAW_OFFSCREEN_LINES2 5, 0
 
 it3_end:        ld a, 0x51
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 6, 16
-                DRAW_OFFSCREEN_LINES_S 6, 8
-                DRAW_OFFSCREEN_LINES 6, 0
+                DRAW_OFFSCREEN_LINES1 6, 16
+                DRAW_OFFSCREEN_LINES2 6, 8
+                DRAW_OFFSCREEN_LINES2 6, 0
 
 it2_end:        ld a, 0x50
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES_S 7, 16
-                DRAW_OFFSCREEN_LINES_S 7, 8
-                DRAW_OFFSCREEN_LINES 7, 0
+                DRAW_OFFSCREEN_LINES1 7, 16
+                DRAW_OFFSCREEN_LINES2 7, 8
+                DRAW_OFFSCREEN_LINES2 7, 0
 
 it1_end:        jp bank_drawing_common
 

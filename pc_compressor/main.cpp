@@ -3117,13 +3117,9 @@ int serializeRastrDescriptors(
         line = line % imageHeight;
         const auto& descriptor = descriptors[line];
         offRastrFile.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
-    }
 
-    for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
-    {
-        int line = i % imageHeight;
-        int nextLine = (i+64) % imageHeight;
-        const auto& descriptor = descriptors[line];
+
+        int nextLine = (line + 64) % imageHeight;
         const auto& nextDescriptor = descriptors[nextLine];
         
         uint8_t value1 = 256 - (uint8_t)descriptor.rastrForOffscreen.startSpDelta;

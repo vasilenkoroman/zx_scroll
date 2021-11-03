@@ -64,26 +64,6 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
                 dec(hl)
         ENDM
 
-        MACRO DRAW_OFFSCREEN_LINES Iteration?, Step?
-OFF_Iteration?_Step?_SP
-                ld sp, 00        
-                ld hl, $ + 7     ; 10
-                exx
-OFF_Iteration?_Step?_JP    
-                jp 00 ; rastr for multicolor ( up to 8 lines)           ; 10
-                // total ticks: 24
-        ENDM          
-
-        MACRO DRAW_OFFSCREEN_LINES_S Iteration?, Step?
-OFF_Iteration?_Step?_SP
-                ld sp, 00        
-                ld l, low($ + 6)
-                exx
-OFF_Iteration?_Step?_JP    
-                jp 00 ; rastr for multicolor ( up to 8 lines)
-                // total ticks: 21
-        ENDM          
-
     org start
 
         MACRO update_colors_jpix
@@ -207,22 +187,22 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
             ld (OFF_iteration?_8_SP + 1), bc    ; 20
         ENDM
 
+        MACRO FILL_SP_DATA_MC_STEP2 iteration?
+            pop de                              ; 10
+            ld l, e                             ; 4
+            ld (OFF_iteration?_16_SP + 1), hl   ; 16
+        ENDM
+
         MACRO FILL_SP_DATA_NON_MC_STEP step1?, step2?
             pop de                              ; 10
             ld l, e                             ; 4
-            ld (OFF_0_step?_SP + 1), hl         ; 16
+            ld (OFF_0_step1?_SP + 1), hl         ; 16
             dec h
             IF (step2? != -1)
                 ld c, d                             ; 4
-                ld (OFF_iteration?_8_SP + 1), bc    ; 20
+                ld (OFF_0_step2?_SP + 1), bc       ; 16
                 dec b
             ENDIF                
-        ENDM
-
-        MACRO FILL_SP_DATA2 iteration?
-            pop de                              ; 10
-            ld l, e                             ; 4
-            ld (OFF_7_16_SP + 1), hl            ; 16
         ENDM
 
         MACRO FILL_SP_DATA_ALL
