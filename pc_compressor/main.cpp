@@ -1529,7 +1529,7 @@ bool repackLine(CompressedLine& line, BorrowResult* borrowedRegs)
 
     Z80Parser parser;
 
-    auto replaceToIndexReg = 
+    auto replaceToIndexReg =
         [&](int offset)
         {
             uint8_t* ldRegPtr = result.data.buffer() + offset;
@@ -3113,7 +3113,7 @@ int serializeRastrDescriptors(
 
     for (int i = -7; i < imageHeight + kmaxDescriptorOffset; ++i)
     {
-        int line = i < 0 ? imageHeight - i : i;
+        int line = i < 0 ? i + imageHeight : i;
         line = line % imageHeight;
         const auto& descriptor = descriptors[line];
         offRastrFile.write((const char*)&descriptor.rastrForOffscreen.descriptorLocationPtr, 2);
@@ -3121,7 +3121,7 @@ int serializeRastrDescriptors(
 
         int nextLine = (line + 64) % imageHeight;
         const auto& nextDescriptor = descriptors[nextLine];
-        
+
         uint8_t value1 = 256 - (uint8_t)descriptor.rastrForOffscreen.startSpDelta;
         uint8_t value2 = 256 - (uint8_t)nextDescriptor.rastrForOffscreen.startSpDelta;
         uint16_t value = value1 + 256 * value2;
@@ -3314,15 +3314,20 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2951 + 1;
+        int kZ80CodeDelay = 2951 - 168;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16;
+            kZ80CodeDelay += 2864 - 16 + 2325;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
-        else if (line % 2 == 1)
-            kZ80CodeDelay -= 11;
+        else
+        {
+            if (line % 2 == 1)
+                kZ80CodeDelay += 2;
+            if (line % 8 == 1)
+                kZ80CodeDelay += 2; //< end offscreen drawing direct jump(10) instead of ex de,hl: jp hl
+        }
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)

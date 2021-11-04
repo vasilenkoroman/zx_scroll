@@ -54,11 +54,6 @@ EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
 
-        MACRO RESTORE_OFF_END labelName?, value16?
-                ld hl, value16?
-                ld (labelName? + 1), hl
-        ENDM
-
         MACRO DO_DEC_SP
                 pop hl
                 dec(hl)
@@ -395,7 +390,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42554 - 8
+fixed_startup_delay     equ 42554 - 8 + 129
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)

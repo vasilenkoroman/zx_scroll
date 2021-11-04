@@ -31,32 +31,37 @@ OFF_Iteration?_Step?_JP
             jp label?
         ENDM
 
+        MACRO RESTORE_OFF_END labelName?, value16?
+                ld hl, value16?
+                ld (labelName?), hl
+        ENDM
+
         MACRO UPDATE_SP l23?, l22?, l21?, l20?, l19?, l18?, l17?, l15?, l14?, l13?, l12?, l11?, l10?, l9?, l7?, l6?, l5?, l4?, l3?, l2?, l1?
                 ld a, high(16384)
 
-                ld (l23? + 1), a: inc a
-                ld (l22? + 1), a: inc a
-                ld (l21? + 1), a: inc a
-                ld (l20? + 1), a: inc a
-                ld (l19? + 1), a: inc a
-                ld (l18? + 1), a: inc a
-                ld (l17? + 1), a
+                ld (l23? + 2), a: inc a
+                ld (l22? + 2), a: inc a
+                ld (l21? + 2), a: inc a
+                ld (l20? + 2), a: inc a
+                ld (l19? + 2), a: inc a
+                ld (l18? + 2), a: inc a
+                ld (l17? + 2), a
                 add 2
-                ld (l15? + 1), a: inc a
-                ld (l14? + 1), a: inc a
-                ld (l13? + 1), a: inc a
-                ld (l12? + 1), a: inc a
-                ld (l11? + 1), a: inc a
-                ld (l10? + 1), a: inc a
-                ld (l9? + 1), a
+                ld (l15? + 2), a: inc a
+                ld (l14? + 2), a: inc a
+                ld (l13? + 2), a: inc a
+                ld (l12? + 2), a: inc a
+                ld (l11? + 2), a: inc a
+                ld (l10? + 2), a: inc a
+                ld (l9? + 2), a
                 add 2
-                ld (l7? + 1), a : inc a
-                ld (l6? + 1), a : inc a
-                ld (l5? + 1), a : inc a
-                ld (l4? + 1), a : inc a
-                ld (l3? + 1), a : inc a
-                ld (l2? + 1), a : inc a
-                ld (l1? + 1), a
+                ld (l7? + 2), a : inc a
+                ld (l6? + 2), a : inc a
+                ld (l5? + 2), a : inc a
+                ld (l4? + 2), a : inc a
+                ld (l3? + 2), a : inc a
+                ld (l2? + 2), a : inc a
+                ld (l1? + 2), a
         ENDM
 
                 ALIGN 32
@@ -169,7 +174,7 @@ draw_off_rastr_6
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
-                UPDATE_SP OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP
+                UPDATE_SP OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP
 
 
                 RESTORE_OFF_END it6_end, 0x3e + 0x53 * 256
@@ -197,4 +202,4 @@ draw_off_rastr_1
                 UPDATE_SP OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP, OFF_0_8_SP,  OFF_1_16_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,  OFF_6_8_SP, OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP
 
                 RESTORE_OFF_END it2_end, 0x3e + 0x50 * 256
-                START_OFF_DRAWING it2_start
+                START_OFF_DRAWING it1_start
