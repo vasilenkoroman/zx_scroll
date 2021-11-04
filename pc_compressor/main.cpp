@@ -2218,6 +2218,20 @@ struct DescriptorState
         if (extraDelay > 0)
             regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
 
+        if (startSpDelta > 0 && !firstCommands.empty() && firstCommands[0] >= 0x70 && firstCommands[0] <= 0x77)
+        {
+            // LD (HL), reg8 command after the descriptor. It reffer to the current HL=SP value, but HL is not set when start to exec descriptor.
+            // Update this command to:
+            //  PUSH REG16
+            //  INC SP
+            // in case of reg8 is high part of REG16 or:
+            // LD REG16, XX
+            // PUSH REG16
+            // in case of reg8 is low part of REG16.
+            std::cout << "LD (HL) detected!!" << std::endl;
+        }
+
+
         regs.serialize(preambula);
         addToPreambule(firstCommands);
 
