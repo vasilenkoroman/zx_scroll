@@ -2195,6 +2195,50 @@ struct DescriptorState
         return result;
     }
 
+    void replaceLoadWithHlToSp(std::vector<uint8_t>& firstCommands, std::vector<Register16>& registers)
+    {
+        /** LD(HL), reg8 command after the descriptor.It refer to the current HL = SP value, but HL is not set when start to exec descriptor.
+         * in case of reg8 is high part of REG16 or:
+         * LD REG16, XX
+         * PUSH REG16
+         * in case of reg8 is low part of REG16.
+        */
+        std::cout << "Replace LD (HL) To PUSH SP for descriptor header" << std::endl;
+        int regIndex = firstCommands[0] - 0x70;
+        const auto usedInHlReg = findRegisterByIndex(registers, regIndex, &af.h);
+        bool canUseMethod1 = regIndex % 2 == 0 || regIndex == 7;
+        if (!canUseMethod1 && usedInHlReg->name != 'a')
+        {
+            // If high and low parts of register are same, can still use method1 (it more fast)
+            const auto highReg8 = findRegisterByIndex(registers, regIndex - 1, &af.h);
+            if (highReg8 && highReg8->hasValue(*usedInHlReg->value))
+                canUseMethod1 = true;
+        }
+
+        if (canUseMethod1)
+        {
+            // High register: b, d, h, a
+            // Lose 10 ticks at descriptor header
+            // Update this command to:
+            // PUSH REG16
+            // INC SP
+            --startSpDelta;
+            firstCommands[0] = 0xc5 + 16*(regIndex/2); // PUSH XX
+            firstCommands.insert(firstCommands.begin() + 1, 0x33); // INC SP
+        }
+        else
+        {
+            // TODO: Not implemented yet!
+            std::cerr << "Not implemented! Implement it or disable flag 'updateViaHl'" << std::endl;
+            abort();
+            // low register: c, e, l
+            // Lose 14 ticks at descriptor header
+            // Update this command to:
+            // LD REG16, XX
+            // PUSH REG16
+        }
+    }
+
     void serializeOmitedData(
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
@@ -2207,6 +2251,7 @@ struct DescriptorState
         auto [registers, omitedTicks, omitedBytes] = mergedPreambulaInfo(origPreambula, serializedData, lineStartOffset, omitedDataSize);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
+
         const int firstCommandsSize = firstCommands.size();
         omitedDataInfo = Z80Parser::parseCode(
             af, codeInfo.inputRegisters, firstCommands,
@@ -2219,17 +2264,7 @@ struct DescriptorState
             regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
 
         if (startSpDelta > 0 && !firstCommands.empty() && firstCommands[0] >= 0x70 && firstCommands[0] <= 0x77)
-        {
-            // LD (HL), reg8 command after the descriptor. It reffer to the current HL=SP value, but HL is not set when start to exec descriptor.
-            // Update this command to:
-            //  PUSH REG16
-            //  INC SP
-            // in case of reg8 is high part of REG16 or:
-            // LD REG16, XX
-            // PUSH REG16
-            // in case of reg8 is low part of REG16.
-            std::cout << "LD (HL) detected!!" << std::endl;
-        }
+            replaceLoadWithHlToSp(firstCommands, registers);
 
 
         regs.serialize(preambula);
@@ -3545,7 +3580,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
