@@ -1932,6 +1932,9 @@ struct DescriptorState
     int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
     Register16 af{ "af" };
     std::optional<uint16_t> updatedHlValue;
+    
+    const uint8_t* srcBuffer = 0;
+    int srcLine = 0;
 
     void setEndBlock(const uint8_t* ptr)
     {
@@ -2196,49 +2199,61 @@ struct DescriptorState
     }
 
     void replaceLoadWithHlToSp(
-        std::vector<uint8_t>& firstCommands,
+        int imageHeight,
+        uint8_t dataByte,
         std::vector<Register16>& registers)
     {
+        if (startSpDelta % 32 < 2)
+        {
+            std::cerr << "Unsupported startSpDelta % 32 < 2. Just a bug. Please report an issue to developers." << std::endl;
+            abort();
+        }
+        startSpDelta -= 2;
+
+        CompressedLine replaceLdHlData;
+        int prevSpDelta = startSpDelta - 1;
+        
+        int drawLine = srcLine + (startSpDelta / 32) * 8;
+        drawLine = drawLine % imageHeight;
+
+        const uint8_t* cur = srcBuffer + drawLine * 32 + startSpDelta % 32;
+        uint16_t* buffer16 = (uint16_t*)(cur);
+        uint16_t valueToRestore = buffer16[0];
+        valueToRestore = swapBytes(valueToRestore);
+
+        int regIndex = dataByte - 0x70;
+        std::unique_ptr<Register16> r;
+        if (regIndex / 2 == 0)
+            r = std::make_unique<Register16>("bc");
+        else if (regIndex / 2 == 1)
+            r = std::make_unique<Register16>("de");
+        else
+            r = std::make_unique<Register16>("hl");
+        r->loadXX(replaceLdHlData, valueToRestore);
+        r->push(replaceLdHlData);
+
+        replaceLdHlData.serialize(preambula);
+
+        // optimize registers value if it contains same data
+        if (auto r2 = findRegister(registers, r->name()))
+        {
+            if (r2->h.hasValue(*r->h.value))
+                r2->h.value.reset();
+            if (r2->l.hasValue(*r->l.value))
+                r2->l.value.reset();
+        }
+        
+
         /** LD(HL), reg8 command after the descriptor.It refer to the current HL = SP value, but HL is not set when start to exec descriptor.
          * Replace it to:
          * PUSH REG16
          * INC SP
         */
-        int regIndex = firstCommands[0] - 0x70;
-        const auto usedInHlReg = findRegisterByIndex(registers, regIndex, &af.h);
-        bool canUseMethod1 = regIndex % 2 == 0 || regIndex == 7;
-        if (!canUseMethod1 && usedInHlReg->name != 'a')
-        {
-            // If high and low parts of register are same, can still use method1 (it more fast)
-            const auto highReg8 = findRegisterByIndex(registers, regIndex - 1, &af.h);
-            if (highReg8 && highReg8->hasValue(*usedInHlReg->value))
-                canUseMethod1 = true;
-        }
 
-        --startSpDelta;
-        if (canUseMethod1)
-        {
-            // High register: b, d, h, a
-            // Lose 10 ticks at descriptor header
-            // Insert new commands after loading regs (use exising value)
-            std::cout << "Replace LD (HL) To PUSH REG16 for descriptor header. Lose 10 ticks" << std::endl;
-            firstCommands[0] = 0xc5 + 16*(regIndex/2); // PUSH XX
-            firstCommands.insert(firstCommands.begin() + 1, 0x33); // INC SP
-        }
-        else
-        {
-            // Lose 17 ticks at descriptor header
-            // Insert new commands before loading regs (load one more value to reg)
-            std::cout << "Replace LD (HL) To PUSH REG16 for descriptor header. Lose 17 ticks" << std::endl;
-            firstCommands.erase(firstCommands.begin());
-            preambula.push_back(0x06); // LD B, X
-            preambula.push_back(*usedInHlReg->value); // LD B, X
-            preambula.push_back(0xc5); // PUSH BC
-            preambula.push_back(0x33); // INC SP
-        }
     }
 
     void serializeOmitedData(
+        int imageHeight,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         int omitedDataSize,
@@ -2256,15 +2271,30 @@ struct DescriptorState
             af, codeInfo.inputRegisters, firstCommands,
             0, firstCommands.size(), 0);
 
+
         firstCommands.erase(firstCommands.begin(), firstCommands.begin() + omitedBytes);
+
+        if (startSpDelta > 0)
+        {
+            const uint8_t* dataPtr = serializedData.data() + lineStartOffset;
+            if (!firstCommands.empty() && firstCommands[0] >= 0x70 && firstCommands[0] <= 0x77)
+            {
+                uint8_t dataByte = firstCommands[0];
+                firstCommands.erase(firstCommands.begin());
+                replaceLoadWithHlToSp(imageHeight, dataByte, registers);
+            }
+            else if (firstCommands.empty() && dataPtr[0] >= 0x70 && dataPtr[0] <= 0x77)
+            {
+                replaceLoadWithHlToSp(imageHeight, dataPtr[0], registers);
+                codeInfo.startOffset++;
+                lineStartPtr++;
+                codeInfo.ticks -= 7;
+            }
+        }
 
         auto regs = getSerializedRegisters(registers, af);
         if (extraDelay > 0)
             regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
-
-        if (startSpDelta > 0 && !firstCommands.empty() && firstCommands[0] >= 0x70 && firstCommands[0] <= 0x77)
-            replaceLoadWithHlToSp(firstCommands, registers);
-
 
         regs.serialize(preambula);
         addToPreambule(firstCommands);
@@ -2286,6 +2316,7 @@ struct DescriptorState
     }
 
     void makePreambulaForMC(
+        int imageHeight,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         const CompressedLine* line,
@@ -2306,10 +2337,11 @@ struct DescriptorState
             extraDelay = 0;
         }
 
-        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen, extraDelay);
+        serializeOmitedData(imageHeight, serializedData, codeOffset, kJpIxCommandLen, extraDelay);
     }
 
     void makePreambulaForOffscreen(
+        int imageHeight,
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         int descriptorsDelta)
@@ -2344,7 +2376,7 @@ struct DescriptorState
         //if (startSpDelta > 0)
         //    serializeSpDelta(startSpDelta);
 
-        serializeOmitedData(serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, 0);
+        serializeOmitedData(imageHeight, serializedData, codeOffset, kJpIxCommandLen - descriptorsDelta, 0);
     }
 
     void serialize(std::vector<uint8_t>& dst)
@@ -2605,6 +2637,7 @@ int getRastrCodeStartAddr(int imageHeight)
 }
 
 int serializeMainData(
+    const uint8_t* srcBuffer,
     const CompressedData& data,
     const CompressedData& multicolorData,
     std::vector<LineDescriptor>& descriptors,
@@ -2805,6 +2838,9 @@ int serializeMainData(
             descriptor.rastrForMulticolor.codeInfo.endOffset, relativeOffsetToEnd,
             rastrCodeStartAddr);
 
+        descriptor.rastrForOffscreen.srcBuffer = srcBuffer; // +srcLine * 32;
+        descriptor.rastrForOffscreen.srcLine = srcLine;
+
 
         int spDeltaSum = descriptor.rastrForMulticolor.codeInfo.spOffset + descriptor.rastrForOffscreen.codeInfo.spOffset + (dataLine.stackMovingAtStart - dataLine.minX);
         if (spDeltaSum < -256)
@@ -2831,8 +2867,8 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank);
-        descriptor.rastrForOffscreen.makePreambulaForOffscreen(serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
+        descriptor.rastrForMulticolor.makePreambulaForMC(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank);
+        descriptor.rastrForOffscreen.makePreambulaForOffscreen(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + mainMemSerializedDescriptors.size();
         descriptor.rastrForMulticolor.serialize(mainMemSerializedDescriptors);
@@ -3634,7 +3670,7 @@ int main(int argc, char** argv)
     std::vector<LineDescriptor> descriptors;
     std::vector<ColorDescriptor> colorDescriptors;
 
-    int mainDataSize = serializeMainData(data, multicolorData, descriptors, outputFileName, codeOffset, flags, alignedMcTicks);
+    int mainDataSize = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, alignedMcTicks);
     serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize);
 
     // put JP to the latest line of colors
