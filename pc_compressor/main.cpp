@@ -2195,15 +2195,15 @@ struct DescriptorState
         return result;
     }
 
-    void replaceLoadWithHlToSp(std::vector<uint8_t>& firstCommands, std::vector<Register16>& registers)
+    void replaceLoadWithHlToSp(
+        std::vector<uint8_t>& firstCommands,
+        std::vector<Register16>& registers)
     {
         /** LD(HL), reg8 command after the descriptor.It refer to the current HL = SP value, but HL is not set when start to exec descriptor.
-         * in case of reg8 is high part of REG16 or:
-         * LD REG16, XX
+         * Replace it to:
          * PUSH REG16
-         * in case of reg8 is low part of REG16.
+         * INC SP
         */
-        std::cout << "Replace LD (HL) To PUSH SP for descriptor header" << std::endl;
         int regIndex = firstCommands[0] - 0x70;
         const auto usedInHlReg = findRegisterByIndex(registers, regIndex, &af.h);
         bool canUseMethod1 = regIndex % 2 == 0 || regIndex == 7;
@@ -2215,27 +2215,26 @@ struct DescriptorState
                 canUseMethod1 = true;
         }
 
+        --startSpDelta;
         if (canUseMethod1)
         {
             // High register: b, d, h, a
             // Lose 10 ticks at descriptor header
-            // Update this command to:
-            // PUSH REG16
-            // INC SP
-            --startSpDelta;
+            // Insert new commands after loading regs (use exising value)
+            std::cout << "Replace LD (HL) To PUSH REG16 for descriptor header. Lose 10 ticks" << std::endl;
             firstCommands[0] = 0xc5 + 16*(regIndex/2); // PUSH XX
             firstCommands.insert(firstCommands.begin() + 1, 0x33); // INC SP
         }
         else
         {
-            // TODO: Not implemented yet!
-            std::cerr << "Not implemented! Implement it or disable flag 'updateViaHl'" << std::endl;
-            abort();
-            // low register: c, e, l
-            // Lose 14 ticks at descriptor header
-            // Update this command to:
-            // LD REG16, XX
-            // PUSH REG16
+            // Lose 17 ticks at descriptor header
+            // Insert new commands before loading regs (load one more value to reg)
+            std::cout << "Replace LD (HL) To PUSH REG16 for descriptor header. Lose 17 ticks" << std::endl;
+            firstCommands.erase(firstCommands.begin());
+            preambula.push_back(0x06); // LD B, X
+            preambula.push_back(*usedInHlReg->value); // LD B, X
+            preambula.push_back(0xc5); // PUSH BC
+            preambula.push_back(0x33); // INC SP
         }
     }
 
@@ -3580,7 +3579,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
