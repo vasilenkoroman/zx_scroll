@@ -1249,7 +1249,7 @@ void finilizeLine(
 
     if (result.mcStats.min > result.mcStats.max)
     {
-        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcStats. min= " << result.mcStats.min << " is bigger than max=" << result.mcStats.min << std::endl;
+        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcStats. min= " << result.mcStats.min << " is bigger than max=" << result.mcStats.max << std::endl;
         //abort();
     }
 }
@@ -2777,7 +2777,7 @@ int serializeMainData(
 
         // Aviod conflicts between MC/OFF descriptors if image packs too good.
         // Offscreen descriptor end should be at least 2 bytes later than MC descriptor end after removeTrailing stack moving.
-        const static int kMinBytesForOffscreen = 6;
+        const static int kMinBytesForOffscreen = 7;
 
         descriptor.rastrForMulticolor.codeInfo = parser.parseCode(
             *dataLine.inputAf,

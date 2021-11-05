@@ -800,9 +800,9 @@ continue_mc_drawing
         dec iy
         jp loop                        ; 12 ticks
 
-        INCLUDE "draw_off_rastr.asm"
-
 /*********************** routines *************/
+
+        INCLUDE "draw_off_rastr.asm"
 
 prepare_interruption_table:
 
