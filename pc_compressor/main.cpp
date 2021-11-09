@@ -1922,6 +1922,7 @@ struct DescriptorState
     uint16_t lineStartPtr = 0;      //< Start draw lines here.
     uint16_t lineEndPtr = 0;        //< Stop draw lines here.
 
+    std::optional<CompressedLine> expectedUsedRegisters;
     std::vector<uint8_t> preambula; //< Z80 code to load initial registers and JP command to the lineStart
     Z80CodeInfo codeInfo;           //< Descriptor data info.
 
@@ -2187,10 +2188,10 @@ struct DescriptorState
         const CompressedLine& dataLine,
         std::vector<uint8_t> serializedData,
         int relativeOffsetToStart,
-        int lineBank) const
+        int lineBank)
     {
-        CompressedLine preambula = dataLine.getSerializedUsedRegisters(af);
-        auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(preambula, serializedData, relativeOffsetToStart, kJpIxCommandLen);
+        expectedUsedRegisters = dataLine.getSerializedUsedRegisters(af);
+        auto [registers, omitedTicksFromMainCode, _] = mergedPreambulaInfo(*expectedUsedRegisters, serializedData, relativeOffsetToStart, kJpIxCommandLen);
         auto outRegs = getSerializedRegisters(registers, af);
         auto result = outRegs.drawTicks - omitedTicksFromMainCode;
         //if (lineBank % 2 == 1)
@@ -2260,9 +2261,11 @@ struct DescriptorState
         int extraDelay)
     {
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
-        CompressedLine origPreambula = codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
+        CompressedLine usedRegisters = expectedUsedRegisters 
+            ? *expectedUsedRegisters
+            : codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
 
-        auto [registers, omitedTicks, omitedBytes] = mergedPreambulaInfo(origPreambula, serializedData, lineStartOffset, omitedDataSize);
+        auto [registers, omitedTicks, omitedBytes] = mergedPreambulaInfo(usedRegisters, serializedData, lineStartOffset, omitedDataSize);
 
         auto firstCommands = Z80Parser::getCode(serializedData.data() + lineStartOffset, omitedDataSize);
 
