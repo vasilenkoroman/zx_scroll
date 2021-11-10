@@ -340,7 +340,7 @@ uint16_t swapBytes(uint16_t word)
 */
 
 template <typename T>
-void updateTransitiveRegUsage(T& data)
+void updateTransitiveRegUsage(T& data, int maxDepth)
 {
     int size = data.size();
     for (int lineNum = 0; lineNum < data.size(); ++lineNum)
@@ -349,7 +349,7 @@ void updateTransitiveRegUsage(T& data)
 
         uint8_t selfRegMask = line.regUsage.selfRegMask;
         auto before = line.regUsage.regUseMask;
-        for (int j = 1; j <= 8; ++j)
+        for (int j = 1; j < maxDepth; ++j)
         {
             int nextLineNum = (lineNum + j) % size;
             CompressedLine& nextLine = data[nextLineNum];
@@ -817,7 +817,7 @@ bool compressLine(
     return true;
 }
 
-std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines)
+std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines, int transitiveDepth)
 {
     std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
     std::vector<CompressedLine> result;
@@ -903,7 +903,7 @@ std::vector<CompressedLine> compressLines(const Context& context, const std::vec
     }
 
 
-    updateTransitiveRegUsage(result);
+    updateTransitiveRegUsage(result, transitiveDepth);
     return result;
 }
 
@@ -912,7 +912,7 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
     return std::async(
         [context, lines]()
         {
-            return compressLines(context, lines);
+            return compressLines(context, lines, /*maxTransitiveDepth*/ 8);
         }
     );
 }
@@ -1895,7 +1895,7 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     }
 
     CompressedData compressedData;
-    compressedData.data = compressLines(context, lines);
+    compressedData.data = compressLines(context, lines, /*maxTransitiveDepth*/ 24);
     compressedData.sameBytesCount = sameBytesCount;
     compressedData.flags = flags;
     return compressedData;
