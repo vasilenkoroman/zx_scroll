@@ -74,6 +74,7 @@ public:
     static std::vector<uint8_t> genDelay(int ticks);
 
     static const Register16* findRegByItsPushOpCode(const std::vector<Register16>& registers, uint8_t pushOpCode);
+    static bool isPushOpCode(uint8_t opCode);
 
     /**
      * This function swap first two commands in the Z80 code if need.

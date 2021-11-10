@@ -1002,6 +1002,20 @@ const Register16* Z80Parser::findRegByItsPushOpCode(
     return nullptr;
 }
 
+bool Z80Parser::isPushOpCode(uint8_t opCode)
+{
+    switch (opCode)
+    {
+        case 0xc5:
+        case 0xd5:
+        case 0xe5:
+        case 0xf5:
+            return true;
+        default:
+            return false;
+    }
+}
+
 int Z80Parser::removeTrailingStackMoving(Z80CodeInfo& codeInfo, int maxCommandToRemove)
 {
     int removedBytes = 0;

@@ -1224,8 +1224,7 @@ void finilizeLine(
         /* codeOffset*/ 0,
         [&](const Z80CodeInfo& info, const z80Command& command)
         {
-            const auto inputReg = Z80Parser::findRegByItsPushOpCode(info.outputRegisters, command.opCode);
-            if (!inputReg)
+            if (!Z80Parser::isPushOpCode(command.opCode))
                 return false;
 
             int rightBorder = 32;
