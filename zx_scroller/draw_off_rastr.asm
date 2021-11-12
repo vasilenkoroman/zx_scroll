@@ -60,7 +60,6 @@ L02:            DRAW_OFFSCREEN_LINES   0, 7, L02
 
 it7_start:      //ld a, 0x54
                 //out (0xfd), a
-                nop
                 DRAW_OFFSCREEN_LINES 0, 22, it7_start
 L11:            DRAW_OFFSCREEN_LINES 0, 14, L11
 L12:            DRAW_OFFSCREEN_LINES 0, 6,  L12
@@ -73,7 +72,6 @@ L22:            DRAW_OFFSCREEN_LINES 0, 5,  L22
 
 it5_start:      //ld a, 0x53
                 //out (0xfd), a
-                nop
                 DRAW_OFFSCREEN_LINES 0, 20, it5_start
 L31:            DRAW_OFFSCREEN_LINES 0, 12, L31
 L32:            DRAW_OFFSCREEN_LINES 0, 4, L32
@@ -86,7 +84,6 @@ L42:            DRAW_OFFSCREEN_LINES 0, 3,  L42
 
 it3_start:      //ld a, 0x51
                 //out (0xfd), a
-                nop
                 DRAW_OFFSCREEN_LINES 0, 18, it3_start
 L51:            DRAW_OFFSCREEN_LINES 0, 10, L51
 L52:            DRAW_OFFSCREEN_LINES 0, 2,  L52
@@ -99,7 +96,6 @@ L62:            DRAW_OFFSCREEN_LINES 0, 1,  L62
 
 it1_start:      //ld a, 0x50
                 //out (0xfd), a
-                nop
                 DRAW_OFFSCREEN_LINES 0, 16, it1_start
 L71:            DRAW_OFFSCREEN_LINES 0, 8,  L71
 L72:            DRAW_OFFSCREEN_LINES 0, 0,  L72
@@ -151,7 +147,8 @@ it2_end:        ld a, 0x50
 L141:           DRAW_OFFSCREEN_LINES 7, 8,  L141
 L142:           DRAW_OFFSCREEN_LINES 7, 0,  L142
 
-it1_end:        jp bank_drawing_common
+it1_end:        ex de,hl
+                jp hl
 
 
 draw_off_rastr_7

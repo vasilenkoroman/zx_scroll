@@ -3411,9 +3411,29 @@ int serializeTimingData(
         {
             if (line % 2 == 1)
                 kZ80CodeDelay += 2 + 18;
-            if (line % 8 == 1)
-                kZ80CodeDelay += 2; //< end offscreen drawing direct jump(10) instead of ex de,hl: jp hl
         }
+
+        // offscreen drawing branches has different length
+        switch (line % 8)
+        {
+            case 1:
+            case 2:
+                kZ80CodeDelay -= 4;
+                break;
+            case 3:
+            case 4:
+                kZ80CodeDelay -= 8;
+                break;
+            case 5:
+            case 6:
+                kZ80CodeDelay -= 12;
+                break;
+            case 0:
+            case 7:
+                kZ80CodeDelay -= 16;
+                break;
+        }
+
 
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
