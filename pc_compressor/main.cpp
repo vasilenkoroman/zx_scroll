@@ -86,20 +86,9 @@ struct Context
         int nextLineNum = (y + scrollDelta) % imageHeight;
         uint8_t* nextLine = buffer + nextLineNum * 32;
 
-        minX = sameBytesCount->at(y * 32);
+        minX += sameBytesCount->at(y * 32 + minX);
 
-#if 0
-        // remove left and rigt edge
-        for (int x = 0; x < 32; ++x)
-        {
-            if (line[x] == nextLine[x])
-                ++minX;
-            else
-                break;
-        }
-#endif
-
-        for (int x = 31; x >= 0; --x)
+        for (int x = maxX; x >= 0; --x)
         {
             //if (line[x] == nextLine[x])
             if (sameBytesCount->at(y * 32 + x))
@@ -1207,7 +1196,7 @@ void finilizeLine(
 
     // Calculate line min and max draw delay (point 0 is the ray in the begin of a line)
 
-    if (context.y == 16)
+    if (context.y == 23)
     {
         int gg = 4;
     }
@@ -1300,15 +1289,16 @@ CompressedLine  compressMultiColorsLine(Context context)
      */
 
     CompressedLine result;
-    context.removeEdge(); //< Fill minX, maxX
-
     
+    std::vector<int8_t> sameBytesCopy;
     if (context.flags & threeStackPos)
     {
+        sameBytesCopy = *context.sameBytesCount;
         for (int x = 16; x < 16 + kThirdSpPartSize; ++x)
             addSameByteToTable(*context.sameBytesCount, context.y, x);
     }
 
+    context.removeEdge(); //< Fill minX, maxX
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
@@ -1415,8 +1405,8 @@ CompressedLine  compressMultiColorsLine(Context context)
     //int t1 = kBorderTime + (context.minX + 31 - context.maxX) * 4; // write whole line at once limit (no intermediate stack moving)
     int t2 = kLineDurationInTicks; // write whole line in 2 tries limit
     t2 += (31 - context.maxX) * kTicksOnScreenPerByte;
-
     int drawTicks = getDrawTicks(pushLine);
+    pushLine.mcStats.max = t2 - drawTicks;
 
     if (!(context.flags & Flags::threeStackPos))
     {
@@ -1428,11 +1418,47 @@ CompressedLine  compressMultiColorsLine(Context context)
                 context.flags |= Flags::threeStackPos;
             return compressMultiColorsLine(context);
         }
-        pushLine.mcStats.max = t2 - drawTicks;
     }
     else
     {
-        pushLine.mcStats.max = t2 - drawTicks;
+        if (drawTicks > t2)
+        {
+            std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for first 2 piece in 3 piece mode. " << std::endl;
+            abort();
+        }
+
+        // add 3-th piece
+        *context.sameBytesCount = sameBytesCopy;
+        pushLine.spPosHints[1] = loadLine.data.size();
+        sp.loadXX(pushLine, 32);
+        
+        Context context3 = context;
+        context3.minX = 16;
+        context3.maxX = context3.minX + kThirdSpPartSize - 1;
+        context3.borderPoint = -1;
+        context3.removeEdge();
+        context3.flags &= ~oddVerticalCompression;
+        // Updating minX not supported now. Only maxX is supported here. It is because save ticks in non MC mode while preparing MC drawing.
+        context3.minX = 16;
+        
+        CompressedLine line3;
+        success = compressLineMain(context3, line3, regCopy, /*updateViaHlTry*/ false);
+        if (!success)
+        {
+            std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
+            abort();
+        }
+
+        pushLine += line3;
+        int drawTicks2 = getDrawTicks(pushLine);
+
+        int t3 = t2 + 48;
+        if (drawTicks2 > t3)
+        {
+            std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks2 - t3 << " ticks in 3 piece mode. " << std::endl;
+            abort();
+        }
+        pushLine.mcStats.max = std::min(pushLine.mcStats.max, t3 - drawTicks2);
     }
 
     
@@ -1792,7 +1818,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     int i = 0;
     for (auto& line : compressedData.data)
     {
-        if (i == 22)
+        if (i == 23)
         {
             int gg = 4;
         }
