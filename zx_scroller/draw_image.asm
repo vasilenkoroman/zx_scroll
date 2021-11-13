@@ -402,7 +402,7 @@ max_scroll_offset equ imageHeight - 1
         out 0xfe,a                      ; 11 ticks
 
         // Prepare data
-        xor a   ; TODO: load from RASTR_REG_A. In current version its const 0
+        xor a
         ld hl, COLOR_REG_AF2
         push hl
         ex af, af'

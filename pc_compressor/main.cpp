@@ -32,6 +32,7 @@ static const int kPagesForData = 4;
 static const int kSetPageTicks = 18;
 static const int kPageNumPrefix = 0x50;
 static const int kMinOffscreenBytes = 4; // < It contains at least 4 writted bytes to the screen
+static const int kThirdSpPartSize = 4;
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -49,7 +50,8 @@ enum Flags
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
     updateViaHl = 512,
-    OptimizeMcTicks = 1024
+    OptimizeMcTicks = 1024,
+    threeStackPos = 2048
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -669,7 +671,7 @@ bool compressLine(
 
         if (context.borderPoint && x == context.borderPoint)
         {
-            result.spPosHint = result.data.size();
+            result.spPosHints[0] = result.data.size();
             if (verticalRepCount > 0)
                 x += verticalRepCount;
             sp.loadXX(result, 32 - (x - context.borderPoint));
@@ -692,7 +694,7 @@ bool compressLine(
                 x += verticalRepCount;
                 if (x  > context.borderPoint)
                 {
-                    result.spPosHint = result.data.size();
+                    result.spPosHints[0] = result.data.size();
                     sp.loadXX(result, 32 - (x - context.borderPoint));
                 }
                 continue;
@@ -798,8 +800,8 @@ bool compressLine(
         if (choisedLine.data.empty())
             return false;
 
-        if (choisedLine.spPosHint >= 0)
-            result.spPosHint = result.data.size() + choisedLine.spPosHint;
+        if (choisedLine.spPosHints[0] >= 0)
+            result.spPosHints[0] = result.data.size() + choisedLine.spPosHints[0];
 
         result += choisedLine;
         result.isAltReg = choisedLine.isAltReg;
@@ -1194,8 +1196,11 @@ void finilizeLine(
             Register16("bc'"), Register16("de'"), Register16("hl'")
         };
 
-        if (pushLine.spPosHint >= 0)
-            result.spPosHint = result.data.size() + pushLine.spPosHint;
+        for (int i = 0; i < pushLine.spPosHints.size(); ++i)
+        {
+            if (pushLine.spPosHints[i] >= 0)
+                result.spPosHints[i] = result.data.size() + pushLine.spPosHints[i];
+        }
         result += pushLine;
     }
 
@@ -1261,6 +1266,23 @@ int getDrawTicks(const CompressedLine& pushLine)
     return drawTicks;
 }
 
+void addSameByteToTable(std::vector<int8_t>& sameBytesCount, int y, int x)
+{
+    int leftBorder = x;
+    while (leftBorder > 0 && sameBytesCount[y * 32 + leftBorder - 1] > 0)
+        --leftBorder;
+    int rightBorder = x;
+    while (rightBorder < 31 && sameBytesCount[y * 32 + rightBorder + 1] > 0)
+        ++rightBorder;
+    
+    int count = rightBorder - leftBorder + 1;
+    for (int i = leftBorder; i <= rightBorder; ++i)
+    {
+        sameBytesCount[y * 32 + i] = count;
+        --count;
+    }
+}
+
 CompressedLine  compressMultiColorsLine(Context context)
 {
     /*
@@ -1279,6 +1301,14 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     CompressedLine result;
     context.removeEdge(); //< Fill minX, maxX
+
+    
+    if (context.flags & threeStackPos)
+    {
+        for (int x = 16; x < 16 + kThirdSpPartSize; ++x)
+            addSameByteToTable(*context.sameBytesCount, context.y, x);
+    }
+
 
     //try 1. Use 3 registers, no intermediate stack correction, use default compressor
 
@@ -1369,11 +1399,6 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     // 2.4 start compressor with prepared register values
 
-    if (context.y == 11)
-    {
-        int gg = 4;
-    }
-
 
     CompressedLine pushLine;
     auto regCopy = registers6;
@@ -1393,29 +1418,30 @@ CompressedLine  compressMultiColorsLine(Context context)
 
     int drawTicks = getDrawTicks(pushLine);
 
-    if (!success)
+    if (!(context.flags & Flags::threeStackPos))
     {
-        std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
-            << " (something wrong with oddVerticalCompression flag). It should not be! Just a bug." << std::endl;
-        abort();
+        if (drawTicks > t2)
+        {
+            #ifdef DEBUG
+                std::cout << "DEBUG: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for 2 stack pos. Switching to 3 stack" << std::endl;
+            #endif
+                context.flags |= Flags::threeStackPos;
+            return compressMultiColorsLine(context);
+        }
+        pushLine.mcStats.max = t2 - drawTicks;
+    }
+    else
+    {
+        pushLine.mcStats.max = t2 - drawTicks;
     }
 
-
-    if (drawTicks > t2)
-    {
-        // TODO: implement me
-        std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for multicolor" << std::endl;
-        //assert(0);
-        //abort();
-    }
-
-    pushLine.mcStats.max = t2 - drawTicks;
+    
     finilizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
 
-    if (result.spPosHint >= 0)
+    if (result.spPosHints[0] >= 0)
     {
-        uint16_t* value = (uint16_t*)(result.data.buffer() + result.spPosHint + 1);
+        uint16_t* value = (uint16_t*)(result.data.buffer() + result.spPosHints[0] + 1);
         if (*value > 32 || *value < 1)
         {
             std::cerr << "Unsupported spPos value " << *value << std::endl;
@@ -1846,9 +1872,11 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.flags = verticalCompressionL;
     context.imageHeight = imageHeight;
     context.buffer = shufledBuffer.data();
+    context.borderPoint = 16;
+
+
     std::vector<int8_t> sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
     context.sameBytesCount = &sameBytesCount;
-    context.borderPoint = 16;
 
     int count1;
     context.af = findBestByte(suffledPtr, imageHeight, &sameBytesCount, &count1);
@@ -3120,15 +3148,15 @@ int serializeMultiColorData(
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
 
-        if (line.spPosHint >= 0)
+        if (line.spPosHints[0] >= 0)
         {
-            if (line.data.buffer()[line.spPosHint] != 0x31)
+            if (line.data.buffer()[line.spPosHints[0]] != 0x31)
             {
                 std::cerr << "Invalid spPos hint. Some bug!";
                 abort();
             }
-            descriptor.moveSpBytePos = lineAddressPtr + line.spPosHint + 1;
-            uint8_t value8 = line.data.buffer()[line.spPosHint + 1];
+            descriptor.moveSpBytePos = lineAddressPtr + line.spPosHints[0] + 1;
+            uint8_t value8 = line.data.buffer()[line.spPosHints[0] + 1];
             descriptor.moveSpDelta = value8;
         }
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX

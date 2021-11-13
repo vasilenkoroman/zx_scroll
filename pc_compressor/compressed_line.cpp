@@ -146,25 +146,33 @@ void CompressedLine::push_front(const std::vector<uint8_t>& v)
 {
     for (auto itr = v.rbegin(); itr != v.rend(); ++itr)
         data.push_front(*itr);
-    if (spPosHint >= 0)
-        spPosHint += v.size();
-
+    for (auto& spPosHint : spPosHints)
+    {
+        if (spPosHint >= 0)
+            spPosHint += v.size();
+    }
 }
 
 void CompressedLine::erase(int index, int count)
 {
     data.erase(index, count);
-    if (spPosHint > index)
-        spPosHint -= count;
-
+    for (auto& spPosHint : spPosHints)
+    {
+        if (spPosHint > index)
+            spPosHint -= count;
+    }
 }
 
 void CompressedLine::push_front(const ZxData& buffer)
 {
     for (int i = buffer.size() - 1; i >= 0; --i)
         data.push_front(buffer.data()[i]);
-    if (spPosHint >= 0)
-        spPosHint += buffer.size();
+
+    for (auto& spPosHint : spPosHints)
+    {
+        if (spPosHint >= 0)
+            spPosHint += buffer.size();
+    }
 }
 
 std::vector<uint8_t> CompressedLine::getFirstCommands(int size) const

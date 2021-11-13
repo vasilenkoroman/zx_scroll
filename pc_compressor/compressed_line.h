@@ -201,7 +201,7 @@ public:
 
     int flags = 0;
     int lastOddRepPosition = 0;
-    int spPosHint = -1;
+    std::array<int, 2> spPosHints{-1,-1};
 
     int16_t minX = 0;
     int16_t maxX = 0;
