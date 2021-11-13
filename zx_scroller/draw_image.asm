@@ -66,7 +66,7 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
         ; bc - line number
 
         ld hl, bc
-        rr hl
+        srl h: rr l
 
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
