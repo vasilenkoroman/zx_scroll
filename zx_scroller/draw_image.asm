@@ -656,9 +656,8 @@ start_draw_colors0:
          pop hl: ld (RASTR0_17+1), hl
          pop hl: ld (RASTR0_16+1), hl
 
-
-        ld hl, after_delay
-        ld (hl), 0x21   // comment JP command by modify this byte
+        ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+        ld (start_mc_drawing), hl
 
         ld de, finish_off_drawing_0
         ld h, high(it0_start)
@@ -760,6 +759,17 @@ start_draw_colors:
         pop hl
         jp hl
 
+finish_non_mc_drawing:
+        ld hl, 0x37 + 0x31*256 // restore data: scf, LD SP
+        ld (start_mc_drawing), hl
+        
+        dec iy
+        ; compare to -1
+        ld c, iyh
+        inc c
+        jp z, lower_limit_reached      ; 10 ticks
+        jp loop                        ; 12 ticks
+
 bank_drawing_common:
         ; delay
         ld hl, timings_data
@@ -768,20 +778,7 @@ bank_drawing_common:
         pop hl
         DO_DELAY
 
-after_delay        
-        jp continue_mc_drawing
-
-        ld hl, after_delay
-        ld (hl), 0xc3   // restore JP command by modify this byte
-
-        dec iy
-        ; compare to -1
-        ld c, iyh
-        inc c
-        jp z, lower_limit_reached      ; 10 ticks
-        jp loop                        ; 12 ticks
-
-continue_mc_drawing
+start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
