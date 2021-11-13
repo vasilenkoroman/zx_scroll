@@ -2482,6 +2482,7 @@ struct MulticolorDescriptor
 {
     uint16_t addressBegin = 0;
     uint16_t endLineJpAddr = 0;
+    uint16_t moveSp2BytePos = 0;
     uint16_t moveSpDelta = 0;
     uint16_t moveSpBytePos = 0;
 };
@@ -3174,6 +3175,16 @@ int serializeMultiColorData(
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
         descriptor.addressBegin = lineAddressPtr;
 
+        if (line.spPosHints[1] >= 0)
+        {
+            descriptor.moveSp2BytePos = lineAddressPtr + line.spPosHints[1] + 1;
+            if (line.spPosHints[0] == -1)
+            {
+                std::cerr << "Invalid spPos2 value. Missing spPos1 value!";
+                abort();
+            }
+        }
+
         if (line.spPosHints[0] >= 0)
         {
             if (line.data.buffer()[line.spPosHints[0]] != 0x31)
@@ -3182,8 +3193,8 @@ int serializeMultiColorData(
                 abort();
             }
             descriptor.moveSpBytePos = lineAddressPtr + line.spPosHints[0] + 1;
-            uint8_t value8 = line.data.buffer()[line.spPosHints[0] + 1];
-            descriptor.moveSpDelta = value8;
+            uint16_t value16 = line.data.buffer()[line.spPosHints[0] + 1];
+            descriptor.moveSpDelta = value16 - 32;
         }
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX
         descriptors.push_back(descriptor);

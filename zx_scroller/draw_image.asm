@@ -150,19 +150,28 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
     ENDM                
 
         MACRO PREPARE_MC_DRAWING N?
-                pop hl                          ; begin addr
+                // begin addr
+                pop hl                          
                 ld (MC_LINE_N? + 1), hl
 
-                pop hl                          ; JP XX command+1 address
+                // JP XX command+1 address
+                pop hl                          ; 
                 ld (hl), low(MC_LINE_N? + 3)
                 inc hl
                 ld (hl), high(MC_LINE_N? + 3)
 
-                ; e- first stack moving value, d - 2-nd stack moving value
+                ; e- first stack moving value, d - 2-nd stack moving to 32, delta of exec address
                 ; The value is relative from the line end
-                ld hl, color_addr + N? * 32
-                pop de                          
-                ld d, 0x00 ; //< Currently unused. Reserved for the future use (3 part MC drawing)
+
+                // Second stack moving, fixed at line + 32
+                ld de, color_addr + N? * 32
+                pop hl
+                ld (hl), e
+                inc hl
+                ld (hl), d
+
+                // First stack moving, the SP value related from line end
+                pop hl
                 add hl, de
                 ex hl, de
 
@@ -472,8 +481,13 @@ loop1:
         ld hl, mc_descriptors
 
         // prepare  multicolor drawing (for next 7 mc steps)
-        // calculate bc/8 * 8
+        // calculate bc/8 * 10
         add hl, bc
+
+        ld de, bc
+        srl d: rr e
+        srl d: rr e
+        add hl, de
         ld sp, hl
 
         //pop hl: ld (MC_LINE_23 + 5), hl: ld (MC_LINE2_23 + 5), hl
