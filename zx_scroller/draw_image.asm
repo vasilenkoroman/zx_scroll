@@ -164,7 +164,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ; The value is relative from the line end
 
                 // Second stack moving, fixed at line + 32
-                ld de, color_addr + N? * 32
+                ld de, color_addr + N? * 32 + 32
                 pop hl
                 ld (hl), e
                 inc hl

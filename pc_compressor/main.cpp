@@ -3007,15 +3007,6 @@ int serializeColorData(
     {
         const auto& line = colorData.data[i];
         lineOffset.push_back(serializedData.size());
-
-        // Currently color routing draws 24 lines at once.
-        // So, for colorHeight=24 JP_IX it will over same line that we are enter.
-        // Make filler to prevent it. It is perfomance loss, but I expect more big images ( > 192 lines) for release.
-        if (imageHeight == 24)
-        {
-            serializedData.push_back(0); // NOP, NOP
-            serializedData.push_back(0);
-        }
         line.serialize(serializedData);
     }
 
@@ -3032,11 +3023,6 @@ int serializeColorData(
         ColorDescriptor descriptor;
 
         descriptor.addressBegin = lineOffset[srcLine] + codeOffset;
-
-        if (imageHeight == 24)
-        {
-            descriptor.addressBegin += 2; //< Avoid LD A,0 filler if exists.
-        }
 
         Register16 af("af");
         if (colorData.flags & interlineRegisters)
@@ -3058,6 +3044,13 @@ int serializeColorData(
                     Register16 hl("hl");
                     hl.loadXX(descriptor.preambula, *updatedHlValue);
                     descriptor.preambula.drawTicks -= 10; //< Don't count it becase it omit same LD HL, XX in the main data.
+                }
+                else if (imageHeight == 24)
+                {
+                    // Put first commands to the preambula
+                    auto firstCommands = Z80Parser::getCode(line.data.buffer(), 2);
+                    omitedSize = firstCommands.size();
+                    descriptor.preambula.append(firstCommands);
                 }
 
                 descriptor.preambula.jp(descriptor.addressBegin + omitedSize);
@@ -3363,8 +3356,6 @@ int getColorTicksForWholeFrame(
 
     if (data.flags & interlineRegisters)
         result += colorDescriptors[lineNum].preambula.drawTicks;
-    if (data.data.size() == 24)
-        result += 23 * 8; //< Image height 192 has additional filler NOP: NOP for color lines.
 
     // End line contains JP <first line> command. If drawing is stoppeed on the end line this command is not executed.
     int endLine = (lineNum + 24) % imageHeight;
@@ -3468,7 +3459,7 @@ int serializeTimingData(
         int kZ80CodeDelay = 2951 - 168 - 56;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
