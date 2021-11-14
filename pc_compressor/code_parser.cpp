@@ -1144,3 +1144,102 @@ void Z80Parser::serializeAddSpToBack(CompressedLine& line, int value)
 {
     serializeAdHlSp(line, value);
 };
+
+
+
+std::pair<CompressedLine, bool> Z80Parser::prolongCodeForDelay(const CompressedLine& compressedLine, int delay)
+{
+    if (delay == 0)
+        return { compressedLine, true };
+
+    int origDelay = delay;
+    CompressedLine updatedLine;
+
+
+    if (delay > 3)
+    {
+        std::cerr << "Invalid delay. " << delay << "Allowed range is [0..3]" << std::endl;
+        abort();
+    }
+
+    std::vector<Register16> emptyRegs = { 
+        Register16("bc"), Register16("de"), Register16("hl"),
+        Register16("bc'"), Register16("de'"), Register16("hl'") };
+    
+    int canProlong1Tick = 0;
+    int canProlong3Tick = 0;
+
+    auto result = parseCode(
+        *compressedLine.inputAf,
+        emptyRegs,
+        compressedLine.data.buffer(), compressedLine.data.size(),
+        /* start offset*/ 0,
+        /* end offset*/ compressedLine.data.size(),
+        /* codeOffset*/ 0,
+        [&](const Z80CodeInfo& info, const z80Command& command)
+        {
+            switch (command.opCode)
+            {
+                case 0x01:
+                case 0x11:
+                case 0x21:
+                {
+                    uint8_t* ptr = (uint8_t*) &command.data;
+                    if (ptr[0] == ptr[1])
+                        ++canProlong1Tick;
+                    break;
+                }
+
+                case 0x40:
+                case 0x41: 
+                case 0x42: 
+                case 0x43: 
+                case 0x44: 
+                case 0x45: 
+                case 0x47: 
+                case 0x48: 
+                case 0x49: 
+                case 0x4a: 
+                case 0x4b: 
+                case 0x4c: 
+                case 0x4d: 
+                case 0x4f: 
+                case 0x50: 
+                case 0x51: 
+                case 0x52: 
+                case 0x53: 
+                case 0x54: 
+                case 0x55: 
+                case 0x57: 
+                case 0x58: 
+                case 0x59: 
+                case 0x5a: 
+                case 0x5b: 
+                case 0x5c: 
+                case 0x5d: 
+                case 0x5f: 
+                case 0x60: 
+                case 0x61: 
+                case 0x62: 
+                case 0x63: 
+                case 0x64: 
+                case 0x65: 
+                case 0x67: 
+                case 0x68: 
+                case 0x69: 
+                case 0x6a: 
+                case 0x6b: 
+                case 0x6c: 
+                case 0x6d: 
+                    ++canProlong3Tick;
+                    break;
+                default:
+                    int gg = 4;
+                    break;
+
+            }
+            return false;
+        });
+
+    return { updatedLine, true };
+}

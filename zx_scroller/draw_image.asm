@@ -43,7 +43,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    INCBIN "c:/zx/images/samanasuke.scr", 0, 6144+768
+    INCBIN "c:\zx\images\hands7.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 

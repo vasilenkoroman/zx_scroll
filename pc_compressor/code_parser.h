@@ -93,6 +93,8 @@ public:
     static void serializeAddSpToFront(CompressedLine& line, int value);
     static void serializeAddSpToBack(CompressedLine& line, int value);
 
+    static std::pair<CompressedLine, bool> prolongCodeForDelay(const CompressedLine& compressedLine, int delay);
+
     static std::pair<RegUsageInfo, int> selfRegUsageInFirstCommands(
         const std::vector<z80Command>& command,
         std::vector<Register16>& registers,

@@ -1817,9 +1817,10 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
 
     for (int i = 0; i < imageHeight; ++i)
     {
-        const auto& line = compressedData.data[i];
+        auto& line = compressedData.data[i];
         if (line.mcStats.virtualTicks < maxVirtualTicks && maxVirtualTicks - line.mcStats.virtualTicks < 4)
         {
+            //auto result = Z80Parser::prolongCodeForDelay(line, maxVirtualTicks - line.mcStats.virtualTicks);
             maxVirtualTicks += 4;
             break;
         }
