@@ -411,8 +411,11 @@ bool compressLineMain(
     if (context.flags & interlineRegisters)
     {
         registers = *bestTry->registers;
-        if (auto f = findRegister8(registers, 'f'))
-            f->value.reset(); //< Interline registers is not supported for 'f'
+
+        // Interline registers is not supported for 'af'.
+        // To common 'a' value across all lines context.af is used.
+        if (auto af = findRegister(registers, "af"))
+            af->reset();
     }
     line.inputAf = std::make_shared<Register16>(context.af);
     return true;
@@ -808,9 +811,12 @@ bool compressLine(
     return true;
 }
 
-std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines, int transitiveDepth)
+template <int N>
+std::vector<CompressedLine> compressLines(
+    std::array<Register16, N>& registers,
+    const Context & context, const std::vector<int> & lines, int transitiveDepth)
 {
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+
     std::vector<CompressedLine> result;
     for (const auto line : lines)
     {
@@ -896,6 +902,12 @@ std::vector<CompressedLine> compressLines(const Context& context, const std::vec
 
     updateTransitiveRegUsage(result, transitiveDepth);
     return result;
+}
+
+std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines, int transitiveDepth)
+{
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    return compressLines(registers, context, lines, transitiveDepth);
 }
 
 std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& context, const std::vector<int>& lines)
