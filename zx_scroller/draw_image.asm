@@ -1,6 +1,8 @@
         DEVICE zxspectrum128
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
+        INCLUDE "alignint.asm"
+
 /*
  * Page locations:
  * 0,1, 3,4 - rastrData + JP_IX_TABLE
