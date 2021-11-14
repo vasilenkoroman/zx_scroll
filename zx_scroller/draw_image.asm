@@ -428,9 +428,8 @@ loop:
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
 
-        ld a, 7
-        and c
-        set_page_by_bank
+next_step_first_bank
+        SET_PAGE 0 //< Page number is updated in runtime
 
         // ------------------------- update jpix table
         // bc - screen address to draw
@@ -664,6 +663,7 @@ start_draw_colors0:
         jp it0_start
 finish_off_drawing_0
         // MC part rastr
+        ld (next_step_first_bank + 1), a
         scf
         DRAW_ONLY_RASTR_LINE 0
         DRAW_ONLY_RASTR_LINE 1
@@ -691,8 +691,7 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 21
         DRAW_ONLY_RASTR_LINE 22
 
-
-        jp bank_drawing_common
+        jp bank_drawing_common2
 
 //*************************************************************************************
 mc_step_drawing:
@@ -771,6 +770,8 @@ finish_non_mc_drawing:
         jp loop                        ; 12 ticks
 
 bank_drawing_common:
+        ld (next_step_first_bank + 1), a
+bank_drawing_common2:
         ; delay
         ld hl, timings_data
         add hl, bc
