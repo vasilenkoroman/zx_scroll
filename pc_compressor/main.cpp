@@ -31,7 +31,7 @@ static const int kMinDelay = 78;
 static const int kPagesForData = 4;
 static const int kSetPageTicks = 18;
 static const int kPageNumPrefix = 0x50;
-static const int kMinOffscreenBytes = 4; // < It contains at least 4 writted bytes to the screen
+static const int kMinOffscreenBytes = 8; // < It contains at least 8 writted bytes to the screen
 static const int kThirdSpPartSize = 4;
 
 // Pages 0,1, 3,4
