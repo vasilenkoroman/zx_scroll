@@ -1441,7 +1441,7 @@ CompressedLine  compressMultiColorsLine(Context context)
 
         // add 3-th piece
         *context.sameBytesCount = sameBytesCopy;
-        pushLine.spPosHints[1] = loadLine.data.size();
+        pushLine.spPosHints[1] = pushLine.data.size();
         sp.loadXX(pushLine, 32);
         
         Context context3 = context;
@@ -1961,7 +1961,9 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     }
 
     CompressedData compressedData;
-    compressedData.data = compressLines(context, lines, /*maxTransitiveDepth*/ 24);
+    //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+    //compressedData.data = compressLines(registers, context, lines, /*maxTransitiveDepth*/ 24);
+	compressedData.data = compressLines(context, lines, /*maxTransitiveDepth*/ 24);
     compressedData.sameBytesCount = sameBytesCount;
     compressedData.flags = flags;
     return compressedData;
@@ -3116,7 +3118,7 @@ void serializeAsmFile(
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
-    phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[22].mcStats.pos << std::endl;
+    //phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[22].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
