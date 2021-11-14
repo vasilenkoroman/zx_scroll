@@ -1168,7 +1168,7 @@ CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, i
     return result;
 }
 
-void finilizeLine(
+void finalizeLine(
     const Context& context,
     CompressedLine& result,
     const CompressedLine& loadLine,
@@ -1474,7 +1474,7 @@ CompressedLine  compressMultiColorsLine(Context context)
     }
 
     
-    finilizeLine(context, result, loadLine, pushLine);
+    finalizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
 
     if (result.spPosHints[0] >= 0)
@@ -1560,7 +1560,7 @@ struct BorrowResult
     int borrowTo = -1;
 };
 
-BorrowResult borrowIndexRegForLine(int line, CompressedData& compressedData)
+BorrowResult borrowIndexRegForLine(int line, CompressedData& compressedData, int maxTicks)
 {
     BorrowResult result;
     const int imageHeight = compressedData.data.size();
@@ -1568,14 +1568,17 @@ BorrowResult borrowIndexRegForLine(int line, CompressedData& compressedData)
     int borrowLine = line;
     for (int i = 0; i < imageHeight; ++i)
     {
-        borrowLine = (borrowLine+1) % imageHeight;
+        //borrowLine = (borrowLine+1) % imageHeight;
+        ++borrowLine;
+        if (borrowLine >= imageHeight)
+            break; //< Disable cycling. It need to put PUSH IX/IY to the MC descriptors for the first visible line to enable it.
+
         auto& srcLine = compressedData.data[borrowLine];
 
         if (srcLine.mcStats.lendIx.has_value())
             break;
 
-        int dt = dstLine.drawTicks - srcLine.drawTicks;
-        if (dt < 20)
+        if (srcLine.mcStats.virtualTicks + 14 >= maxTicks)
             continue;
         result.borrowFrom = borrowLine;
         result.borrowTo = line;
@@ -1601,6 +1604,7 @@ bool repackLine(CompressedLine& line, BorrowResult* borrowedRegs)
             result.data.erase(offset, 2);
             ldRegPtr[0] = 0xdd; // IX prefix
             result.drawTicks -= 6;
+            result.mcStats.virtualTicks -= 6;
         };
 
     auto regUseMask =
@@ -1678,15 +1682,15 @@ bool borrowIndexRegStep(CompressedData& compressedData)
     for (int i = 0; i < imageHeight; ++i)
     {
         const auto& line = compressedData.data[i];
-        maxTicks = std::max(line.drawTicks, maxTicks);
+        maxTicks = std::max(line.mcStats.virtualTicks, maxTicks);
     }
 
     for (int i = 0; i < imageHeight; ++i)
     {
         auto& line = compressedData.data[i];
-        if (line.drawTicks == maxTicks)
+        if (line.mcStats.virtualTicks == maxTicks)
         {
-            BorrowResult borrowRes = borrowIndexRegForLine(i, compressedData);
+            BorrowResult borrowRes = borrowIndexRegForLine(i, compressedData, maxTicks);
             if (borrowRes.success)
             {
                 if (!repackLine(line, &borrowRes))
@@ -1700,6 +1704,7 @@ bool borrowIndexRegStep(CompressedData& compressedData)
                     borrowRes.iy.loadXX(temp, borrowRes.iy.value16());
                 borrowLine.push_front(temp.data);
                 borrowLine.drawTicks += temp.drawTicks;
+                borrowLine.mcStats.virtualTicks += temp.drawTicks;
 
                 for (int j = borrowRes.borrowFrom; j != i;)
                 {
@@ -1773,20 +1778,15 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
 
     if (flags & OptimizeMcTicks)
     {
-        // 1. Sink LD IX,nn, LD IY,nn from fast lines to slow lines
-#if 0
-        while (borrowIndexRegStep(compressedData));
-        maxTicks = 0;
-        for (int i = 0; i < imageHeight; ++i)
-        {
-            auto& line = compressedData.data[i];
-            line.mcStats.virtualTicks = line.drawTicks;
-            if (line.drawTicks > maxTicks)
-                maxTicks = line.drawTicks;
-        }
-#endif
         // 2. Use advanced ray model. MC line drawing could start when ray already inside line in case of enough ticks for drawing
         while (rebalanceStep(compressedData));
+
+#if 1
+        // 1. Sink LD IX,nn, LD IY,nn from fast lines to slow lines
+        while (borrowIndexRegStep(compressedData));
+        while (rebalanceStep(compressedData));
+#endif
+        
     }
 
 
