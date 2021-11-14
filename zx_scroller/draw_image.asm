@@ -144,6 +144,11 @@ MC_LINE_N?      jp 00                                   ; 10
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
+    MACRO DRAW_RASTR_LINE_S N?:
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
+    ENDM                
+
     MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
                 DRAW_MULTICOLOR_LINE  N?
                 DRAW_RASTR_LINE N?
@@ -452,6 +457,7 @@ no:
         pop hl
         ld sp, hl
 
+        ld hl, loop1
         exx
         ld bc, JP_VIA_HL_CODE
         .2 restore_jp_ix
@@ -461,10 +467,9 @@ no:
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
         // total: 562/560 (with switching page)
-        exx     ; go main regs
         // ------------------------- update jpix table end
         scf
-        DRAW_RASTR_LINE 23
+        DRAW_RASTR_LINE_S 23
 
 loop1:
         SET_PAGE 6
