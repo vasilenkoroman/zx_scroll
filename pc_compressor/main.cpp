@@ -1243,7 +1243,7 @@ void finalizeLine(
             }
             else
             {
-                maxRayDelay = std::min(maxRayDelay, rayTicks + 224 - info.ticks);
+                maxRayDelay = std::min(maxRayDelay, rayTicks + 224 - 8 - (info.ticks + command.ticks));
             }
 
             return false;
