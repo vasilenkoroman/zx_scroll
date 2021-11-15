@@ -1,7 +1,6 @@
         DEVICE zxspectrum128
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
-        INCLUDE "alignint.asm"
 
 /*
  * Page locations:
@@ -394,7 +393,7 @@ main:
 
         call prepare_interruption_table
         ; Pentagon timings
-first_timing_in_interrupt       equ 19 + 22
+first_timing_in_interrupt       equ 19 + 22 + 47
 screen_ticks                    equ 71680
 first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
@@ -831,7 +830,7 @@ bank_drawing_common2:
         DO_DELAY
 
 start_mc_drawing:
-        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631
+        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
@@ -866,6 +865,7 @@ start_mc_drawing:
 /*********************** routines *************/
 
         INCLUDE "draw_off_rastr.asm"
+        INCLUDE "alignint.asm"
 
 prepare_interruption_table:
 
@@ -881,7 +881,7 @@ prepare_interruption_table:
 
         ld   a, 0c3h    ; JP instruction code
         ld   (65524), a
-        ld hl, after_interrupt
+        ld hl, AlignInt.IntEntry
         ld   (65525), hl
 
         LD   hl, #FE00
@@ -892,13 +892,17 @@ prepare_interruption_table:
         LDIR
         ld i, a
         im 2
-
+        
+        ld hl, after_align_int
+        push hl
+        ld hl, AlignInt.MeasuringLoop
         ei
         halt
-after_interrupt:
+IM2Entry:        
+after_align_int:
         di                              ; 4 ticks
         ; remove interrupt data from stack
-        pop af                          ; 10 ticks
+        //pop af                          ; 10 ticks
 
         ; restore data
         LD   de, #FE00
