@@ -1284,7 +1284,7 @@ void addSameByteToTable(std::vector<int8_t>& sameBytesCount, int y, int x)
     }
 }
 
-CompressedLine  compressMultiColorsLine(Context context)
+CompressedLine  compressMultiColorsLine(Context srcContext)
 {
     /*
      *      Screen in words [0..15]
@@ -1301,6 +1301,7 @@ CompressedLine  compressMultiColorsLine(Context context)
      */
 
     CompressedLine result;
+    Context context = srcContext;
     
     std::vector<int8_t> sameBytesCopy;
     if (context.flags & threeStackPos)
@@ -1427,8 +1428,8 @@ CompressedLine  compressMultiColorsLine(Context context)
             #ifdef DEBUG
                 std::cout << "DEBUG: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for 2 stack pos. Switching to 3 stack" << std::endl;
             #endif
-                context.flags |= Flags::threeStackPos;
-            return compressMultiColorsLine(context);
+            srcContext.flags |= Flags::threeStackPos;
+            return compressMultiColorsLine(srcContext);
         }
     }
     else
