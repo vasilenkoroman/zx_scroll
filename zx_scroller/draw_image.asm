@@ -864,7 +864,6 @@ start_mc_drawing:
 
 /*********************** routines *************/
 
-        INCLUDE "alignint.asm"
         INCLUDE "draw_off_rastr.asm"
         INCLUDE "alignint.asm"
 
