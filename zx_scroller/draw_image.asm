@@ -1,7 +1,6 @@
         DEVICE zxspectrum128
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
-        INCLUDE "alignint.asm"
 
 /*
  * Page locations:
@@ -865,6 +864,7 @@ start_mc_drawing:
 
 /*********************** routines *************/
 
+        INCLUDE "alignint.asm"
         INCLUDE "draw_off_rastr.asm"
 
 prepare_interruption_table:
@@ -881,7 +881,7 @@ prepare_interruption_table:
 
         ld   a, 0c3h    ; JP instruction code
         ld   (65524), a
-        ld hl, after_interrupt
+        ld hl, AlignInt.IntEntry
         ld   (65525), hl
 
         LD   hl, #FE00
@@ -892,13 +892,17 @@ prepare_interruption_table:
         LDIR
         ld i, a
         im 2
-
+        
+        ld hl, after_align_int
+        push hl
+        ld hl, AlignInt.MeasuringLoop
         ei
         halt
-after_interrupt:
+IM2Entry:        
+after_align_int:
         di                              ; 4 ticks
         ; remove interrupt data from stack
-        pop af                          ; 10 ticks
+        //pop af                          ; 10 ticks
 
         ; restore data
         LD   de, #FE00
