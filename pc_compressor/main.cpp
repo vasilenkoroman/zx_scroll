@@ -3116,10 +3116,11 @@ void serializeAsmFile(
         return;
     }
 
+    int colorHeight = multicolorData.data.size();
+
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
-    phaseFile << "FIRST_LINE_DELAY          EQU    " << firstLineDelay << std::endl;
-    //phaseFile << "MULTICOLOR_DRAW_PHASE     EQU    " << multicolorData.data[22].mcStats.pos << std::endl;
+    phaseFile << "FIRST_LINE_DELAY          EQU    " << multicolorData.data[colorHeight-1].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
