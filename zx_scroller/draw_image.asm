@@ -44,7 +44,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    INCBIN "c:/zx/images/hands7.scr", 0, 6144+768
+    //INCBIN "c:/zx/images/hands7.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -393,7 +393,7 @@ main:
 
         call prepare_interruption_table
         ; Pentagon timings
-first_timing_in_interrupt       equ 19 + 22
+first_timing_in_interrupt       equ 19 + 22 + 47
 screen_ticks                    equ 71680
 first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
@@ -830,7 +830,7 @@ bank_drawing_common2:
         DO_DELAY
 
 start_mc_drawing:
-        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631
+        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
@@ -866,6 +866,7 @@ start_mc_drawing:
 
         INCLUDE "alignint.asm"
         INCLUDE "draw_off_rastr.asm"
+        INCLUDE "alignint.asm"
 
 prepare_interruption_table:
 
