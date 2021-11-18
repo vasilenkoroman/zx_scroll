@@ -44,7 +44,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    //INCBIN "c:/zx/images/hands7.scr", 0, 6144+768
+    //INCBIN "resources/hands7.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -1028,8 +1028,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 28000
-         ORG 28000
+        ASSERT $ <= 27800
+         ORG 27800
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code

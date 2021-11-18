@@ -19,6 +19,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
+static const int kDefaultCodeOffset = 27800;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -3673,19 +3674,38 @@ int parseSldFile(const std::string& sldFileName)
     return -1;
 }
 
+inline bool ends_with(std::string const& value, std::string const& ending)
+{
+    if (ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
 
     ifstream fileIn;
 
-    if (argc < 4)
+    if (argc < 3)
     {
-        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name> <.sld file name>";
+        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name> [<.sld file name>]";
         return -1;
     }
 
     int fileCount = argc - 3;
+
+    std::string sldFileName = argv[argc - 1];
+    std::string outputFileName = argv[argc - 2];
+
+    if (!ends_with(sldFileName, ".sld"))
+    {
+        // Doesn't have .sld file. Take default value for code offset
+        ++fileCount;
+        outputFileName = sldFileName;
+        sldFileName.clear();
+    }
+
+
     int imageHeight = 192 * fileCount;
 
     std::vector<uint8_t> buffer(fileCount * 6144);
@@ -3713,10 +3733,7 @@ int main(int argc, char** argv)
         fileIn.close();
     }
 
-    const std::string outputFileName = argv[argc - 2];
-    const std::string sldFileName = argv[argc - 1];
-
-    int codeOffset = parseSldFile(sldFileName);
+    int codeOffset = sldFileName.empty() ? kDefaultCodeOffset : parseSldFile(sldFileName);
 
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
