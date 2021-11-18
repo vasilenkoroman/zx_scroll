@@ -1284,6 +1284,13 @@ void addSameByteToTable(std::vector<int8_t>& sameBytesCount, int y, int x)
     }
 }
 
+void swapRegs(Register16& a, Register16& b)
+{
+    uint16_t tmp = a.value16();
+    a.setValue(b.value16());
+    b.setValue(tmp);
+}
+
 CompressedLine  compressMultiColorsLine(Context srcContext)
 {
     /*
@@ -1454,6 +1461,13 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         // Updating minX not supported now. Only maxX is supported here. It is because save ticks in non MC mode while preparing MC drawing.
         context3.minX = 16;
         
+        if (pushLine.isAltReg)
+        {
+            swapRegs(regCopy[0], regCopy[3]);
+            swapRegs(regCopy[1], regCopy[4]);
+            swapRegs(regCopy[2], regCopy[5]);
+        }
+
         CompressedLine line3;
         success = compressLineMain(context3, line3, regCopy, /*updateViaHlTry*/ false);
         if (!success)
