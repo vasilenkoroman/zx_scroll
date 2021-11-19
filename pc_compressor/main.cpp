@@ -1619,6 +1619,7 @@ bool repackLine(CompressedLine& line, BorrowResult* borrowedRegs)
             borrowedRegs->ix.setValue(*prevValue);
             result.data.erase(offset, 2);
             ldRegPtr[0] = 0xdd; // IX prefix
+            ldRegPtr[1] = 0xe5; // PUSH IX
             result.drawTicks -= 6;
             result.mcStats.virtualTicks -= 6;
         };
