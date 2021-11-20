@@ -44,7 +44,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    //INCBIN "resources/hands7.scr", 0, 6144+768
+    INCBIN "resources/jorg12.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -139,14 +139,14 @@ MC_LINE_N?      jp 00                                   ; 10
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld hl, $ + 7                                           ; 10
                 exx                                                    ; 4
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
     MACRO DRAW_RASTR_LINE_S N?:
-                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
