@@ -25,37 +25,39 @@ OFF_Iteration?_Step?_JP
         MACRO UPDATE_SP2 l23?, l22?, l21?, l20?, l19?, l18?, l17?,   r0?, r1?, r2?, r3?, r4?, r5?, r6?
                 ld a, high(16384)
 
-                ld (l23? + 2), a: ld (r0? + 2), a: inc a
-                ld (l22? + 2), a: ld (r1? + 2), a: inc a
-                ld (l21? + 2), a: ld (r2? + 2), a: inc a
-                ld (l20? + 2), a: ld (r3? + 2), a: inc a
-                ld (l19? + 2), a: ld (r4? + 2), a: inc a
-                ld (l18? + 2), a: ld (r5? + 2), a: inc a
-                ld (l17? + 2), a: ld (r6? + 2), a
-                add 2
+                ld (l23? + 2), a:                  inc a
+                ld (l22? + 2), a: ld (r0? + 2), a: inc a
+                ld (l21? + 2), a: ld (r1? + 2), a: inc a
+                ld (l20? + 2), a: ld (r2? + 2), a: inc a
+                ld (l19? + 2), a: ld (r3? + 2), a: inc a
+                ld (l18? + 2), a: ld (r4? + 2), a: inc a
+                ld (l17? + 2), a: ld (r5? + 2), a: inc a
+                                  ld (r6? + 2), a: inc a
         ENDM
 
         MACRO UPDATE_SP1 l15?, l14?, l13?, l12?, l11?, l10?, l9?,  r15?, r14?, r13?, r12?, r11?, r10?, r9?, r8?
 
-                ld (l15? + 2), a: ld (r15? + 2), a: inc a
-                ld (l14? + 2), a: ld (r14? + 2), a: inc a
-                ld (l13? + 2), a: ld (r13? + 2), a: inc a
-                ld (l12? + 2), a: ld (r12? + 2), a: inc a
-                ld (l11? + 2), a: ld (r11? + 2), a: inc a
-                ld (l10? + 2), a: ld (r10? + 2), a: inc a
-                ld (l9? + 2), a:  ld (r9? + 2), a:  inc a
-                                  ld (r8? + 2), a:  inc a
+                ld (l15? + 2), a:                   inc a
+                ld (l14? + 2), a: ld (r15? + 2), a: inc a
+                ld (l13? + 2), a: ld (r14? + 2), a: inc a
+                ld (l12? + 2), a: ld (r13? + 2), a: inc a
+                ld (l11? + 2), a: ld (r12? + 2), a: inc a
+                ld (l10? + 2), a: ld (r11? + 2), a: inc a
+                ld (l9? + 2), a:  ld (r10? + 2), a: inc a
+                                  ld (r9? + 2), a:  inc a
+                                  ld (r8? + 2), a
         ENDM
 
         MACRO UPDATE_SP0 l7?, l6?, l5?, l4?, l3?, l2?, l1?,  r7?, r6?, r5?, r4?, r3?, r2?, r1?, r0?
 
-                ld (l7? + 2), a : ld (r7? + 2), a: inc a
-                ld (l6? + 2), a : ld (r6? + 2), a: inc a
-                ld (l5? + 2), a : ld (r5? + 2), a: inc a
-                ld (l4? + 2), a : ld (r4? + 2), a: inc a
-                ld (l3? + 2), a : ld (r3? + 2), a: inc a
-                ld (l2? + 2), a : ld (r2? + 2), a: inc a
-                ld (l1? + 2), a : ld (r1? + 2), a: inc a
+                ld (l7? + 2), a :                  inc a
+                ld (l6? + 2), a : ld (r7? + 2), a: inc a
+                ld (l5? + 2), a : ld (r6? + 2), a: inc a
+                ld (l4? + 2), a : ld (r5? + 2), a: inc a
+                ld (l3? + 2), a : ld (r4? + 2), a: inc a
+                ld (l2? + 2), a : ld (r3? + 2), a: inc a
+                ld (l1? + 2), a : ld (r2? + 2), a: inc a
+                                  ld (r1? + 2), a: inc a
                                   ld (r0? + 2), a
         ENDM
 

@@ -44,7 +44,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    INCBIN "resources/jorg12.scr", 0, 6144+768
+    INCBIN "resources/samanasuke.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -838,6 +838,8 @@ start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
+
+
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
         DRAW_MULTICOLOR_AND_RASTR_LINE 2
@@ -864,6 +866,7 @@ start_mc_drawing:
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
+
         dec iy
         jp loop                        ; 12 ticks
 
