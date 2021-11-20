@@ -19,7 +19,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 27800;
+static const int kDefaultCodeOffset = 28500;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -1445,7 +1445,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         if (drawTicks > t2)
         {
             std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for first 2 piece in 3 piece mode. " << std::endl;
-            abort();
+            //abort();
         }
 
         // add 3-th piece
@@ -1484,7 +1484,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         if (drawTicks2 > t3)
         {
             std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks2 - t3 << " ticks in 3 piece mode. " << std::endl;
-            abort();
+            //abort();
         }
         pushLine.mcStats.max = std::min(pushLine.mcStats.max, t3 - drawTicks2);
     }
@@ -1843,6 +1843,14 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         }
     }
     std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
+
+    int idealSum = 0;
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        int next = (i + 1) % imageHeight;
+        idealSum += std::abs(compressedData.data[next].mcStats.virtualTicks - compressedData.data[i].mcStats.virtualTicks);
+    }
+    std::cout << "INFO:  ideal losed ticks=" << idealSum << std::endl;
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
     int i = 0;
@@ -3489,10 +3497,10 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8;
+        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 216;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 536;
             if (line == 0)
                 kZ80CodeDelay += 4;
         }
@@ -3742,7 +3750,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge;// | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 

@@ -146,7 +146,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
     ENDM                
 
     MACRO DRAW_RASTR_LINE_S N?:
-RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
+                ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
