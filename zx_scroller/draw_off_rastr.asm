@@ -22,32 +22,41 @@ OFF_Iteration?_Step?_JP
                 ld (labelName?), hl
         ENDM
 
-        MACRO UPDATE_SP l23?, l22?, l21?, l20?, l19?, l18?, l17?, l15?, l14?, l13?, l12?, l11?, l10?, l9?, l7?, l6?, l5?, l4?, l3?, l2?, l1?
+        MACRO UPDATE_SP2 l23?, l22?, l21?, l20?, l19?, l18?, l17?,  r23?, r22?, r21?, r20?, r19?, r18?, r17?, r16?
                 ld a, high(16384)
 
-                ld (l23? + 2), a: inc a
-                ld (l22? + 2), a: inc a
-                ld (l21? + 2), a: inc a
-                ld (l20? + 2), a: inc a
-                ld (l19? + 2), a: inc a
-                ld (l18? + 2), a: inc a
-                ld (l17? + 2), a
-                add 2
-                ld (l15? + 2), a: inc a
-                ld (l14? + 2), a: inc a
-                ld (l13? + 2), a: inc a
-                ld (l12? + 2), a: inc a
-                ld (l11? + 2), a: inc a
-                ld (l10? + 2), a: inc a
-                ld (l9? + 2), a
-                add 2
-                ld (l7? + 2), a : inc a
-                ld (l6? + 2), a : inc a
-                ld (l5? + 2), a : inc a
-                ld (l4? + 2), a : inc a
-                ld (l3? + 2), a : inc a
-                ld (l2? + 2), a : inc a
-                ld (l1? + 2), a
+                ld (l23? + 2), a: ld (r23? + 2), a: inc a
+                ld (l22? + 2), a: ld (r22? + 2), a: inc a
+                ld (l21? + 2), a: ld (r21? + 2), a: inc a
+                ld (l20? + 2), a: ld (r20? + 2), a: inc a
+                ld (l19? + 2), a: ld (r19? + 2), a: inc a
+                ld (l18? + 2), a: ld (r18? + 2), a: inc a
+                ld (l17? + 2), a: ld (r17? + 2), a: inc a
+                                  ld (r16? + 2), a: inc a
+        ENDM
+
+        MACRO UPDATE_SP1 l15?, l14?, l13?, l12?, l11?, l10?, l9?,  r15?, r14?, r13?, r12?, r11?, r10?, r9?, r8?
+
+                ld (l15? + 2), a: ld (r15? + 2), a: inc a
+                ld (l14? + 2), a: ld (r14? + 2), a: inc a
+                ld (l13? + 2), a: ld (r13? + 2), a: inc a
+                ld (l12? + 2), a: ld (r12? + 2), a: inc a
+                ld (l11? + 2), a: ld (r11? + 2), a: inc a
+                ld (l10? + 2), a: ld (r10? + 2), a: inc a
+                ld (l9? + 2), a:  ld (r9? + 2), a:  inc a
+                                  ld (r8? + 2), a:  inc a
+        ENDM
+
+        MACRO UPDATE_SP0 l7?, l6?, l5?, l4?, l3?, l2?, l1?,  r7?, r6?, r5?, r4?, r3?, r2?, r1?, r0?
+
+                ld (l7? + 2), a : ld (r7? + 2), a: inc a
+                ld (l6? + 2), a : ld (r6? + 2), a: inc a
+                ld (l5? + 2), a : ld (r5? + 2), a: inc a
+                ld (l4? + 2), a : ld (r4? + 2), a: inc a
+                ld (l3? + 2), a : ld (r3? + 2), a: inc a
+                ld (l2? + 2), a : ld (r2? + 2), a: inc a
+                ld (l1? + 2), a : ld (r1? + 2), a: inc a
+                                  ld (r0? + 2), a
         ENDM
 
                 ALIGN 32
@@ -152,21 +161,42 @@ it1_end:        ex de,hl
 
 
 draw_off_rastr_7
-                UPDATE_SP OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_0_14_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP, OFF_0_6_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP
+                ld hl, mc_rastr_descriptors
+                add hl, bc      // *2
+                ld sp, hl
+                pop hl: ld (RASTR_8+1), hl
+
+                ld hl, (64-1) * 2
+                add hl, sp
+                ld sp, hl
+                pop hl: ld (RASTR_0+1), hl
+
+                ld hl, (63-1) * 2
+                add hl, sp
+                ld sp, hl
+                pop hl: ld (RASTR_16+1), hl
+
+                UPDATE_SP2 OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP,   RASTR_17, RASTR_18, RASTR_19, RASTR_20, RASTR_21, RASTR_22, RASTR_23, RASTR_16
+                UPDATE_SP1 OFF_0_14_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,    RASTR_1,  RASTR_2,  RASTR_3,  RASTR_4,  RASTR_5,  RASTR_6,  RASTR_7,  RASTR_0
+                UPDATE_SP0 OFF_0_6_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,    RASTR_9,  RASTR_10, RASTR_11, RASTR_12, RASTR_13, RASTR_14, RASTR_15, RASTR_8
 
                 RESTORE_OFF_END it0_end, 0xd3 + 0xfd * 256
                 ld a, 0x54
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
-
+                pop hl: ld (RASTR_16+1), hl
 draw_off_rastr_6
-                UPDATE_SP OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP
+                UPDATE_SP2 OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP,   RASTR_18, RASTR_19, RASTR_20, RASTR_21, RASTR_22, RASTR_23, RASTR_16, RASTR_17
+                UPDATE_SP1 OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,    RASTR_2,  RASTR_3,  RASTR_4,  RASTR_5,  RASTR_6,  RASTR_7,  RASTR_0,  RASTR_1
+                UPDATE_SP0 OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,    RASTR_10, RASTR_11, RASTR_12, RASTR_13, RASTR_14, RASTR_15, RASTR_8, RASTR_9
 
                 RESTORE_OFF_END it7_end, 0x31 * 256
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
-                UPDATE_SP OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP
+                UPDATE_SP2 OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP,   RASTR_19, RASTR_20, RASTR_21, RASTR_22, RASTR_23, RASTR_16, RASTR_17, RASTR_18
+                UPDATE_SP1 OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,    RASTR_3,  RASTR_4,  RASTR_5,  RASTR_6,  RASTR_7,  RASTR_0,  RASTR_1,  RASTR_2
+                UPDATE_SP0 OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,    RASTR_11, RASTR_12, RASTR_13, RASTR_14, RASTR_15, RASTR_8,  RASTR_9,  RASTR_10
 
 
                 RESTORE_OFF_END it6_end, 0xd3 + 0xfd * 256
@@ -175,13 +205,17 @@ draw_off_rastr_5
                 START_OFF_DRAWING it5_start
 
 draw_off_rastr_4
-                UPDATE_SP OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP
+                UPDATE_SP2 OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP,   RASTR_20, RASTR_21, RASTR_22, RASTR_23, RASTR_16, RASTR_17, RASTR_18, RASTR_19
+                UPDATE_SP1 OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,    RASTR_4,  RASTR_5,  RASTR_6,  RASTR_7,  RASTR_0,  RASTR_1,  RASTR_2,  RASTR_3
+                UPDATE_SP0 OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,    RASTR_12, RASTR_13, RASTR_14, RASTR_15, RASTR_8,  RASTR_9,  RASTR_10, RASTR_11
 
                 RESTORE_OFF_END it5_end,  0x31 * 256
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
-                UPDATE_SP OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP
+                UPDATE_SP2 OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP,   RASTR_21, RASTR_22, RASTR_23, RASTR_16, RASTR_17, RASTR_18, RASTR_19, RASTR_20
+                UPDATE_SP1 OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,   OFF_3_8_SP,  OFF_4_8_SP,    RASTR_5,  RASTR_6,  RASTR_7,  RASTR_0,  RASTR_1,  RASTR_2,  RASTR_3,  RASTR_4
+                UPDATE_SP0 OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,    RASTR_13, RASTR_14, RASTR_15, RASTR_8,  RASTR_9,  RASTR_10, RASTR_11, RASTR_12
 
                 RESTORE_OFF_END it4_end, 0xd3 + 0xfd * 256
                 ld a, 0x51
@@ -189,13 +223,17 @@ draw_off_rastr_3
                 START_OFF_DRAWING it3_start
 
 draw_off_rastr_2
-                UPDATE_SP OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP, OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP
+                UPDATE_SP2 OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP,   RASTR_22, RASTR_23, RASTR_16, RASTR_17, RASTR_18, RASTR_19, RASTR_20, RASTR_21
+                UPDATE_SP1 OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,    RASTR_6,  RASTR_7,  RASTR_0,  RASTR_1,  RASTR_2,  RASTR_3,  RASTR_4, RASTR_5
+                UPDATE_SP0 OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,    RASTR_14, RASTR_15, RASTR_8,  RASTR_9,  RASTR_10, RASTR_11, RASTR_12, RASTR_13
 
                 RESTORE_OFF_END it3_end, 0x31 * 256
                 START_OFF_DRAWING it2_start
 
 draw_off_rastr_1
-                UPDATE_SP OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP, OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,  OFF_6_8_SP, OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP
+                UPDATE_SP2 OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP,   RASTR_23, RASTR_16, RASTR_17, RASTR_18, RASTR_19, RASTR_20, RASTR_21, RASTR_22
+                UPDATE_SP1 OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,  OFF_6_8_SP,    RASTR_7,  RASTR_0,  RASTR_1,  RASTR_2,  RASTR_3,  RASTR_4, RASTR_5, RASTR_6
+                UPDATE_SP0 OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP,    RASTR_15, RASTR_8,  RASTR_9,  RASTR_10, RASTR_11, RASTR_12, RASTR_13, RASTR_14
 
                 RESTORE_OFF_END it2_end, 0xd3 + 0xfd * 256
                 ld a, 0x50

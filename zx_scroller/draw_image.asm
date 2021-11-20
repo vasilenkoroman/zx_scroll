@@ -622,14 +622,14 @@ start_draw_colors0:
         ld sp, hl
 
         // Draw bottom 3-th of rastr during middle 3-th of colors
-        pop hl: ld (RASTR0_15+1), hl
-        pop hl: ld (RASTR0_14+1), hl
-        pop hl: ld (RASTR0_13+1), hl
-        pop hl: ld (RASTR0_12+1), hl
-        pop hl: ld (RASTR0_11+1), hl
-        pop hl: ld (RASTR0_10+1), hl
-        pop hl: ld (RASTR0_9+1), hl
-        pop hl: ld (RASTR0_8+1), hl
+        pop hl: ld (RASTR0_15+1), hl: ld (RASTR_15+1), hl
+        pop hl: ld (RASTR0_14+1), hl: ld (RASTR_14+1), hl
+        pop hl: ld (RASTR0_13+1), hl: ld (RASTR_13+1), hl
+        pop hl: ld (RASTR0_12+1), hl: ld (RASTR_12+1), hl
+        pop hl: ld (RASTR0_11+1), hl: ld (RASTR_11+1), hl
+        pop hl: ld (RASTR0_10+1), hl: ld (RASTR_10+1), hl
+        pop hl: ld (RASTR0_9+1), hl: ld (RASTR_9+1), hl
+        pop hl: ld (RASTR0_8+1), hl: //ld (RASTR_8+1), hl
 
         // Draw middle 3-th of rastr during top 3-th of colors
 
@@ -637,14 +637,14 @@ start_draw_colors0:
         add hl, sp
         ld sp, hl
 
-        pop hl: ld (RASTR0_7+1), hl
-        pop hl: ld (RASTR0_6+1), hl
-        pop hl: ld (RASTR0_5+1), hl
-        pop hl: ld (RASTR0_4+1), hl
-        pop hl: ld (RASTR0_3+1), hl
-        pop hl: ld (RASTR0_2+1), hl
-        pop hl: ld (RASTR0_1+1), hl
-        pop hl: ld (RASTR0_0+1), hl
+        pop hl: ld (RASTR0_7+1), hl: ld (RASTR_7+1), hl
+        pop hl: ld (RASTR0_6+1), hl: ld (RASTR_6+1), hl
+        pop hl: ld (RASTR0_5+1), hl: ld (RASTR_5+1), hl
+        pop hl: ld (RASTR0_4+1), hl: ld (RASTR_4+1), hl
+        pop hl: ld (RASTR0_3+1), hl: ld (RASTR_3+1), hl
+        pop hl: ld (RASTR0_2+1), hl: ld (RASTR_2+1), hl
+        pop hl: ld (RASTR0_1+1), hl: ld (RASTR_1+1), hl
+        pop hl: ld (RASTR0_0+1), hl: //ld (RASTR_0+1), hl
 
         // Draw top 3-th of rastr during bottom 3-th of colors
         ; shift to 63 for MC rastr instead of 64 to move on next frame
@@ -653,13 +653,13 @@ start_draw_colors0:
         ld sp, hl
 
          pop hl: ld (RASTR_23+1), hl
-         pop hl: ld (RASTR0_22+1), hl
-         pop hl: ld (RASTR0_21+1), hl
-         pop hl: ld (RASTR0_20+1), hl
-         pop hl: ld (RASTR0_19+1), hl
-         pop hl: ld (RASTR0_18+1), hl
-         pop hl: ld (RASTR0_17+1), hl
-         pop hl: ld (RASTR0_16+1), hl
+         pop hl: ld (RASTR0_22+1), hl: ld (RASTR_22+1), hl
+         pop hl: ld (RASTR0_21+1), hl: ld (RASTR_21+1), hl
+         pop hl: ld (RASTR0_20+1), hl: ld (RASTR_20+1), hl
+         pop hl: ld (RASTR0_19+1), hl: ld (RASTR_19+1), hl
+         pop hl: ld (RASTR0_18+1), hl: ld (RASTR_18+1), hl
+         pop hl: ld (RASTR0_17+1), hl: ld (RASTR_17+1), hl
+         pop hl: ld (RASTR0_16+1), hl: //ld (RASTR_16+1), hl
 
         ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
@@ -709,6 +709,9 @@ start_draw_colors:
 
         //MACRO prepare_rastr_drawing
         sla c : rl b    // bc*2
+        
+        
+        /*
         ld hl, mc_rastr_descriptors
         add hl, bc      // *2
         ld sp, hl
@@ -752,6 +755,7 @@ start_draw_colors:
         pop hl: ld (RASTR_18+1), hl
         pop hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR_16+1), hl
+        */
                 
         // Exec off rastr
         ld de, bank_drawing_common  // next jump
@@ -761,6 +765,7 @@ start_draw_colors:
         and c
         ld l, a
         ld sp, hl
+
         pop hl
         jp hl
 
@@ -1028,8 +1033,8 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 27800
-         ORG 27800
+        ASSERT $ <= 28500
+         ORG 28500
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
