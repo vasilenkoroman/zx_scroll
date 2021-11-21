@@ -1813,7 +1813,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         // 2. Use advanced ray model. MC line drawing could start when ray already inside line in case of enough ticks for drawing
         while (rebalanceStep(compressedData));
 
-#if 1
+#if 0
         // 1. Sink LD IX,nn, LD IY,nn from fast lines to slow lines
         while (borrowIndexRegStep(compressedData));
         while (rebalanceStep(compressedData));
@@ -3451,6 +3451,38 @@ OffscreenTicks getTicksChainFor64Line(
     return result;
 }
 
+int getMcRastrTicksChainFor64Line(
+    const std::vector<LineDescriptor>& descriptors,
+    int screenLineNum, bool isAlt)
+{
+    const int imageHeight = descriptors.size();
+    screenLineNum = screenLineNum % imageHeight;
+
+    if (isAlt)
+        screenLineNum = screenLineNum > 0 ? screenLineNum - 1 : imageHeight - 1; //< Go prevLine
+
+    const int bankSize = imageHeight / 8;
+
+    int result = 0;
+
+    for (int b = 0; b < 8; ++b)
+    {
+        int lineNumber = (screenLineNum + b) % imageHeight;
+
+        const auto& d = descriptors[lineNumber];
+
+        auto preambula = d.rastrForMulticolor.preambula;
+        preambula.erase(preambula.begin(), preambula.begin() +
+            (isAlt ? d.rastrForMulticolor.altMcOffset : d.rastrForMulticolor.mainMcOffset));
+        auto info = Z80Parser::parseCode(d.rastrForMulticolor.af, preambula);
+
+        result += info.ticks;
+        result -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
+        result += d.rastrForMulticolor.codeInfo.ticks;
+    }
+    return result;
+}
+
 int getColorTicksForWholeFrame(
     const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data, int lineNum)
@@ -3478,14 +3510,23 @@ int getColorTicksForWholeFrame(
 
 int getTicksChainForMc(
     int line,
-    int mcLineLen,
     const CompressedData& multicolor)
 {
-    if (line == 192 * 2 - 1)
-    {
-        int gg = 1;
-    }
+    int colorHeight = multicolor.data.size();
 
+    int result = 192 * kLineDurationInTicks;
+    int colorLine = line / 8;
+    int prevColorLine = colorLine > 0 ? colorLine - 1 : colorHeight - 1;
+    int lastColorLine = (prevColorLine + 24) % colorHeight;
+    int dt = multicolor.data[prevColorLine].mcStats.pos - multicolor.data[lastColorLine].mcStats.pos;
+    result += dt;
+    return result;
+}
+
+int getRealTicksChainForMc(
+    int line,
+    const CompressedData& multicolor)
+{
     int colorHeight = multicolor.data.size();
     int mcLine = ((line + 0) / 8) % colorHeight;
     int result = 0;
@@ -3496,13 +3537,8 @@ int getTicksChainForMc(
         if (mcLine == colorHeight)
             mcLine = 0;
     }
-
-    int totalTicks = kLineDurationInTicks * 8;
-    int rastrTicksFor8Lines = totalTicks - mcLineLen;
-
-    return result + rastrTicksFor8Lines * 24;
+    return result;
 }
-
 
 int serializeTimingData(
     const std::vector<LineDescriptor>& descriptors,
@@ -3511,8 +3547,7 @@ int serializeTimingData(
     const CompressedData& color,
     const CompressedData& multicolor,
     const std::string& inputFileName,
-    int flags,
-    int mcLineLen)
+    int flags)
 {
     using namespace std;
 
@@ -3543,11 +3578,26 @@ int serializeTimingData(
         int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
         ticks += colorTicks;
 
+        int mcTicks = getTicksChainForMc(line, multicolor);
+        int mcOverhead = mcTicks - kLineDurationInTicks * 192;
 
-        int mcTicks = getTicksChainForMc(line, mcLineLen, multicolor);
         if (line % 8 == 0)
         {
-            ticks += mcTicks - mcLineLen * 24; //< Take into accout delay from the last MC line
+            int mcRastrTicks = kRtMcContextSwitchDelay * 24;
+            for (int i = 0; i < 3; ++i)
+                mcRastrTicks += getMcRastrTicksChainFor64Line(descriptors, line + i * 64, i == 2);
+            mcRastrTicks += mcOverhead; //< Shift next frame drawing to the new MC virtual ticks phase.
+
+#if 0
+            int mcLineLen = multicolor.data[0].mcStats.virtualTicks;
+            int oldValue = mcTicks - mcLineLen * 24; //< Take into accout delay from the last MC line
+            if (oldValue != mcRastrTicks)
+            {
+                abort();
+            }
+#endif
+
+            ticks += mcRastrTicks;
 
             // Update MC phase for line
             int curMcLine = (line / 8) % colorHeight;
@@ -3829,7 +3879,8 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
+    //int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
@@ -3839,7 +3890,7 @@ int main(int argc, char** argv)
     std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, buffer.data(), &maskColor, imageHeight);
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    int alignedMcTicks = alignMulticolorTimings(flags, multicolorData);
+    alignMulticolorTimings(flags, multicolorData);
 
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
@@ -3894,7 +3945,7 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags, alignedMcTicks);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
     return 0;
 }

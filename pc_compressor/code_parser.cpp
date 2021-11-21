@@ -215,7 +215,7 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 3, 17}, // cd: call **
         { 2, 7}, // ce: adc a,*
         { 1, 11}, // cf: rst 08h
-        { 1, -1}, // d0: ret nc (11/5)
+        { 1, 5}, // d0: ret nc (11/5)
         { 1, 10}, // d1: pop de
         { 3, 10}, // d2: jp nc,**
         { 2, 11}, // d3: out (*),a
@@ -715,6 +715,8 @@ Z80CodeInfo Z80Parser::parseCode(
                 push(&af);
                 break;
             case 0xc6: a.addValue(info, ptr[1]);
+                break;
+            case 0xd3: // out (*), a
                 break;
             case 0xd6: a.subValue(info, ptr[1]);
                 break;

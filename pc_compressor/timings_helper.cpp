@@ -171,6 +171,9 @@ int getMainMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, 
         if (v.role == Role::regularBottom)
             return multicolor.data[v.mc].mcStats.virtualTicks;
     }
+    if (data.size() == 2 && data.begin()->mc == data.rbegin()->mc)
+        return multicolor.data[data.begin()->mc].mcStats.virtualTicks;
+
     std::cerr << "Something wrong! MC ticks not found!" << std::endl;
     abort();
     return 0;
