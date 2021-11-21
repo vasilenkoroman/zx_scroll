@@ -163,7 +163,7 @@ it1_end:        ex de,hl
 
         MACRO update_rastr L1?, L2?, L3?
 
-                ld hl, mc_rastr_descriptors
+                ld hl, mc_rastr_descriptors_alt
                 add hl, bc      // *2
                 ld sp, hl
                 pop hl: ld (L1?+1), hl
