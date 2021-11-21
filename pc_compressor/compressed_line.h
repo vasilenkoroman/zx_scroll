@@ -216,3 +216,32 @@ public:
 };
 
 CompressedLine getSerializedRegisters(const std::vector<Register16>& registers, const Register16& af);
+
+
+struct CompressedData
+{
+    std::vector<int8_t> sameBytesCount;
+    std::vector<CompressedLine> data;
+    int flags = 0;
+
+public:
+
+    int ticks(int from = 0, int count = -1) const
+    {
+        int result = 0;
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].drawTicks;
+        return result;
+    }
+
+    int size(int from = 0, int count = -1) const
+    {
+        int result = 0;
+        int to = count == -1 ? data.size() : from + count;
+        for (int i = from; i < to; ++i)
+            result += data[i].data.size();
+        return result;
+    }
+};
+

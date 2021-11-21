@@ -15,6 +15,7 @@
 #include "compressed_line.h"
 #include "registers.h"
 #include "code_parser.h"
+#include "timings_helper.h"
 
 #define LOG_INFO
 //#define LOG_DEBUG
@@ -52,7 +53,8 @@ enum Flags
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
     updateViaHl = 512,
     OptimizeMcTicks = 1024,
-    threeStackPos = 2048
+    threeStackPos = 2048,
+    twoRastrDescriptors = 4096
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -120,33 +122,6 @@ inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
         return false;
     return hiddenData->at(x + y * 32);
 }
-
-struct CompressedData
-{
-    std::vector<int8_t> sameBytesCount;
-    std::vector<CompressedLine> data;
-    int flags = 0;
-
-public:
-
-    int ticks(int from = 0, int count = -1) const
-    {
-        int result = 0;
-        int to = count == -1 ? data.size() : from + count;
-        for (int i = from; i < to; ++i)
-            result += data[i].drawTicks;
-        return result;
-    }
-
-    int size(int from = 0, int count = -1) const
-    {
-        int result = 0;
-        int to = count == -1 ? data.size() : from + count;
-        for (int i = from; i < to; ++i)
-            result += data[i].data.size();
-        return result;
-    }
-};
 
 void writeTestBitmap(int w, int h, uint8_t* buffer, const std::string& bmpFileName)
 {
@@ -1763,6 +1738,46 @@ bool rebalanceStep(CompressedData& compressedData)
     return false;
 }
 
+void alignTo4(CompressedLine& line)
+{
+    if (line.mcStats.virtualTicks % 4 == 0)
+        return;
+    int delayTicks = 4 - (line.mcStats.virtualTicks % 4) + 4;
+    const auto delay = Z80Parser::genDelay(delayTicks);
+    line.push_front(delay);
+    line.mcStats.virtualTicks += delayTicks;
+    line.drawTicks += delayTicks;
+
+}
+
+bool alignTo4(CompressedData& compressedData)
+{
+    const int imageHeight = compressedData.data.size();
+
+    for (int i = 0; i < imageHeight; ++i)
+    {
+        int prev = i > 0 ? i - 1 : imageHeight - 1;
+        int next = (i + 1) % imageHeight;
+        auto& line = compressedData.data[i];
+        int dt1 = std::abs(line.mcStats.virtualTicks - compressedData.data[prev].mcStats.virtualTicks);
+        int dt2 = std::abs(line.mcStats.virtualTicks - compressedData.data[next].mcStats.virtualTicks);
+        //if ((dt1 > 0 && dt1 < 4) || (dt2 > 0 && dt2 < 4))
+        if ((dt1 > 0 && dt1 < 4))
+        {
+            alignTo4(line);
+            alignTo4(compressedData.data[prev]);
+            return true;
+        }
+        else if ((dt2 > 0 && dt2 < 4))
+        {
+            alignTo4(line);
+            alignTo4(compressedData.data[next]);
+            return true;
+        }
+    }
+    return false;
+}
+
 int alignMulticolorTimings(int flags, CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
@@ -1806,6 +1821,20 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         
     }
 
+    if (flags & twoRastrDescriptors)
+    {
+        int prevTotalTicks = 0;
+        for (int i = 0; i < imageHeight; ++i)
+            prevTotalTicks += compressedData.data[i].mcStats.virtualTicks;
+
+        while (alignTo4(compressedData));
+
+        int totalTicks = 0;
+        for (int i = 0; i < imageHeight; ++i)
+            totalTicks += compressedData.data[i].mcStats.virtualTicks;
+        std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
+        return 0;
+    }
 
     int maxVirtualTicks = 0;
     for (int i = 0; i < imageHeight; ++i)
@@ -1816,10 +1845,6 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
 
     for (int i = 0; i < imageHeight; ++i)
     {
-        if (i == 20)
-        {
-            int gg = 4;
-        }
         const auto& line = compressedData.data[i];
         if (line.mcStats.pos < line.mcStats.min)
             maxVirtualTicks = std::max(maxVirtualTicks, line.mcStats.virtualTicks + (line.mcStats.min - line.mcStats.pos));
@@ -1828,7 +1853,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     for (int i = 0; i < imageHeight; ++i)
     {
         int endLine = (i + 23) % imageHeight;
-        std::cout << i << ": " << compressedData.data[i].mcStats.pos  << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
+        std::cout << i << ": " << compressedData.data[i].mcStats.pos << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
             << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
     }
 
@@ -1844,6 +1869,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     }
     std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
 
+
     int idealSum = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
@@ -1856,12 +1882,6 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
     int i = 0;
     for (auto& line : compressedData.data)
     {
-        if (i == 23)
-        {
-            int gg = 4;
-        }
-
-
         if (line.mcStats.pos < line.mcStats.min)
         {
             int beginDelay = line.mcStats.min - line.mcStats.pos;
@@ -2029,6 +2049,9 @@ struct DescriptorState
     
     const uint8_t* srcBuffer = 0;
     int srcLine = 0;
+
+    int mainMcOffset = 0;
+    int altMcOffset = 0;
 
     void setEndBlock(const uint8_t* ptr)
     {
@@ -2416,7 +2439,8 @@ struct DescriptorState
         const std::vector<uint8_t>& serializedData,
         int codeOffset,
         const CompressedLine* line,
-        int pageNum, int bankNum)
+        int pageNum, int bankNum,
+        int mainMcTicks, int altMcTicks)
     {
         //if (bankNum % 2 == 1)
         serializeSetPageCode(pageNum);
@@ -2434,6 +2458,24 @@ struct DescriptorState
         }
 
         serializeOmitedData(imageHeight, serializedData, codeOffset, kJpIxCommandLen, extraDelay);
+
+
+        if (mainMcTicks != altMcTicks)
+        {
+            int dt = std::abs(mainMcTicks - altMcTicks);
+            auto mcAlignDelay = Z80Parser::genDelay(dt);
+            preambula.insert(preambula.begin(), mcAlignDelay.begin(), mcAlignDelay.end());
+            if (mainMcTicks > altMcTicks)
+            {
+                mainMcOffset = 0;
+                altMcOffset = mcAlignDelay.size();
+            }
+            else
+            {
+                mainMcOffset = mcAlignDelay.size();
+                altMcOffset = 0;
+            }
+        }
     }
 
     void makePreambulaForOffscreen(
@@ -2741,10 +2783,13 @@ int serializeMainData(
     const std::string& inputFileName,
     uint16_t reachDescriptorsBase,
     int flags,
-    int mcDrawTicks)
+    const McToRastrInfo& mcToRastrInfo)
 {
     std::vector<uint8_t> mainMemSerializedDescriptors;
     std::array<std::vector<uint8_t>, kPagesForData> inpageSerializedDescriptors;
+
+    int mcTicks1 = multicolorData.data[0].mcStats.virtualTicks;
+    int mcTicks2 = mcTicks1;
 
     using namespace std;
     const int imageHeight = data.data.size();
@@ -2826,6 +2871,13 @@ int serializeMainData(
         int lineInBank = srcLine / 8;
         int lineNum = bankSize * lineBank + lineInBank;
 
+        if (flags & twoRastrDescriptors)
+        {
+            mcTicks1 = getMainMcTicks(mcToRastrInfo, multicolorData, lineNum);
+            mcTicks2 = getAltMcTicks(mcToRastrInfo, multicolorData, lineNum);
+        }
+
+
         // Calculate timing for left/right parts in line.
 
         const auto& dataLine = data.data[lineNum];
@@ -2849,6 +2901,8 @@ int serializeMainData(
         }
 
         // do Split
+        const int mcDrawTicks = std::max(mcTicks1, mcTicks2);
+
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcDrawTicks;
         ticksRest -= kRtMcContextSwitchDelay;
@@ -2964,7 +3018,7 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank);
+        descriptor.rastrForMulticolor.makePreambulaForMC(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank, mcTicks1, mcTicks2);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + mainMemSerializedDescriptors.size();
@@ -3260,7 +3314,7 @@ int serializeRastrDescriptors(
     int imageHeight = descriptors.size();
 
 
-    ofstream spDeltaFile, offRastrFile, mcRastrFile;
+    ofstream spDeltaFile, offRastrFile, mcRastrFile, mcRastrFileAlt;
     {
         std::string fileName = inputFileName + ".sp_delta.descriptors";
         spDeltaFile.open(fileName, std::ios::binary);
@@ -3279,6 +3333,7 @@ int serializeRastrDescriptors(
             return -1;
         }
     }
+
     {
         std::string fileName = inputFileName + ".mc_rastr.descriptors";
         mcRastrFile.open(fileName, std::ios::binary);
@@ -3289,11 +3344,26 @@ int serializeRastrDescriptors(
         }
     }
 
+    {
+        std::string fileName = inputFileName + ".mc_rastr_alt.descriptors";
+        mcRastrFileAlt.open(fileName, std::ios::binary);
+        if (!mcRastrFileAlt.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
+    }
+
     for (int i = 0; i < imageHeight + kmaxDescriptorOffset; ++i)
     {
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
-        mcRastrFile.write((const char*)&descriptor.rastrForMulticolor.descriptorLocationPtr, 2);
+        
+        uint16_t locationMain = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.mainMcOffset;
+        uint16_t locationAlt = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.altMcOffset;
+        
+        mcRastrFile.write((const char*) &locationMain, 2);
+        mcRastrFileAlt.write((const char*) &locationAlt, 2);
     }
 
     for (int i = -7; i < imageHeight + kmaxDescriptorOffset; ++i)
@@ -3690,170 +3760,13 @@ inline bool ends_with(std::string const& value, std::string const& ending)
 }
 
 
-void calculateTable()
-{
-    enum class Role
-    {
-        regularBottom,
-        regularTop,
-        nextBottom,
-        nextTop
-    };
-
-    auto toString = [](Role role)
-        {
-            switch(role)
-            {
-            case Role::regularBottom:
-                return "regularBottom";
-            case Role::regularTop:
-                return "regularTop";
-            case Role::nextBottom:
-                return "nextBottom";
-            case Role::nextTop:
-                return "nextTop";
-            }
-            return "";
-        };
-
-    struct Info
-    {
-        int mc = 0;
-        Role role{};
-
-        bool operator<(const Info& other) const
-        {
-            if (mc != other.mc)
-                return mc < other.mc;
-            return (int) role < (int) other.role;
-        }
-    };
-
-    std::array<std::array<std::set<Info>, 192/8>, 8> banks;
-
-    int step = 0;
-    int lastB0 = 0;
-    do
-    {
-        std::cout << "Step: " << step << "\t";
-        if (step % 8 == 0)
-        {
-            std::cout << "Non MC drawing step " << std::endl;
-            lastB0 = step / 8;
-        }
-        else
-        {
-            // 1. Regular lines
-            int mc = step / 8;
-            int topUpdatedBanks = 8 - (step % 8);
-
-            for (int y = 0; y < 8; ++y)
-            {
-                std::cout << "MC=" << mc << ": R=";
-
-                int bankNum = y;
-
-                int lowLines = 8 - topUpdatedBanks;
-                if (y < lowLines)
-                {
-                    banks[bankNum][lastB0].insert({ mc, Role::regularBottom });
-                    std::cout << bankNum << "-" << lastB0;
-                }
-                else
-                {
-                    int prevBankIndex = lastB0 - 1;
-                    if (prevBankIndex < 0)
-                        prevBankIndex = 192 / 8 - 1;
-                    banks[bankNum][prevBankIndex].insert({ mc, Role::regularTop });
-                    std::cout << bankNum << "-" << prevBankIndex;
-                }
-                std::cout << "\t";
-
-                ++mc;
-                if (mc >= 24)
-                    mc -= 24;
-            }
-            std::cout << std::endl;
-
-            // 2. Next frame lines
-            std::cout << "-->Next frame\t\t\t";
-            
-            mc = step / 8;
-            ++mc;
-            if (mc >= 24)
-                mc -= 24;
-
-            topUpdatedBanks = 8 - (step % 8);
-
-            for (int y = 1; y < 8; ++y)
-            {
-                std::cout << "MC=" << mc << ": R=";
-
-                int lowLines = 8 - topUpdatedBanks;
-                if (y < lowLines)
-                {
-                    int bankNum = y - 1;
-
-                    banks[bankNum][lastB0].insert({ mc, Role::nextBottom });
-                    std::cout << bankNum << "-" << lastB0;
-                }
-                else
-                {
-                    int bankNum = y;
-                    int prevBankIndex = lastB0 - 1;
-
-                    if (prevBankIndex < 0)
-                        prevBankIndex = 192 / 8 - 1;
-                    banks[bankNum][prevBankIndex].insert({ mc, Role::nextTop });
-                    std::cout << bankNum << "-" << prevBankIndex;
-                }
-                std::cout << "\t";
-
-                ++mc;
-                if (mc >= 24)
-                    mc -= 24;
-            }
-            std::cout << std::endl;
-        }
-
-        --step;
-        if (step < 0)
-            step = 191;
-    } while (step != 0);
-
-    std::cout << std::endl << std::endl;
-
-    for (int d = 0; d < 192; ++d)
-    {
-        int bank = d % 8;
-        int lineInBank = d / 8;
-        std::cout << "D=" << d << "\t";
-
-        std::set<int> mcList;
-        std::string detailsStr;
-        for (const auto& data : banks[bank][lineInBank])
-        {
-            mcList.insert(data.mc);
-            detailsStr += toString(data.role);
-            detailsStr += "=";
-            detailsStr += std::to_string(data.mc);
-            detailsStr += " ";
-        }
-
-        for (const auto& mc : mcList)
-            std::cout << "MC=" << mc << ", ";
-        std::cout << "\tdetails=" << detailsStr;
-
-        std::cout << std::endl;
-    }
-
-    int gg = 1;
-
-}
-
 int main(int argc, char** argv)
 {
-    calculateTable();
+    #ifdef LOG_DEBUG
+        bool showLog = true;
+    #else
+        bool showLog = false;
+    #endif
 
     using namespace std;
 
@@ -3911,10 +3824,12 @@ int main(int argc, char** argv)
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
 
+    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, showLog);
+
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
@@ -3969,7 +3884,7 @@ int main(int argc, char** argv)
     std::vector<LineDescriptor> descriptors;
     std::vector<ColorDescriptor> colorDescriptors;
 
-    int mainDataSize = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, alignedMcTicks);
+    int mainDataSize = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
     serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize);
 
     // put JP to the latest line of colors

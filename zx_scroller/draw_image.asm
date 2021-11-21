@@ -1092,6 +1092,8 @@ off_rastr_sp_delta
         INCBIN "resources/compressed_data.sp_delta.descriptors"
 mc_rastr_descriptors
         INCBIN "resources/compressed_data.mc_rastr.descriptors"
+mc_rastr_descriptors_alt
+        INCBIN "resources/compressed_data.mc_rastr_alt.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 
