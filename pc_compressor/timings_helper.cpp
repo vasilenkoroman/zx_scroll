@@ -2,23 +2,27 @@
 
 #include "compressed_line.h"
 
+std::string toString (Role role)
+{
+    switch (role)
+    {
+    case Role::regularBottom:
+        return "regularBottom";
+    case Role::regularTop:
+        return "regularTop";
+    case Role::nextBottom:
+        return "nextBottom";
+    case Role::nextTop:
+        return "nextTop";
+    }
+    return "";
+};
+
+
+
 McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
 {
-    auto toString = [](Role role)
-    {
-        switch (role)
-        {
-        case Role::regularBottom:
-            return "regularBottom";
-        case Role::regularTop:
-            return "regularTop";
-        case Role::nextBottom:
-            return "nextBottom";
-        case Role::nextTop:
-            return "nextTop";
-        }
-        return "";
-    };
+    const int colorHeight = imageHeight / 8;
 
     McToRastrInfo banks;
     for (auto& bankData : banks)
@@ -40,6 +44,13 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
         {
             // 1. Regular lines
             int mc = step / 8;
+            mc += 8;
+            if (mc < 0)
+                mc += colorHeight;
+            if (mc >= colorHeight)
+                mc -= colorHeight;
+
+
             int topUpdatedBanks = 8 - (step % 8);
 
             for (int y = 0; y < 8; ++y)
@@ -69,8 +80,8 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
                     std::cout << "\t";
 
                 ++mc;
-                if (mc >= 24)
-                    mc -= 24;
+                if (mc >= colorHeight)
+                    mc -= colorHeight;
             }
             if (showLog)
                 std::cout << std::endl;
@@ -80,9 +91,11 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
                 std::cout << "-->Next frame\t\t\t";
 
             mc = step / 8;
-            ++mc;
-            if (mc >= 24)
-                mc -= 24;
+            mc += 16;
+
+            mc++;
+            if (mc >= colorHeight)
+                mc -= colorHeight;
 
             topUpdatedBanks = 8 - (step % 8);
 
@@ -115,8 +128,8 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
                     std::cout << "\t";
 
                 ++mc;
-                if (mc >= 24)
-                    mc -= 24;
+                if (mc >= colorHeight)
+                    mc -= colorHeight;
             }
             if (showLog)
                 std::cout << std::endl;
@@ -124,7 +137,7 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
 
         --step;
         if (step < 0)
-            step = 191;
+            step = imageHeight - 1;
     } while (step != 0);
 
     if (showLog)
@@ -171,6 +184,13 @@ int getMainMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, 
         if (v.role == Role::regularBottom)
             return multicolor.data[v.mc].mcStats.virtualTicks;
     }
+
+    for (const auto& v : data)
+    {
+        if (v.role == Role::regularTop)
+            return multicolor.data[v.mc].mcStats.virtualTicks;
+    }
+
     if (data.size() == 2 && data.begin()->mc == data.rbegin()->mc)
         return multicolor.data[data.begin()->mc].mcStats.virtualTicks;
 

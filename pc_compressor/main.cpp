@@ -1738,15 +1738,16 @@ bool rebalanceStep(CompressedData& compressedData)
     return false;
 }
 
-void alignTo4(CompressedLine& line)
+bool alignTo4(CompressedLine& line)
 {
     if (line.mcStats.virtualTicks % 4 == 0)
-        return;
+        return false;
     int delayTicks = 4 - (line.mcStats.virtualTicks % 4) + 4;
     const auto delay = Z80Parser::genDelay(delayTicks);
     line.push_front(delay);
     line.mcStats.virtualTicks += delayTicks;
     line.drawTicks += delayTicks;
+    return true;
 
 }
 
@@ -1756,12 +1757,15 @@ bool alignTo4(CompressedData& compressedData)
 
     for (int i = 0; i < imageHeight; ++i)
     {
+        auto& line = compressedData.data[i];
+        alignTo4(line);
+#if 0
         int prev = i > 0 ? i - 1 : imageHeight - 1;
         int next = (i + 1) % imageHeight;
-        auto& line = compressedData.data[i];
         int dt1 = std::abs(line.mcStats.virtualTicks - compressedData.data[prev].mcStats.virtualTicks);
         int dt2 = std::abs(line.mcStats.virtualTicks - compressedData.data[next].mcStats.virtualTicks);
         //if ((dt1 > 0 && dt1 < 4) || (dt2 > 0 && dt2 < 4))
+
         if ((dt1 > 0 && dt1 < 4))
         {
             alignTo4(line);
@@ -1774,6 +1778,7 @@ bool alignTo4(CompressedData& compressedData)
             alignTo4(compressedData.data[next]);
             return true;
         }
+#endif
     }
     return false;
 }
@@ -1833,6 +1838,14 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         for (int i = 0; i < imageHeight; ++i)
             totalTicks += compressedData.data[i].mcStats.virtualTicks;
         std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
+
+        for (int i = 0; i < imageHeight; ++i)
+        {
+            int endLine = (i + 23) % imageHeight;
+            std::cout << i << ": " << compressedData.data[i].mcStats.pos << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
+                << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
+        }
+
         return 0;
     }
 
@@ -2465,7 +2478,7 @@ struct DescriptorState
             int dt = std::abs(mainMcTicks - altMcTicks);
             auto mcAlignDelay = Z80Parser::genDelay(dt);
             preambula.insert(preambula.begin(), mcAlignDelay.begin(), mcAlignDelay.end());
-            if (mainMcTicks > altMcTicks)
+            if (mainMcTicks < altMcTicks)
             {
                 mainMcOffset = 0;
                 altMcOffset = mcAlignDelay.size();
@@ -2873,8 +2886,9 @@ int serializeMainData(
 
         if (flags & twoRastrDescriptors)
         {
-            mcTicks1 = getMainMcTicks(mcToRastrInfo, multicolorData, lineNum);
-            mcTicks2 = getAltMcTicks(mcToRastrInfo, multicolorData, lineNum);
+            mcTicks1 = getMainMcTicks(mcToRastrInfo, multicolorData, srcLine);
+            mcTicks2 = getAltMcTicks(mcToRastrInfo, multicolorData, srcLine);
+
         }
 
 
@@ -3874,13 +3888,13 @@ int main(int argc, char** argv)
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
 
-    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, showLog);
+    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, true);
 
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    //int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
+    //int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 

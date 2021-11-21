@@ -480,46 +480,6 @@ loop1:
         jp nz, mc_step_drawing
 
         /************************* no-mc step drawing *********************************************/
-        /*
-        // calculate address of the MC descriptors
-        // Draw from 0 to 23 is backward direction
-        ld hl, mc_descriptors
-
-        // prepare  multicolor drawing (for next 7 mc steps)
-        // calculate bc/8 * 10
-        add hl, bc
-
-        ld de, bc
-        srl d: rr e
-        srl d: rr e
-        add hl, de
-        ld sp, hl
-
-        PREPARE_MC_DRAWING 23
-        PREPARE_MC_DRAWING 22
-        PREPARE_MC_DRAWING 21
-        PREPARE_MC_DRAWING 20
-        PREPARE_MC_DRAWING 19
-        PREPARE_MC_DRAWING 18
-        PREPARE_MC_DRAWING 17
-        PREPARE_MC_DRAWING 16
-        PREPARE_MC_DRAWING 15
-        PREPARE_MC_DRAWING 14
-        PREPARE_MC_DRAWING 13
-        PREPARE_MC_DRAWING 12
-        PREPARE_MC_DRAWING 11
-        PREPARE_MC_DRAWING 10
-        PREPARE_MC_DRAWING 9
-        PREPARE_MC_DRAWING 8
-        PREPARE_MC_DRAWING 7
-        PREPARE_MC_DRAWING 6
-        PREPARE_MC_DRAWING 5
-        PREPARE_MC_DRAWING 4
-        PREPARE_MC_DRAWING 3
-        PREPARE_MC_DRAWING 2
-        PREPARE_MC_DRAWING 1
-        PREPARE_MC_DRAWING 0
-        */
 
         update_colors_jpix        
         ld sp, color_addr + 768                         ; 10
