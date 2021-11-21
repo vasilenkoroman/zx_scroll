@@ -3689,8 +3689,123 @@ inline bool ends_with(std::string const& value, std::string const& ending)
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+
+void calculateTable()
+{
+    std::array<std::array<std::set<int>, 192/8>, 8> banks;
+
+    int step = 0;
+    int lastB0 = 0;
+    do
+    {
+        std::cout << "Step: " << step << "\t";
+        if (step % 8 == 0)
+        {
+            std::cout << "Non MC drawing step " << std::endl;
+            lastB0 = step / 8;
+        }
+        else
+        {
+            // 1. Regular lines
+            int mc = step / 8;
+            int topUpdatedBanks = 8 - (step % 8);
+
+            for (int y = 0; y < 8; ++y)
+            {
+                std::cout << "MC=" << mc << ": R=";
+
+                int bankNum = y;
+
+                int lowLines = 8 - topUpdatedBanks;
+                if (y < lowLines)
+                {
+                    banks[bankNum][lastB0].insert(mc);
+                    std::cout << bankNum << "-" << lastB0;
+                }
+                else
+                {
+                    int prevBankIndex = lastB0 - 1;
+                    if (prevBankIndex < 0)
+                        prevBankIndex = 192 / 8 - 1;
+                    banks[bankNum][prevBankIndex].insert(mc);
+                    std::cout << bankNum << "-" << prevBankIndex;
+                }
+                std::cout << "\t";
+
+                ++mc;
+                if (mc >= 24)
+                    mc -= 24;
+            }
+            std::cout << std::endl;
+
+            // 2. Next frame lines
+            std::cout << "-->Next frame\t\t\t";
+            
+            mc = step / 8;
+            ++mc;
+            if (mc >= 24)
+                mc -= 24;
+
+            topUpdatedBanks = 8 - (step % 8);
+
+            for (int y = 1; y < 8; ++y)
+            {
+                std::cout << "MC=" << mc << ": R=";
+
+                int lowLines = 8 - topUpdatedBanks;
+                if (y < lowLines)
+                {
+                    int bankNum = y - 1;
+
+                    banks[bankNum][lastB0].insert(mc);
+                    std::cout << bankNum << "-" << lastB0;
+                }
+                else
+                {
+                    int bankNum = y;
+                    int prevBankIndex = lastB0 - 1;
+
+                    if (prevBankIndex < 0)
+                        prevBankIndex = 192 / 8 - 1;
+                    banks[bankNum][prevBankIndex].insert(mc);
+                    std::cout << bankNum << "-" << prevBankIndex;
+                }
+                std::cout << "\t";
+
+                ++mc;
+                if (mc >= 24)
+                    mc -= 24;
+            }
+            std::cout << std::endl;
+        }
+
+        --step;
+        if (step < 0)
+            step = 191;
+    } while (step != 0);
+
+    std::cout << std::endl << std::endl;
+
+    for (int d = 0; d < 192; ++d)
+    {
+        int bank = d % 8;
+        int lineInBank = d / 8;
+        std::cout << "D=" << d << "\t";
+        for (const auto& mc : banks[bank][lineInBank])
+        {
+            std::cout << "MC=" << mc << ", ";
+        }
+        std::cout << std::endl;
+    }
+
+    int gg = 1;
+
+}
+
 int main(int argc, char** argv)
 {
+    calculateTable();
+
     using namespace std;
 
     ifstream fileIn;
