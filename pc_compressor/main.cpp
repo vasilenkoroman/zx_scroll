@@ -3692,7 +3692,44 @@ inline bool ends_with(std::string const& value, std::string const& ending)
 
 void calculateTable()
 {
-    std::array<std::array<std::set<int>, 192/8>, 8> banks;
+    enum class Role
+    {
+        regularBottom,
+        regularTop,
+        nextBottom,
+        nextTop
+    };
+
+    auto toString = [](Role role)
+        {
+            switch(role)
+            {
+            case Role::regularBottom:
+                return "regularBottom";
+            case Role::regularTop:
+                return "regularTop";
+            case Role::nextBottom:
+                return "nextBottom";
+            case Role::nextTop:
+                return "nextTop";
+            }
+            return "";
+        };
+
+    struct Info
+    {
+        int mc = 0;
+        Role role{};
+
+        bool operator<(const Info& other) const
+        {
+            if (mc != other.mc)
+                return mc < other.mc;
+            return (int) role < (int) other.role;
+        }
+    };
+
+    std::array<std::array<std::set<Info>, 192/8>, 8> banks;
 
     int step = 0;
     int lastB0 = 0;
@@ -3719,7 +3756,7 @@ void calculateTable()
                 int lowLines = 8 - topUpdatedBanks;
                 if (y < lowLines)
                 {
-                    banks[bankNum][lastB0].insert(mc);
+                    banks[bankNum][lastB0].insert({ mc, Role::regularBottom });
                     std::cout << bankNum << "-" << lastB0;
                 }
                 else
@@ -3727,7 +3764,7 @@ void calculateTable()
                     int prevBankIndex = lastB0 - 1;
                     if (prevBankIndex < 0)
                         prevBankIndex = 192 / 8 - 1;
-                    banks[bankNum][prevBankIndex].insert(mc);
+                    banks[bankNum][prevBankIndex].insert({ mc, Role::regularTop });
                     std::cout << bankNum << "-" << prevBankIndex;
                 }
                 std::cout << "\t";
@@ -3757,7 +3794,7 @@ void calculateTable()
                 {
                     int bankNum = y - 1;
 
-                    banks[bankNum][lastB0].insert(mc);
+                    banks[bankNum][lastB0].insert({ mc, Role::nextBottom });
                     std::cout << bankNum << "-" << lastB0;
                 }
                 else
@@ -3767,7 +3804,7 @@ void calculateTable()
 
                     if (prevBankIndex < 0)
                         prevBankIndex = 192 / 8 - 1;
-                    banks[bankNum][prevBankIndex].insert(mc);
+                    banks[bankNum][prevBankIndex].insert({ mc, Role::nextTop });
                     std::cout << bankNum << "-" << prevBankIndex;
                 }
                 std::cout << "\t";
@@ -3791,10 +3828,22 @@ void calculateTable()
         int bank = d % 8;
         int lineInBank = d / 8;
         std::cout << "D=" << d << "\t";
-        for (const auto& mc : banks[bank][lineInBank])
+
+        std::set<int> mcList;
+        std::string detailsStr;
+        for (const auto& data : banks[bank][lineInBank])
         {
-            std::cout << "MC=" << mc << ", ";
+            mcList.insert(data.mc);
+            detailsStr += toString(data.role);
+            detailsStr += "=";
+            detailsStr += std::to_string(data.mc);
+            detailsStr += " ";
         }
+
+        for (const auto& mc : mcList)
+            std::cout << "MC=" << mc << ", ";
+        std::cout << "\tdetails=" << detailsStr;
+
         std::cout << std::endl;
     }
 
