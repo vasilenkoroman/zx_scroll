@@ -577,7 +577,7 @@ start_draw_colors0:
 
         // -------------------- MC rastr descriptors
 
-        ld hl, mc_rastr_descriptors
+        ld hl, mc_rastr_descriptors_bottom
         add hl,bc       // * 2
         ld sp, hl
 
@@ -608,7 +608,7 @@ start_draw_colors0:
 
         // Draw top 3-th of rastr during bottom 3-th of colors
         ; shift to 63 for MC rastr instead of 64 to move on next frame
-        ld hl, mc_rastr_descriptors_alt + 127 * 2
+        ld hl, mc_rastr_descriptors_next + 127 * 2
         add hl, bc
         ld sp, hl
 
@@ -1003,10 +1003,12 @@ off_rastr_descriptors
         INCBIN "resources/compressed_data.off_rastr.descriptors"
 off_rastr_sp_delta
         INCBIN "resources/compressed_data.sp_delta.descriptors"
-mc_rastr_descriptors
-        INCBIN "resources/compressed_data.mc_rastr.descriptors"
-mc_rastr_descriptors_alt
-        INCBIN "resources/compressed_data.mc_rastr_alt.descriptors"
+mc_rastr_descriptors_bottom
+        INCBIN "resources/compressed_data.mc_rastr_bottom.descriptors"
+mc_rastr_descriptors_top
+        INCBIN "resources/compressed_data.mc_rastr_top.descriptors"
+mc_rastr_descriptors_next
+        INCBIN "resources/compressed_data.mc_rastr_next.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
 
