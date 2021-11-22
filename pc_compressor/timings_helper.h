@@ -34,5 +34,4 @@ using McToRastrInfo = std::array<std::vector<std::set<TimingsInfo>>, 8>;
 
 McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog);
 
-int getMainMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum);
-int getAltMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum);
+int getMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum, Role role);

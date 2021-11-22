@@ -2063,8 +2063,9 @@ struct DescriptorState
     const uint8_t* srcBuffer = 0;
     int srcLine = 0;
 
-    int mainMcOffset = 0;
-    int altMcOffset = 0;
+    int bottomMcOffset = 0;
+    int topMcOffset = 0;
+    int nextMcOffset = 0;
 
     void setEndBlock(const uint8_t* ptr)
     {
@@ -2453,7 +2454,7 @@ struct DescriptorState
         int codeOffset,
         const CompressedLine* line,
         int pageNum, int bankNum,
-        int mainMcTicks, int altMcTicks)
+        int mcTicksBottom, int mcTicksTop, int mcTicksNext)
     {
         //if (bankNum % 2 == 1)
         serializeSetPageCode(pageNum);
@@ -2472,22 +2473,39 @@ struct DescriptorState
 
         serializeOmitedData(imageHeight, serializedData, codeOffset, kJpIxCommandLen, extraDelay);
 
-
-        if (mainMcTicks != altMcTicks)
+        struct TicksInfo
         {
-            int dt = std::abs(mainMcTicks - altMcTicks);
-            auto mcAlignDelay = Z80Parser::genDelay(dt);
-            preambula.insert(preambula.begin(), mcAlignDelay.begin(), mcAlignDelay.end());
-            if (mainMcTicks < altMcTicks)
+            int ticks = 0;
+            int* role = nullptr;;
+            
+            bool operator<(const TicksInfo& other) const
             {
-                mainMcOffset = 0;
-                altMcOffset = mcAlignDelay.size();
+                return ticks < other.ticks;
             }
-            else
+        };
+
+        int maxTicks = std::max(std::max(mcTicksBottom, mcTicksTop), mcTicksNext);
+        std::vector<TicksInfo> alignTicks;
+        alignTicks.push_back({ maxTicks - mcTicksBottom, &bottomMcOffset });
+        alignTicks.push_back({ maxTicks - mcTicksTop, &topMcOffset });
+        alignTicks.push_back({ maxTicks - mcTicksNext, &nextMcOffset });
+        std::sort(alignTicks.begin(), alignTicks.end());
+
+        for (int i = alignTicks.size() - 1; i > 0; --i)
+            alignTicks[i].ticks -= alignTicks[i-1].ticks;
+        alignTicks[0].ticks = 0;
+
+        while (!alignTicks.empty())
+        {
+            int minTicks = alignTicks[0].ticks;
+            if (minTicks > 0)
             {
-                mainMcOffset = mcAlignDelay.size();
-                altMcOffset = 0;
+                auto mcAlignDelay = Z80Parser::genDelay(minTicks);
+                preambula.insert(preambula.begin(), mcAlignDelay.begin(), mcAlignDelay.end());
+                for (const auto& info : alignTicks)
+                    *info.role += mcAlignDelay.size();
             }
+            alignTicks.erase(alignTicks.begin());
         }
     }
 
@@ -2801,8 +2819,9 @@ int serializeMainData(
     std::vector<uint8_t> mainMemSerializedDescriptors;
     std::array<std::vector<uint8_t>, kPagesForData> inpageSerializedDescriptors;
 
-    int mcTicks1 = multicolorData.data[0].mcStats.virtualTicks;
-    int mcTicks2 = mcTicks1;
+    int mcTicksBottom = multicolorData.data[0].mcStats.virtualTicks;
+    int mcTicksTop = mcTicksBottom;
+    int mcTicksNext = mcTicksBottom;
 
     using namespace std;
     const int imageHeight = data.data.size();
@@ -2886,9 +2905,9 @@ int serializeMainData(
 
         if (flags & twoRastrDescriptors)
         {
-            mcTicks1 = getMainMcTicks(mcToRastrInfo, multicolorData, srcLine);
-            mcTicks2 = getAltMcTicks(mcToRastrInfo, multicolorData, srcLine);
-
+            mcTicksBottom = getMcTicks(mcToRastrInfo, multicolorData, srcLine, Role::regularBottom);
+            mcTicksTop = getMcTicks(mcToRastrInfo, multicolorData, srcLine, Role::regularTop);
+            mcTicksNext = getMcTicks(mcToRastrInfo, multicolorData, srcLine, Role::nextBottom);
         }
 
 
@@ -2915,7 +2934,7 @@ int serializeMainData(
         }
 
         // do Split
-        const int mcDrawTicks = std::max(mcTicks1, mcTicks2);
+        const int mcDrawTicks = std::max(std::max(mcTicksBottom, mcTicksTop), mcTicksNext);
 
         int totalTicks = kLineDurationInTicks * 8;
         int ticksRest = totalTicks - mcDrawTicks;
@@ -3032,7 +3051,7 @@ int serializeMainData(
 
         if (flags & optimizeLineEdge)
             descriptor.rastrForOffscreen.removeTrailingStackMoving();
-        descriptor.rastrForMulticolor.makePreambulaForMC(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank, mcTicks1, mcTicks2);
+        descriptor.rastrForMulticolor.makePreambulaForMC(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, &dataLine, descriptor.pageNum, lineBank, mcTicksBottom, mcTicksTop, mcTicksNext);
         descriptor.rastrForOffscreen.makePreambulaForOffscreen(imageHeight, serializedData[descriptor.pageNum], rastrCodeStartAddr, descriptorsDelta);
 
         descriptor.rastrForMulticolor.descriptorLocationPtr = reachDescriptorsBase + mainMemSerializedDescriptors.size();
@@ -3328,7 +3347,7 @@ int serializeRastrDescriptors(
     int imageHeight = descriptors.size();
 
 
-    ofstream spDeltaFile, offRastrFile, mcRastrFile, mcRastrFileAlt;
+    ofstream spDeltaFile, offRastrFile, mcRastrFileBottom, mcRastrFileTop, mcRastrFileNext;
     {
         std::string fileName = inputFileName + ".sp_delta.descriptors";
         spDeltaFile.open(fileName, std::ios::binary);
@@ -3349,9 +3368,9 @@ int serializeRastrDescriptors(
     }
 
     {
-        std::string fileName = inputFileName + ".mc_rastr.descriptors";
-        mcRastrFile.open(fileName, std::ios::binary);
-        if (!mcRastrFile.is_open())
+        std::string fileName = inputFileName + ".mc_rastr_bottom.descriptors";
+        mcRastrFileBottom.open(fileName, std::ios::binary);
+        if (!mcRastrFileBottom.is_open())
         {
             std::cerr << "Can not write destination file" << fileName << std::endl;
             return -1;
@@ -3359,9 +3378,19 @@ int serializeRastrDescriptors(
     }
 
     {
-        std::string fileName = inputFileName + ".mc_rastr_alt.descriptors";
-        mcRastrFileAlt.open(fileName, std::ios::binary);
-        if (!mcRastrFileAlt.is_open())
+        std::string fileName = inputFileName + ".mc_rastr_top.descriptors";
+        mcRastrFileTop.open(fileName, std::ios::binary);
+        if (!mcRastrFileTop.is_open())
+        {
+            std::cerr << "Can not write destination file" << fileName << std::endl;
+            return -1;
+        }
+    }
+
+    {
+        std::string fileName = inputFileName + ".mc_rastr_next.descriptors";
+        mcRastrFileNext.open(fileName, std::ios::binary);
+        if (!mcRastrFileNext.is_open())
         {
             std::cerr << "Can not write destination file" << fileName << std::endl;
             return -1;
@@ -3373,11 +3402,13 @@ int serializeRastrDescriptors(
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
         
-        uint16_t locationMain = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.mainMcOffset;
-        uint16_t locationAlt = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.altMcOffset;
+        uint16_t locationBottom = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.bottomMcOffset;
+        uint16_t locationTop = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.topMcOffset;
+        uint16_t locationNext = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.nextMcOffset;
         
-        mcRastrFile.write((const char*) &locationMain, 2);
-        mcRastrFileAlt.write((const char*) &locationAlt, 2);
+        mcRastrFileBottom.write((const char*) &locationBottom, 2);
+        mcRastrFileTop.write((const char*) &locationTop, 2);
+        mcRastrFileNext.write((const char*)&locationNext, 2);
     }
 
     for (int i = -7; i < imageHeight + kmaxDescriptorOffset; ++i)
@@ -3467,12 +3498,12 @@ OffscreenTicks getTicksChainFor64Line(
 
 int getMcRastrTicksChainFor64Line(
     const std::vector<LineDescriptor>& descriptors,
-    int screenLineNum, bool isAlt)
+    int screenLineNum, bool isNextFrame)
 {
     const int imageHeight = descriptors.size();
     screenLineNum = screenLineNum % imageHeight;
 
-    if (isAlt)
+    if (isNextFrame)
         screenLineNum = screenLineNum > 0 ? screenLineNum - 1 : imageHeight - 1; //< Go prevLine
 
     const int bankSize = imageHeight / 8;
@@ -3487,7 +3518,7 @@ int getMcRastrTicksChainFor64Line(
 
         auto preambula = d.rastrForMulticolor.preambula;
         preambula.erase(preambula.begin(), preambula.begin() +
-            (isAlt ? d.rastrForMulticolor.altMcOffset : d.rastrForMulticolor.mainMcOffset));
+            (isNextFrame ? d.rastrForMulticolor.nextMcOffset : d.rastrForMulticolor.bottomMcOffset));
         auto info = Z80Parser::parseCode(d.rastrForMulticolor.af, preambula);
 
         result += info.ticks;

@@ -174,41 +174,31 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
 
 }
 
-int getMainMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum)
+int getMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum, Role role)
 {
     int bankNum = lineNum % 8;
     int bankOffset = lineNum / 8;
     const auto& data = info[bankNum][bankOffset];
     for (const auto& v : data)
     {
-        if (v.role == Role::regularBottom)
+        if (v.role == role)
             return multicolor.data[v.mc].mcStats.virtualTicks;
     }
 
+    if (role == Role::regularBottom)
+        role = Role::regularTop;
+    else if (role == Role::regularTop)
+        role = Role::regularBottom;
+    else if (role == Role::nextBottom)
+        role = Role::nextTop;
+    else if (role == Role::nextTop)
+        role = Role::nextBottom;
     for (const auto& v : data)
     {
-        if (v.role == Role::regularTop)
+        if (v.role == role)
             return multicolor.data[v.mc].mcStats.virtualTicks;
     }
 
-    if (data.size() == 2 && data.begin()->mc == data.rbegin()->mc)
-        return multicolor.data[data.begin()->mc].mcStats.virtualTicks;
-
-    std::cerr << "Something wrong! MC ticks not found!" << std::endl;
-    abort();
-    return 0;
-}
-
-int getAltMcTicks(const McToRastrInfo& info, const CompressedData& multicolor, int lineNum)
-{
-    int bankNum = lineNum % 8;
-    int bankOffset = lineNum / 8;
-    const auto& data = info[bankNum][bankOffset];
-    for (const auto& v : data)
-    {
-        if (v.role != Role::regularBottom)
-            return multicolor.data[v.mc].mcStats.virtualTicks;
-    }
     std::cerr << "Something wrong! MC ticks not found!" << std::endl;
     abort();
     return 0;
