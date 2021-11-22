@@ -2486,27 +2486,29 @@ struct DescriptorState
 
         int maxTicks = std::max(std::max(mcTicksBottom, mcTicksTop), mcTicksNext);
         std::vector<TicksInfo> alignTicks;
-        alignTicks.push_back({ maxTicks - mcTicksBottom, &bottomMcOffset });
-        alignTicks.push_back({ maxTicks - mcTicksTop, &topMcOffset });
-        alignTicks.push_back({ maxTicks - mcTicksNext, &nextMcOffset });
+        alignTicks.push_back({ mcTicksBottom, &bottomMcOffset });
+        alignTicks.push_back({ mcTicksTop, &topMcOffset });
+        alignTicks.push_back({ mcTicksNext, &nextMcOffset });
         std::sort(alignTicks.begin(), alignTicks.end());
 
         for (int i = alignTicks.size() - 1; i > 0; --i)
             alignTicks[i].ticks -= alignTicks[i-1].ticks;
         alignTicks[0].ticks = 0;
-
+        
+        std::vector<uint8_t> extraDelayData;
         while (!alignTicks.empty())
         {
             int minTicks = alignTicks[0].ticks;
             if (minTicks > 0)
             {
                 auto mcAlignDelay = Z80Parser::genDelay(minTicks);
-                preambula.insert(preambula.begin(), mcAlignDelay.begin(), mcAlignDelay.end());
+                extraDelayData.insert(extraDelayData.end(), mcAlignDelay.begin(), mcAlignDelay.end());
                 for (const auto& info : alignTicks)
                     *info.role += mcAlignDelay.size();
             }
             alignTicks.erase(alignTicks.begin());
         }
+        preambula.insert(preambula.begin(), extraDelayData.begin(), extraDelayData.end());
     }
 
     void makePreambulaForOffscreen(
