@@ -91,9 +91,11 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
                 std::cout << "-->Next frame\t\t\t";
 
             mc = step / 8;
-            mc += 16;
-
+            mc -= 16;
             mc++;
+
+            if (mc < 0)
+                mc += colorHeight;
             if (mc >= colorHeight)
                 mc -= colorHeight;
 
