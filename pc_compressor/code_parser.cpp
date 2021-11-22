@@ -23,7 +23,7 @@ z80Command Z80Parser::parseCommand(const uint8_t* ptr)
         { 1, 4}, // 0d: dec c
         { 2, 7}, // 0e: ld c,*
         { 1, 4}, // 0f: rrca
-        { 2, -1}, // 10: djnz * (13/8). -1 means unknown ticks
+        { 2, 8}, // 10: djnz * (13/8). -1 means unknown ticks
         { 3, 10}, // 11: ld de,**
         { 1, 7}, // 12: ld (de),a
         { 1, 6}, // 13: inc de
@@ -404,7 +404,11 @@ Z80CodeInfo Z80Parser::parseCode(
             case 0x08: // ex af, af'
                 break;
             case 0x10: // djnz
+            {
+                uint8_t loopCounter = *b->value - 1;
+                result.ticks += int(loopCounter) * 13;
                 break;
+            }
             case 0x0b: bc->decValue(info);
                 break;
             case 0x0c: c->incValue(info);
