@@ -3523,10 +3523,17 @@ int getMcRastrTicksChainFor64Line(
             (isNextFrame ? d.rastrForMulticolor.nextMcOffset : d.rastrForMulticolor.bottomMcOffset));
         auto info = Z80Parser::parseCode(d.rastrForMulticolor.af, preambula);
 
-        result += info.ticks;
-        result -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
-        result += d.rastrForMulticolor.codeInfo.ticks;
+        int r = 42;
+
+        r += info.ticks;
+        r -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
+        r += d.rastrForMulticolor.codeInfo.ticks;
+
+        std::cout << "b=" << b << ", r=" << r << std::endl;
+
+        result += r - 42;
     }
+    std::cout << std::endl;
     return result;
 }
 
@@ -3585,6 +3592,39 @@ int getRealTicksChainForMc(
             mcLine = 0;
     }
     return result;
+}
+
+int line_23_overrun(
+    const std::vector<LineDescriptor>& descriptors,
+    const CompressedData& multicolor,
+    int line)
+{
+    const int imageHeight = descriptors.size();
+    const int colorHeight = imageHeight / 8;
+
+    int prevLine = (line + 1) % imageHeight;
+
+    int line23 = (prevLine + 127) % imageHeight;
+
+    const auto& d = descriptors[line23];
+
+    auto preambula = d.rastrForMulticolor.preambula;
+    preambula.erase(preambula.begin(), preambula.begin() + d.rastrForMulticolor.nextMcOffset);
+    auto info = Z80Parser::parseCode(d.rastrForMulticolor.af, preambula);
+
+    int r = 0;
+    r += info.ticks;
+    r -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
+    r += d.rastrForMulticolor.codeInfo.ticks;
+
+    int multicolorNum = line / 8 - 1;
+    if (multicolorNum < 0)
+        multicolorNum = colorHeight - 1;
+    int mcTicks = multicolor.data[multicolorNum].mcStats.virtualTicks;
+    int dt = mcTicks + r + kRtMcContextSwitchDelay - kLineDurationInTicks * 8;
+    std::cout << "line=" << line << " 23 overrun=" << dt << std::endl;
+    return 0;
+    return dt;
 }
 
 int serializeTimingData(
@@ -3659,7 +3699,10 @@ int serializeTimingData(
             if (line % 8 == 7)
                 ticks += kLineDurationInTicks * 192;
             else
+            {
                 ticks += mcTicks;
+            }
+            ticks += line_23_overrun(descriptors, multicolor, line);
 
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
