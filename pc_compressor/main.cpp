@@ -3594,7 +3594,7 @@ int getRealTicksChainForMc(
     return result;
 }
 
-int line_23_overrun(
+int prev_frame_line_23_overrun(
     const std::vector<LineDescriptor>& descriptors,
     const CompressedData& multicolor,
     int line)
@@ -3617,13 +3617,13 @@ int line_23_overrun(
     r -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
     r += d.rastrForMulticolor.codeInfo.ticks;
 
-    int multicolorNum = line / 8 - 1;
+    int multicolorNum = line / 8;
     if (multicolorNum < 0)
         multicolorNum = colorHeight - 1;
     int mcTicks = multicolor.data[multicolorNum].mcStats.virtualTicks;
     int dt = mcTicks + r + kRtMcContextSwitchDelay - kLineDurationInTicks * 8;
     std::cout << "line=" << line << " 23 overrun=" << dt << std::endl;
-    return 0;
+
     return dt;
 }
 
@@ -3702,7 +3702,7 @@ int serializeTimingData(
             {
                 ticks += mcTicks;
             }
-            ticks += line_23_overrun(descriptors, multicolor, line);
+            ticks += prev_frame_line_23_overrun(descriptors, multicolor, line);
 
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
