@@ -1751,39 +1751,68 @@ bool alignTo4(CompressedLine& line)
 
 }
 
-bool alignTo4(CompressedData& compressedData)
+void align2Lines(CompressedData& multicolor, int l0, int l1)
 {
-    const int imageHeight = compressedData.data.size();
-
-    for (int i = 0; i < imageHeight; ++i)
+    int t0 = multicolor.data[l0].mcStats.virtualTicks;
+    int t1 = multicolor.data[l1].mcStats.virtualTicks;
+    int dt = std::abs(t0 - t1);
+    if (dt > 0 && dt < 4)
     {
-        auto& line = compressedData.data[i];
-        alignTo4(line);
-#if 0
-        int prev = i > 0 ? i - 1 : imageHeight - 1;
-        int next = (i + 1) % imageHeight;
-        int dt1 = std::abs(line.mcStats.virtualTicks - compressedData.data[prev].mcStats.virtualTicks);
-        int dt2 = std::abs(line.mcStats.virtualTicks - compressedData.data[next].mcStats.virtualTicks);
-        //if ((dt1 > 0 && dt1 < 4) || (dt2 > 0 && dt2 < 4))
-
-        if ((dt1 > 0 && dt1 < 4))
-        {
-            alignTo4(line);
-            alignTo4(compressedData.data[prev]);
-            return true;
-        }
-        else if ((dt2 > 0 && dt2 < 4))
-        {
-            alignTo4(line);
-            alignTo4(compressedData.data[next]);
-            return true;
-        }
-#endif
+        if (t1 > t0)
+            alignTo4(multicolor.data[l1]);
+        else
+            alignTo4(multicolor.data[l0]);
     }
-    return false;
+
+    t0 = multicolor.data[l0].mcStats.virtualTicks;
+    t1 = multicolor.data[l1].mcStats.virtualTicks;
+    dt = std::abs(t0 - t1);
+    if (dt > 0 && dt < 4)
+    {
+        alignTo4(multicolor.data[l1]);
+        alignTo4(multicolor.data[l0]);
+    }
 }
 
-int alignMulticolorTimings(int flags, CompressedData& compressedData)
+void align3Lines(CompressedData& multicolor, int l0, int l1, int l2)
+{
+    align2Lines(multicolor, l0, l1);
+    align2Lines(multicolor, l1, l2);
+}
+
+void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
+{
+    const int imageHeight = multicolor.data.size();
+
+    for (const auto& banks : info)
+    {
+        for (const auto& data: banks)
+        {
+            std::set<int> lineSet;
+            std::vector<int> lines;
+            for (const auto& i : data)
+                lineSet.insert(i.mc);
+            for (const auto& i: lineSet)
+                lines.push_back(i);
+
+            if (lines.size() > 3)
+            {
+                std::cerr << "Error while aligning MC ticks" << std::endl;
+                abort();
+            }
+            else if (lines.size() == 3)
+            {
+                align3Lines(multicolor, lines[0], lines[1], lines[2]);
+            }
+            else if (data.size() == 2)
+            {
+                align2Lines(multicolor, lines[0], lines[1]);
+            }
+        }
+    }
+}
+
+int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData& compressedData)
 {
     const int imageHeight = compressedData.data.size();
 
@@ -1913,7 +1942,7 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         for (int i = 0; i < imageHeight; ++i)
             prevTotalTicks += compressedData.data[i].mcStats.virtualTicks;
 
-        while (alignTo4(compressedData));
+        alignTo4(info, compressedData);
 
         int totalTicks = 0;
         for (int i = 0; i < imageHeight; ++i)
@@ -3975,7 +4004,7 @@ int main(int argc, char** argv)
     std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, buffer.data(), &maskColor, imageHeight);
 
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
-    alignMulticolorTimings(flags, multicolorData);
+    alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
