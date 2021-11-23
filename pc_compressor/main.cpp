@@ -1826,29 +1826,6 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         
     }
 
-    if (flags & twoRastrDescriptors)
-    {
-        int prevTotalTicks = 0;
-        for (int i = 0; i < imageHeight; ++i)
-            prevTotalTicks += compressedData.data[i].mcStats.virtualTicks;
-
-        while (alignTo4(compressedData));
-
-        int totalTicks = 0;
-        for (int i = 0; i < imageHeight; ++i)
-            totalTicks += compressedData.data[i].mcStats.virtualTicks;
-        std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
-
-        for (int i = 0; i < imageHeight; ++i)
-        {
-            int endLine = (i + 23) % imageHeight;
-            std::cout << i << ": " << compressedData.data[i].mcStats.pos << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
-                << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
-        }
-
-        return 0;
-    }
-
     int maxVirtualTicks = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
@@ -1901,7 +1878,17 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
             if (beginDelay > 0)
             {
                 // Put delay to the begin only instead begin/end delay if possible.
-                int endLineDelay = maxVirtualTicks - beginDelay - line.mcStats.virtualTicks;
+                int endLineDelay = 0;
+                if ((flags & twoRastrDescriptors))
+                {
+                    int d = (line.mcStats.virtualTicks + beginDelay) % 4;
+                    if (d != 0)
+                        beginDelay += 4 - d;
+                }
+                else
+                {
+                    endLineDelay = maxVirtualTicks - beginDelay - line.mcStats.virtualTicks;
+                }
                 if (line.mcStats.max - line.mcStats.pos >= beginDelay + endLineDelay)
                     beginDelay += endLineDelay;
             }
@@ -1920,19 +1907,35 @@ int alignMulticolorTimings(int flags, CompressedData& compressedData)
         ++i;
     }
 
-
-    // 2. Add delay to the end of lines to make them equal duration
-
-    for (int y = 0; y < compressedData.data.size(); ++y)
+    if (flags & twoRastrDescriptors)
     {
-        auto& line = compressedData.data[y];
+        int prevTotalTicks = 0;
+        for (int i = 0; i < imageHeight; ++i)
+            prevTotalTicks += compressedData.data[i].mcStats.virtualTicks;
 
-        int endLineDelay = maxVirtualTicks - line.mcStats.virtualTicks;
-        const auto delayCode = Z80Parser::genDelay(endLineDelay);
-        line.append(delayCode);
-        line.drawTicks += endLineDelay;
-        line.mcStats.virtualTicks += endLineDelay;
+        while (alignTo4(compressedData));
+
+        int totalTicks = 0;
+        for (int i = 0; i < imageHeight; ++i)
+            totalTicks += compressedData.data[i].mcStats.virtualTicks;
+        std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
     }
+    else
+    {
+        // 2. Add delay to the end of lines to make them equal duration
+
+        for (int y = 0; y < compressedData.data.size(); ++y)
+        {
+            auto& line = compressedData.data[y];
+
+            int endLineDelay = maxVirtualTicks - line.mcStats.virtualTicks;
+            const auto delayCode = Z80Parser::genDelay(endLineDelay);
+            line.append(delayCode);
+            line.drawTicks += endLineDelay;
+            line.mcStats.virtualTicks += endLineDelay;
+        }
+    }
+
     return maxVirtualTicks;
 }
 
@@ -3523,17 +3526,12 @@ int getMcRastrTicksChainFor64Line(
             (isNextFrame ? d.rastrForMulticolor.nextMcOffset : d.rastrForMulticolor.bottomMcOffset));
         auto info = Z80Parser::parseCode(d.rastrForMulticolor.af, preambula);
 
-        int r = 42;
-
+        int r = 0;
         r += info.ticks;
         r -= d.rastrForMulticolor.omitedDataInfo.ticks; //< These ticks are ommited to execute after jump to descriptor.
         r += d.rastrForMulticolor.codeInfo.ticks;
-
-        std::cout << "b=" << b << ", r=" << r << std::endl;
-
-        result += r - 42;
+        result += r;
     }
-    std::cout << std::endl;
     return result;
 }
 
@@ -3622,7 +3620,10 @@ int prev_frame_line_23_overrun(
         multicolorNum = colorHeight - 1;
     int mcTicks = multicolor.data[multicolorNum].mcStats.virtualTicks;
     int dt = mcTicks + r + kRtMcContextSwitchDelay - kLineDurationInTicks * 8;
+
+#ifdef define LOG_DEBUG
     std::cout << "line=" << line << " 23 overrun=" << dt << std::endl;
+#endif
 
     return dt;
 }
@@ -3701,11 +3702,11 @@ int serializeTimingData(
             else
             {
                 ticks += mcTicks;
+                ticks += prev_frame_line_23_overrun(descriptors, multicolor, line);
             }
-            ticks += prev_frame_line_23_overrun(descriptors, multicolor, line);
-
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
+
 
         int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211;
         if (line % 8 == 0)
@@ -3902,12 +3903,6 @@ inline bool ends_with(std::string const& value, std::string const& ending)
 
 int main(int argc, char** argv)
 {
-    #ifdef LOG_DEBUG
-        bool showLog = true;
-    #else
-        bool showLog = false;
-    #endif
-
     using namespace std;
 
     ifstream fileIn;
@@ -3964,12 +3959,12 @@ int main(int argc, char** argv)
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
 
-    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, true);
+    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
 
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks; // | inverseColors;
     //int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
