@@ -1744,7 +1744,7 @@ bool alignTo4(CompressedLine& line)
         return false;
     int delayTicks = 4 - (line.mcStats.virtualTicks % 4) + 4;
     const auto delay = Z80Parser::genDelay(delayTicks);
-    line.push_front(delay);
+    line.append(delay);
     line.mcStats.virtualTicks += delayTicks;
     line.drawTicks += delayTicks;
     return true;
