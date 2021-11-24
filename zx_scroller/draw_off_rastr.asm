@@ -22,6 +22,12 @@ OFF_Iteration?_Step?_JP
                 ld (labelName?), hl
         ENDM
 
+        MACRO RESTORE_OFF_END2 labelName?, labelName2?, value16?
+                ld hl, value16?
+                ld (labelName?), hl
+                ld (labelName2?), hl
+        ENDM
+
         MACRO UPDATE_SP2 l23?, l22?, l21?, l20?, l19?, l18?, l17?,   r0?, r1?, r2?, r3?, r4?, r5?, r6?
                 ld a, high(16384)
 
@@ -107,6 +113,7 @@ L62:            DRAW_OFFSCREEN_LINES 0, 1,  L62
 
 it1_start:      //ld a, 0x50
                 //out (0xfd), a
+it0_line23:     nop
                 DRAW_OFFSCREEN_LINES 0, 16, it1_start
 L71:            DRAW_OFFSCREEN_LINES 0, 8,  L71
 L72:            DRAW_OFFSCREEN_LINES 0, 0,  L72
@@ -115,45 +122,49 @@ L72:            DRAW_OFFSCREEN_LINES 0, 0,  L72
 
 L80:            ld a, 0x54
 it0_end:        out (0xfd), a
+it7_line23:     nop
                 DRAW_OFFSCREEN_LINES 1, 16, L80
 L81:            DRAW_OFFSCREEN_LINES 1, 8,  L81
 L82:            DRAW_OFFSCREEN_LINES 1, 0,  L82
 
 it7_end:        //ld a, 0x54
                 //out (0xfd), a
-                nop
+it6_line23:     nop
                 DRAW_OFFSCREEN_LINES 2, 16, it7_end
 L91:            DRAW_OFFSCREEN_LINES 2, 8,  L91
 L92:            DRAW_OFFSCREEN_LINES 2, 0,  L92
 
 L100            ld a, 0x53
 it6_end:        out (0xfd), a
+it5_line23:     nop
                 DRAW_OFFSCREEN_LINES 3, 16, L100
 L101:           DRAW_OFFSCREEN_LINES 3, 8,  L101
 L102:           DRAW_OFFSCREEN_LINES 3, 0,  L102
 
 it5_end:        //ld a, 0x53
                 //out (0xfd), a
-                nop
+it4_line23:     nop
                 DRAW_OFFSCREEN_LINES 4, 16, it5_end
 L111:           DRAW_OFFSCREEN_LINES 4, 8,  L111
 L112:           DRAW_OFFSCREEN_LINES 4, 0,  L112
 
 L120:           ld a, 0x51
 it4_end:        out (0xfd), a
+it3_line23:     nop
                 DRAW_OFFSCREEN_LINES 5, 16, L120
 L121:           DRAW_OFFSCREEN_LINES 5, 8,  L121
 L122:           DRAW_OFFSCREEN_LINES 5, 0,  L122
 
 it3_end:        //ld a, 0x51
                 //out (0xfd), a
-                nop
+it2_line23:     nop
                 DRAW_OFFSCREEN_LINES 6, 16, it3_end
 L131:           DRAW_OFFSCREEN_LINES 6, 8,  L131
 L132:           DRAW_OFFSCREEN_LINES 6, 0,  L132
 
 L140:           ld a, 0x50
 it2_end:        out (0xfd), a
+it1_line23:     nop
                 DRAW_OFFSCREEN_LINES 7, 16, L140
 L141:           DRAW_OFFSCREEN_LINES 7, 8,  L141
 L142:           DRAW_OFFSCREEN_LINES 7, 0,  L142
@@ -190,6 +201,11 @@ draw_off_rastr_7
                 UPDATE_SP0 OFF_0_6_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,    RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8
 
                 RESTORE_OFF_END it0_end, 0xd3 + 0xfd * 256
+                RESTORE_OFF_END it0_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L81 - it7_line23 - 2) * 256
+                ld (it7_line23), hl
+
                 ld a, 0x54
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
@@ -200,7 +216,11 @@ draw_off_rastr_6
                 UPDATE_SP1 OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,    RASTRS_2,  RASTRS_3,  RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1
                 UPDATE_SP0 OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,    RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8, RASTRS_9
 
-                RESTORE_OFF_END it7_end, 0x31 * 256
+                RESTORE_OFF_END2 it7_end, it7_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L91 - it6_line23 - 2) * 256
+                ld (it6_line23), hl
+
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
@@ -212,6 +232,11 @@ draw_off_rastr_5
 
 
                 RESTORE_OFF_END it6_end, 0xd3 + 0xfd * 256
+                RESTORE_OFF_END  it6_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L101 - it5_line23 - 2) * 256
+                ld (it5_line23), hl
+
                 ld a, 0x53
                 out (0xfd), a
                 START_OFF_DRAWING it5_start
@@ -223,7 +248,11 @@ draw_off_rastr_4
                 UPDATE_SP1 OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,    RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3
                 UPDATE_SP0 OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,    RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11
 
-                RESTORE_OFF_END it5_end,  0x31 * 256
+                RESTORE_OFF_END2 it5_end,  it5_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L111 - it4_line23 - 2) * 256
+                ld (it4_line23), hl
+
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
@@ -234,6 +263,11 @@ draw_off_rastr_3
                 UPDATE_SP0 OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,    RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12
 
                 RESTORE_OFF_END it4_end, 0xd3 + 0xfd * 256
+                RESTORE_OFF_END it4_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L121 - it3_line23 - 2) * 256
+                ld (it3_line23), hl
+
                 ld a, 0x51
                 out (0xfd), a
                 START_OFF_DRAWING it3_start
@@ -245,7 +279,11 @@ draw_off_rastr_2
                 UPDATE_SP1 OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,    RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3,  RASTRS_4, RASTRS_5
                 UPDATE_SP0 OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,    RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13
 
-                RESTORE_OFF_END it3_end, 0x31 * 256
+                RESTORE_OFF_END2 it3_end, it3_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L131 - it2_line23 - 2) * 256
+                ld (it2_line23), hl
+
                 START_OFF_DRAWING it2_start
 
 draw_off_rastr_1
@@ -256,6 +294,11 @@ draw_off_rastr_1
                 UPDATE_SP0 OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP,    RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14
 
                 RESTORE_OFF_END it2_end, 0xd3 + 0xfd * 256
+                RESTORE_OFF_END it2_line23, 0x31 * 256
+
+                ld hl, 0x18 + (L141 - it1_line23 - 2) * 256
+                ld (it1_line23), hl
+
                 ld a, 0x50
                 out (0xfd), a
                 START_OFF_DRAWING it1_start

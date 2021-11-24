@@ -479,7 +479,6 @@ after_draw_line_23
         ld (hl), low(JP_VIA_HL_CODE)
         inc hl
         ld (hl), high(JP_VIA_HL_CODE)
-
 loop1:
         SET_PAGE 6
 
@@ -631,6 +630,9 @@ start_draw_colors0:
 
         ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
+
+        ld hl, 0x18 + (L71 - it0_line23 - 2) * 256
+        ld (it0_line23), hl
 
         ld de, finish_off_drawing_0
         ld h, high(it0_start)
