@@ -1267,57 +1267,9 @@ void swapRegs(Register16& a, Register16& b)
     b.setValue(tmp);
 }
 
-CompressedLine  compressMultiColorsLine(Context srcContext)
+std::tuple<CompressedLine, std::array<Register16, 6>> makeLoadLine(
+    const Context& context, const CompressedLine& line1)
 {
-    /*
-     *      Screen in words [0..15]
-     *       0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
-     *      -------------------------------------------------
-     *      |1 |1 |1 |1 |1 |1 |1 |1 |2 |2 |2 |2 |2 |2 |2 |2 |
-     *      -------------------------------------------------
-     *      Drawing step (1..2): 8, 8 words
-     *
-     *      Input params: SP should point to the lineStart + 16 (8 word),
-     *      IY point to the line end.
-     *      For the most complicated lines it need 3 interval (0..8, 8..13, 13..16)
-     *      but it take more time in general for preparation.
-     */
-
-    CompressedLine result;
-    Context context = srcContext;
-    
-    std::vector<int8_t> sameBytesCopy;
-    if (context.flags & threeStackPos)
-    {
-        sameBytesCopy = *context.sameBytesCount;
-        for (int x = 16; x < 16 + kThirdSpPartSize; ++x)
-            addSameByteToTable(*context.sameBytesCount, context.y, x);
-    }
-
-    context.removeEdge(); //< Fill minX, maxX
-
-    //try 1. Use 3 registers, no intermediate stack correction, use default compressor
-
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
-    CompressedLine line1;
-
-    // This code calculate expected position for register values.
-    // It could fail with this flag. It need to update calculator if use it with this flag.
-    bool success = compressLineMain(context, line1, registers, /*updateViaHlTry*/ false);
-    if (!success)
-    {
-        std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
-        abort();
-    }
-
-    context.lastOddRepPosition = line1.lastOddRepPosition;
-    context.flags = line1.flags;
-
-    if (!(context.flags & oddVerticalCompression))
-        context.minX &= ~1;
-
-    //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
-
     auto hasSameValue =
         [](const auto& registers, uint16_t word)
     {
@@ -1382,6 +1334,63 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
     loadLine += loadLineAlt;
     loadLine.exx();
     loadLine += loadLineMain;
+
+    return { loadLine, registers6 };
+}
+
+CompressedLine  compressMultiColorsLine(Context srcContext)
+{
+    /*
+     *      Screen in words [0..15]
+     *       0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
+     *      -------------------------------------------------
+     *      |1 |1 |1 |1 |1 |1 |1 |1 |2 |2 |2 |2 |2 |2 |2 |2 |
+     *      -------------------------------------------------
+     *      Drawing step (1..2): 8, 8 words
+     *
+     *      Input params: SP should point to the lineStart + 16 (8 word),
+     *      IY point to the line end.
+     *      For the most complicated lines it need 3 interval (0..8, 8..13, 13..16)
+     *      but it take more time in general for preparation.
+     */
+
+    CompressedLine result;
+    Context context = srcContext;
+    
+    std::vector<int8_t> sameBytesCopy;
+    if (context.flags & threeStackPos)
+    {
+        sameBytesCopy = *context.sameBytesCount;
+        for (int x = 16; x < 16 + kThirdSpPartSize; ++x)
+            addSameByteToTable(*context.sameBytesCount, context.y, x);
+    }
+
+    context.removeEdge(); //< Fill minX, maxX
+
+    //try 1. Use 3 registers, no intermediate stack correction, use default compressor
+
+    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    CompressedLine line1;
+
+    // This code calculate expected position for register values.
+    // It could fail with this flag. It need to update calculator if use it with this flag.
+    bool success = compressLineMain(context, line1, registers, /*updateViaHlTry*/ false);
+    if (!success)
+    {
+        std::cerr << "Can't compress multicolor line " << context.y << " It should not be. Some bug." << std::endl;
+        abort();
+    }
+
+    context.lastOddRepPosition = line1.lastOddRepPosition;
+    context.flags = line1.flags;
+
+    if (!(context.flags & oddVerticalCompression))
+        context.minX &= ~1;
+
+    //try 2. Prepare input registers manually, use 'oddVerticalRep' information from auto compressor
+
+
+    auto [loadLine, registers6] = makeLoadLine(context, line1);
 
     // 2.4 start compressor with prepared register values
 
