@@ -1784,16 +1784,36 @@ void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
 {
     const int imageHeight = multicolor.data.size();
 
+    struct LineAndTicks
+    {
+        int lineNum = 0;
+        int ticks = 0;
+
+        bool operator<(const LineAndTicks& other) const
+        {
+            if (ticks != other.ticks)
+                return ticks < other.ticks;
+            return lineNum < other.lineNum;
+        }
+
+        bool operator==(const LineAndTicks& other)
+        {
+            return lineNum == other.lineNum && ticks == other.ticks;
+        }
+
+    };
+
     for (const auto& banks : info)
     {
         for (const auto& data: banks)
         {
-            std::set<int> lineSet;
-            std::vector<int> lines;
-            for (const auto& i : data)
-                lineSet.insert(i.mc);
-            for (const auto& i: lineSet)
-                lines.push_back(i);
+            std::vector<LineAndTicks> lines;
+            for (const auto& i: data)
+                lines.push_back({ i.mc, multicolor.data[i.mc].mcStats.virtualTicks });
+            std::sort(lines.begin(), lines.end());
+            auto last = std::unique(lines.begin(), lines.end());
+            lines.erase(last, lines.end());
+
 
             if (lines.size() > 3)
             {
@@ -1802,11 +1822,11 @@ void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
             }
             else if (lines.size() == 3)
             {
-                align3Lines(multicolor, lines[0], lines[1], lines[2]);
+                align3Lines(multicolor, lines[0].lineNum, lines[1].lineNum, lines[2].lineNum);
             }
             else if (data.size() == 2)
             {
-                align2Lines(multicolor, lines[0], lines[1]);
+                align2Lines(multicolor, lines[0].lineNum, lines[1].lineNum);
             }
         }
     }

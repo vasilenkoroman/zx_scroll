@@ -26,7 +26,7 @@ McToRastrInfo calculateTimingsTable(int imageHeight, bool showLog)
 
     McToRastrInfo banks;
     for (auto& bankData : banks)
-        bankData.resize(imageHeight);
+        bankData.resize(colorHeight);
 
     int step = 0;
     int lastB0 = 0;
