@@ -458,7 +458,7 @@ no:
         pop hl
         ld sp, hl
 
-        ld hl, loop1
+        ld hl, after_draw_line_23
         exx
         ld bc, JP_VIA_HL_CODE
         .2 restore_jp_ix
@@ -466,11 +466,19 @@ no:
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
         .2 restore_jp_ix
-        .2 write_jp_ix_data_via_bc
+        .1 write_jp_ix_data_via_bc
+        exx
+        pop de
+        exx
         // total: 562/560 (with switching page)
         // ------------------------- update jpix table end
         scf
         DRAW_RASTR_LINE_S 23
+after_draw_line_23
+        ex de, hl
+        ld (hl), low(JP_VIA_HL_CODE)
+        inc hl
+        ld (hl), high(JP_VIA_HL_CODE)
 
 loop1:
         SET_PAGE 6
