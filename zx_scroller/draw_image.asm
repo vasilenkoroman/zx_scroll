@@ -161,10 +161,16 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ld (MC_LINE_N? + 1), hl
 
                 // JP XX command+1 address
-                pop hl                          ; 
-                ld (hl), low(MC_LINE_N? + 3)
-                inc hl
-                ld (hl), high(MC_LINE_N? + 3)
+                pop hl
+                if (N? == 23)
+                        ld (hl), low(dec_and_loop)
+                        inc hl
+                        ld (hl), high(dec_and_loop)
+                ELSE
+                        ld (hl), low(MC_LINE_N? + 3)
+                        inc hl
+                        ld (hl), high(MC_LINE_N? + 3)
+                ENDIF
 
                 ; e- first stack moving value, d - 2-nd stack moving to 32, delta of exec address
                 ; The value is relative from the line end
@@ -428,7 +434,9 @@ max_scroll_offset equ imageHeight - 1
         ld bc, 0h                       ; 10  ticks
         jp loop1
 lower_limit_reached:
-        ld iy,  max_scroll_offset       ; 14 ticks
+        ld iy,  max_scroll_offset + 1  ; 14 ticks
+dec_and_loop:
+        dec iy        
 loop:  
         ld bc, iy
 jp_ix_line_delta_in_bank EQU 2 * 6*4
@@ -779,9 +787,6 @@ start_mc_drawing:
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
-
-        dec iy
-        jp loop                        ; 12 ticks
 
 /*********************** routines *************/
 
