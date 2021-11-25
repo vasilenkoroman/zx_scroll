@@ -44,7 +44,7 @@ DEBUG_MODE              EQU 0
         INCLUDE "resources/compressed_data.asm"
 
     org 16384
-    INCBIN "resources/samanasuke.scr", 0, 6144+768
+    INCBIN "resources/witch3.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -390,7 +390,7 @@ main:
 
         //call copy_image
         //call copy_colors
-
+        ld ix, 0xd3 + 0xfd * 256
         call prepare_interruption_table
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
