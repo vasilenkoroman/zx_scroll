@@ -912,6 +912,47 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
+void makePaperAndIncSameIfNeed(uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
+{
+    for (int y = 0; y < imageHeight; y += 8)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            uint8_t* ptr = buffer + y * 32 + x;
+            bool sameIncAndPaper = ptr[0] == 0 || ptr[0] == 0xff;
+            for (int i = 0; i < 256; i += 32)
+            {
+                if (ptr[i] != ptr[0])
+                {
+                    sameIncAndPaper = false;
+                    break;
+                }
+            }
+            if (sameIncAndPaper)
+            {
+                uint8_t* colorPtr = colorBuffer + y / 8 * 32 + x;
+                uint8_t inc = colorPtr[0] & 0x7;
+                uint8_t paper = (colorPtr[0] >> 3) & 0x7;
+                if (inc != paper)
+                {
+                    if (ptr[0] == 0xff)
+                    {
+                        paper = inc;
+                        colorPtr[0] &= ~0x3f;
+                        colorPtr[0] |= inc + (paper << 3);
+                    }
+                    else
+                    {
+                        inc = paper;
+                        colorPtr[0] &= ~0x3f;
+                        colorPtr[0] |= inc + (paper << 3);
+                    }
+                }
+            }
+        }
+    }
+}
+
 Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int8_t>* sameBytesCount = nullptr, int* usageCount = nullptr)
 {
     Register16 af("af");
@@ -1081,14 +1122,19 @@ int sameBytesWithNextBlock(int flags, uint8_t* buffer, int x, int y, int imageHe
     return result;
 }
 
-CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight, std::vector<int8_t> sameBytesCount)
+CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
+    {
+        //makePaperAndIncSameIfNeed(buffer, colorBuffer, imageHeight);
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
+    }
 
+    std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
     result.sameBytesCount = sameBytesCount;
+
 
     if (!(flags & inverseColors))
         return result;
@@ -4027,15 +4073,10 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    std::vector<bool> maskColor;
-    if (flags & skipInvisibleColors)
-        maskColor = removeInvisibleColors(flags, buffer.data(), colorBuffer.data(), imageHeight);
-    std::vector<int8_t> rastrSameBytes = createSameBytesTable(flags, buffer.data(), &maskColor, imageHeight);
-
     CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
-    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight, rastrSameBytes);
+    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
 
 

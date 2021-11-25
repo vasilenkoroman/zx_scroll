@@ -160,7 +160,7 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 pop hl                          
                 ld (MC_LINE_N? + 1), hl
 
-                // JP XX command+1 address
+                // JP XX command+1 address (end addr)
                 pop hl
                 if (N? == 23)
                         ld (hl), low(dec_and_loop)
