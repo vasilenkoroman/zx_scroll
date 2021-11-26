@@ -54,7 +54,8 @@ enum Flags
     updateViaHl = 512,
     OptimizeMcTicks = 1024,
     threeStackPos = 2048,
-    twoRastrDescriptors = 4096
+    twoRastrDescriptors = 4096,
+    updateColorData = 8192,
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -899,7 +900,6 @@ std::future<std::vector<CompressedLine>> compressLinesAsync(const Context& conte
 std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     std::vector<bool> result;
-    bool moveDown = flags & verticalCompressionL;
     for (int y = 0; y < imageHeight / 8; ++y)
     {
         for (int x = 0; x < 32; ++x)
@@ -930,7 +930,14 @@ void makePaperAndIncSameIfNeed(uint8_t* buffer, uint8_t* colorBuffer, int imageH
             }
             if (sameIncAndPaper)
             {
-                uint8_t* colorPtr = colorBuffer + y / 8 * 32 + x;
+                int colorLine = y / 8;
+                int prevLine = colorLine > 0 ? colorLine - 1 : imageHeight / 8 - 1;
+                int nextLine = (colorLine + 1) % (imageHeight / 8);
+                uint8_t* colorPtr = colorBuffer + colorLine * 32 + x;
+
+                //if (colorPtr[0] == colorBuffer[prevLine * 32 + x] || colorPtr[0] == colorBuffer[nextLine * 32 + x])
+                //    continue;
+
                 uint8_t inc = colorPtr[0] & 0x7;
                 uint8_t paper = (colorPtr[0] >> 3) & 0x7;
                 if (inc != paper)
@@ -1126,10 +1133,7 @@ CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, i
 {
     std::vector<bool> maskColor;
     if (flags & skipInvisibleColors)
-    {
-        //makePaperAndIncSameIfNeed(buffer, colorBuffer, imageHeight);
         maskColor = removeInvisibleColors(flags, buffer, colorBuffer, imageHeight);
-    }
 
     std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, &maskColor, imageHeight);
     CompressedData result = compressImageAsync(flags, buffer, &maskColor, &sameBytesCount, imageHeight);
@@ -2043,15 +2047,11 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
     return maxVirtualTicks;
 }
 
-CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
-{
-    // Shuffle source data according to the multicolor drawing:
-    // 32  <------------------16
-    //                        16 <------------------ 0
 
-    std::vector<uint8_t> shufledBuffer(imageHeight * 32);
+void fillShuffledBuffer(uint8_t* shufledBuffer, uint8_t* buffer, int imageHeight)
+{
     uint8_t* src = buffer;
-    uint8_t* dst = shufledBuffer.data();
+    uint8_t* dst = shufledBuffer;
 
     for (int y = 0; y < imageHeight; ++y)
     {
@@ -2067,6 +2067,29 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
             dst++;
             src++;
         }
+    }
+}
+
+CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, uint8_t* rastrBuffer)
+{
+    // Shuffle source data according to the multicolor drawing:
+    // 32  <------------------16
+    //                        16 <------------------ 0
+
+    std::vector<uint8_t> shufledBuffer(imageHeight * 32);
+    std::vector<uint8_t> bufferAlt(imageHeight * 32);
+    std::vector<uint8_t> shufledBufferCopy(imageHeight * 32);
+    std::vector<uint8_t> shufledBufferAlt(imageHeight * 32);
+
+    fillShuffledBuffer(shufledBuffer.data(), buffer, imageHeight);
+
+    if (flags & updateColorData)
+    {
+        // Can change color if all rastr pixels are 0x00 or 0xff
+        memcpy(bufferAlt.data(), buffer, 32 * imageHeight);
+        makePaperAndIncSameIfNeed(rastrBuffer, bufferAlt.data(), imageHeight * 8);
+        fillShuffledBuffer(shufledBufferAlt.data(), bufferAlt.data(), imageHeight);
+        memcpy(shufledBufferCopy.data(), shufledBuffer.data(), imageHeight * 32);
     }
 
     auto suffledPtr = shufledBuffer.data();
@@ -2087,21 +2110,43 @@ CompressedData compressMultiColors(uint8_t* buffer, int imageHeight)
     context.af.isAltAf = true;
 
     CompressedData compressedData;
-    for (int y = 0; y < imageHeight; y++)
+    for (int y = imageHeight-1; y >= 0; --y)
     {
         context.y = y;
         auto line = compressMultiColorsLine(context);
-        /*
-        if (!success)
+
+        if (flags & updateColorData)
         {
-            // Slow mode uses more ticks in general, but draw line under the ray on 34 ticks faster.
-            line = compressMultiColorsLine(linePtr, nextLinePtr, generatedCodeAddress, &success, true );
-            // Slow mode currently uses 6 registers and it is not enough 12 more ticks without compression.
-            // If it fail again it need to use more registers. It need to add AF/AF' at this case.
-            assert(success);
+            memcpy(shufledBuffer.data() + y * 32, shufledBufferAlt.data() + y * 32, 32);
+            sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
+            context.sameBytesCount = &sameBytesCount;
+
+            auto lineAlt = compressMultiColorsLine(context);
+
+            if (lineAlt.drawTicks <= line.drawTicks)
+            {
+                memcpy(buffer + y * 32, bufferAlt.data() + y * 32, 32);
+                compressedData.data.insert(compressedData.data.begin(), lineAlt);
+            }
+            else
+            {
+                memcpy(shufledBuffer.data() + y * 32, shufledBufferCopy.data() + y * 32, 32);
+                sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
+                context.sameBytesCount = &sameBytesCount;
+                compressedData.data.insert(compressedData.data.begin(), line);
+            }
         }
-        */
-        compressedData.data.push_back(line);
+        else
+        {
+            compressedData.data.insert(compressedData.data.begin(), line);
+        }
+    }
+    
+    if (flags & updateColorData)
+    {
+        context.y = imageHeight - 1;
+        auto line = compressMultiColorsLine(context);
+        compressedData.data[context.y] = line;
     }
 
     compressedData.sameBytesCount = sameBytesCount;
@@ -4068,17 +4113,16 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks; // | inverseColors;
-    //int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | OptimizeMcTicks; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
-    CompressedData multicolorData = compressMultiColors(colorBuffer.data(), imageHeight / 8);
+    auto colorBufferData = colorBuffer.data();
+    CompressedData multicolorData = compressMultiColors(flags, colorBuffer.data(), imageHeight / 8, buffer.data());
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
-    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
-
+    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
 
     const auto t2 = std::chrono::system_clock::now();
 
