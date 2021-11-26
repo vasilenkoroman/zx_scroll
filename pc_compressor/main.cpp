@@ -4078,11 +4078,8 @@ int main(int argc, char** argv)
 
     int imageHeight = 192 * fileCount;
 
-    std::vector<uint8_t> buffer(fileCount * 6144);
-    std::vector<uint8_t> colorBuffer(fileCount * 768);
-
-    uint8_t* bufferPtr = buffer.data();
-    uint8_t* colorBufferPtr = colorBuffer.data();
+    std::vector<uint8_t> buffer;
+    std::vector<uint8_t> colorBuffer;
 
     for (int i = 1; i <= fileCount; ++i)
     {
@@ -4094,14 +4091,35 @@ int main(int argc, char** argv)
             return -1;
         }
 
-        fileIn.read((char*)bufferPtr, 6144);
-        fileIn.read((char*)colorBufferPtr, 768);
-        inverseImageIfNeed(bufferPtr, colorBufferPtr);
+        fileIn.seekg(0, ios::end);
+        int fileSize = fileIn.tellg();
+        fileIn.seekg(0, ios::beg);
 
-        bufferPtr += 6144;
-        colorBufferPtr += 768;
+        const int minBlockSize = 2048 + 2048 / 8;
+        if (fileSize % minBlockSize || fileSize <= 0)
+        {
+            std::cerr << "Unexpected file size " << fileSize << ". Each block should be aligned at 64 lines" << std::endl;
+        }
+
+        int blocks = fileSize / minBlockSize;
+
+        int oldRastrSize = buffer.size();
+        buffer.resize(buffer.size() + blocks * 2048);
+        uint8_t* rastrPtr = buffer.data() + oldRastrSize;
+        fileIn.read((char*) rastrPtr, blocks * 2048);
+
+        int oldColorSize = colorBuffer.size();
+        colorBuffer.resize(colorBuffer.size() + blocks * 256);
+        uint8_t* colorPtr = colorBuffer.data() + oldColorSize;
+        fileIn.read((char*)colorPtr, blocks * 256);
         fileIn.close();
     }
+
+    inverseImageIfNeed(buffer.data(), colorBuffer.data());
+
+    std::ofstream firstScreenFile;
+    firstScreenFile.open(outputFileName + "_first_screen.scr", std::ios::binary);
+    firstScreenFile.write((const char*) buffer.data() + buffer.size() - 6144, 6144);
 
     int codeOffset = sldFileName.empty() ? kDefaultCodeOffset : parseSldFile(sldFileName);
 
@@ -4117,8 +4135,12 @@ int main(int argc, char** argv)
 
     const auto t1 = std::chrono::system_clock::now();
 
-    auto colorBufferData = colorBuffer.data();
     CompressedData multicolorData = compressMultiColors(flags, colorBuffer.data(), imageHeight / 8, buffer.data());
+
+    auto colorBufferCopy = colorBuffer;
+    mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
+    firstScreenFile.write((const char*)colorBufferCopy.data() + colorBufferCopy.size() - 768, 768);
+
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
