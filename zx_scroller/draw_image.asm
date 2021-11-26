@@ -331,13 +331,13 @@ create_write_off_rastr_helper
 //d1      equ     17 + 15+21+11+15+14
 d1      equ     15+21+11+15+14 + 7 - 5
 d2      equ     16
-d3      equ     20+10+11+12
+d3      equ     20+10+11+12+8
 
 base
 delay   xor     a               ; 4
-        or      h               ; 4
+        or      b               ; 4
         jr      nz,wait1        ; 12/7  20/15
-        ld      a,l             ; 4
+        ld      a,c             ; 4
         sub     d1              ; 7
         ld      hl,high(base)*256 + d2      ; 10    21
 wait2   sub     l               ; 4
@@ -355,8 +355,9 @@ table
         db      low(t25), low(t26), low(t27)
 table_end
 
-wait1   ld      de,-d3          ; 10
-        add     hl,de           ; 11
+wait1   ld      hl,-d3          ; 10
+        add     hl,bc           ; 11
+        ld      bc, hl
         jr      delay           ; 12    33
 
 t24     nop
@@ -411,7 +412,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42709 + 6
+fixed_startup_delay     equ 42719 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -632,6 +633,11 @@ start_draw_colors0:
         ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
 
+        ld hl, timings_data
+        add hl, bc
+        ld sp, hl
+        pop bc
+
         ld de, finish_off_drawing_0
         ld h, high(it0_start)
         jp it0_start
@@ -749,11 +755,8 @@ bank_drawing_common:
         ld (next_step_first_bank + 1), a
 bank_drawing_common2:
         ; delay
-        ld hl, timings_data
-        add hl, bc
-        ld sp, hl
-        pop hl
         DO_DELAY
+
 
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
@@ -954,24 +957,17 @@ t4                      EQU t3
 
 
 /*************** Image data. ******************/
-        ASSERT $ <= 28500
-         ORG 28500
+        ASSERT $ <= 28450
+         ORG 28450
 generated_code:
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-timings_data
-        INCBIN "resources/compressed_data.timings"
-timings_data_end
 update_jpix_helper
         INCBIN "resources/compressed_data.update_jpix_helper"
-/*
-src_data
-        INCBIN "resources/samanasuke.bin", 0, 6144
-color_data:
-        INCBIN "resources/samanasuke.bin", 6144, 768
-*/	
+
+        ASSERT $ < 0xc000
 
 jpix_table EQU 0xc000
 
@@ -1016,6 +1012,10 @@ mc_rastr_descriptors_next
         INCBIN "resources/compressed_data.mc_rastr_next.descriptors"
 mc_descriptors
         INCBIN "resources/compressed_data.mc_descriptors"
+
+timings_data
+        INCBIN "resources/compressed_data.timings"
+timings_data_end
 
 data_end:
 
