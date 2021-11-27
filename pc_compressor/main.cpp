@@ -1234,7 +1234,7 @@ void finalizeLine(
 
     // Calculate line min and max draw delay (point 0 is the ray in the begin of a line)
 
-    if (context.y == 23)
+    if (context.y == 5)
     {
         int gg = 4;
     }
@@ -1243,8 +1243,8 @@ void finalizeLine(
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'")
     };
-    int extraDelay = 0;
     Z80Parser parser;
+    int extraDelay = std::numeric_limits<int>::min();
     int maxRayDelay = std::numeric_limits<int>::max();
     auto timingInfo = parser.parseCode(
         context.af,
@@ -1262,18 +1262,21 @@ void finalizeLine(
             int rightBorder = 32;
             static const int kInitialSpOffset = 16;
             int rayTicks = (kInitialSpOffset + info.spOffset) * kTicksOnScreenPerByte;
-            if (info.ticks < rayTicks)
+
+            int delay = rayTicks - info.ticks;
+            extraDelay = std::max(extraDelay, delay);
+
+            if (info.ticks >= rayTicks)
             {
-                int delay = rayTicks - info.ticks;
-                extraDelay = std::max(extraDelay, delay);
-            }
-            else
-            {
-                maxRayDelay = std::min(maxRayDelay, rayTicks + 224 - 8 - (info.ticks + command.ticks));
+                delay = rayTicks + 224 - 8 - (info.ticks + command.ticks);
+                if (info.spOffset == 2 && context.maxX < 31)
+                    delay += 8; //< Last byte of a line is not updated. Can override it under ray.
+                maxRayDelay = std::min(maxRayDelay, delay);
             }
 
             return false;
         });
+
     result.mcStats.min = extraDelay;
     if (maxRayDelay < result.mcStats.max)
         result.mcStats.max = maxRayDelay;
@@ -1470,6 +1473,11 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
     }
     else
     {
+        if (context.y == 5)
+        {
+            int gg = 4;
+        }
+
         if (drawTicks > t2)
         {
             std::cerr << "ERROR: Line " << context.y << ". Not enough " << drawTicks - t2 << " ticks for first 2 piece in 3 piece mode. " << std::endl;
@@ -1777,6 +1785,14 @@ bool rebalanceStep(CompressedData& compressedData)
         auto& line = compressedData.data[i];
         auto& nextLine = compressedData.data[nextIndex];
 
+        if (nextLine.mcStats.pos > nextLine.mcStats.max)
+        {
+            ++line.mcStats.virtualTicks;
+            --nextLine.mcStats.virtualTicks;
+            --nextLine.mcStats.pos;
+            return true;
+        }
+
         // try to reduce max tics, next line will be drawn later
         int available = nextLine.mcStats.max - nextLine.mcStats.pos;
         if (available > 0
@@ -1784,10 +1800,11 @@ bool rebalanceStep(CompressedData& compressedData)
             && line.mcStats.virtualTicks - nextLine.mcStats.virtualTicks > 1)
         {
             --line.mcStats.virtualTicks;
-            ++nextLine.mcStats.pos;
             ++nextLine.mcStats.virtualTicks;
+            ++nextLine.mcStats.pos;
             return true;
         }
+
     }
     return false;
 }
