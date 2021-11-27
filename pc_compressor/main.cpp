@@ -1277,12 +1277,6 @@ void finalizeLine(
     result.mcStats.min = extraDelay;
     if (maxRayDelay < result.mcStats.max)
         result.mcStats.max = maxRayDelay;
-
-    if (result.mcStats.min > result.mcStats.max)
-    {
-        std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcStats. min= " << result.mcStats.min << " is bigger than max=" << result.mcStats.max << std::endl;
-        //abort();
-    }
 }
 
 int getDrawTicks(const CompressedLine& pushLine)
@@ -1536,6 +1530,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
             abort();
         }
     }
+
     return result;
 }
 
@@ -2126,19 +2121,21 @@ CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, 
             if (lineAlt.drawTicks <= line.drawTicks)
             {
                 memcpy(buffer + y * 32, bufferAlt.data() + y * 32, 32);
-                compressedData.data.insert(compressedData.data.begin(), lineAlt);
+                line = lineAlt;
             }
             else
             {
                 memcpy(shufledBuffer.data() + y * 32, shufledBufferCopy.data() + y * 32, 32);
                 sameBytesCount = createSameBytesTable(context.flags, shufledBuffer.data(), /*maskColors*/ nullptr, imageHeight);
                 context.sameBytesCount = &sameBytesCount;
-                compressedData.data.insert(compressedData.data.begin(), line);
             }
         }
-        else
+
+        compressedData.data.insert(compressedData.data.begin(), line);
+        if (line.mcStats.min > line.mcStats.max)
         {
-            compressedData.data.insert(compressedData.data.begin(), line);
+            std::cerr << "Something wrong. Multicolor line #" << context.y << ". Wrong mcStats. min= " << line.mcStats.min << " is bigger than max=" << line.mcStats.max << std::endl;
+            //abort();
         }
     }
     
