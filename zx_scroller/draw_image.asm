@@ -22,6 +22,7 @@ color_addr:     equ 5800h
 screen_end:     equ 5b00h
 start:          equ 5e00h
 
+jpix_table EQU 0xc000
 
 draw_offrastr_offset    equ screen_end
 draw_offrastr_off_end   equ screen_end + 16
@@ -967,32 +968,40 @@ multicolor_code
 update_jpix_helper
         INCBIN "resources/compressed_data.update_jpix_helper"
 
+main_page_data_end
+
+fix128k_script
+        incbin "fix128.C"
+fix128k_script_end
+        
         ASSERT $ < 0xc000
-
-jpix_table EQU 0xc000
-
         ORG 0xc000
         PAGE 0
         INCBIN "resources/compressed_data.jpix0"
         INCBIN "resources/compressed_data.main0"
         INCBIN "resources/compressed_data.reach_descriptor0"
+page0_end
+
         ORG 0xc000
         PAGE 1
         INCBIN "resources/compressed_data.jpix1"
         INCBIN "resources/compressed_data.main1"
         INCBIN "resources/compressed_data.reach_descriptor1"
+page1_end
 
         ORG 0xc000
         PAGE 3
         INCBIN "resources/compressed_data.jpix2"
         INCBIN "resources/compressed_data.main2"
         INCBIN "resources/compressed_data.reach_descriptor2"
+page3_end        
 
         ORG 0xc000
         PAGE 4
         INCBIN "resources/compressed_data.jpix3"
         INCBIN "resources/compressed_data.main3"
         INCBIN "resources/compressed_data.reach_descriptor3"
+page4_end        
 
         ORG 0xc000
         PAGE 6
@@ -1016,6 +1025,7 @@ mc_descriptors
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
+page6_end
 
 data_end:
 
@@ -1028,3 +1038,22 @@ imageHeight     equ (timings_data_end - timings_data) / 2
 
     SAVESNA "build/draw_image.sna", main
     savetap "build/draw_image.tap", main
+
+
+        EMPTYTRD "build/scroller.trd" ;create empty TRD image
+
+        SAVETRD "build/scroller.trd","screen.C", 16384, 6144+768 
+        SAVETRD "build/scroller.trd","main.C", start, main_page_data_end - start 
+
+        SAVETRD "build/scroller.trd","fix128.C", fix128k_script, fix128k_script_end - fix128k_script  
+
+        PAGE 0
+        SAVETRD "build/scroller.trd","data0.C", $C000, page0_end - $C000
+        PAGE 1
+        SAVETRD "build/scroller.trd","data1.C",$C000, page1_end - $C000
+        PAGE 3
+        SAVETRD "build/scroller.trd","data3.C",$C000, page3_end - $C000
+        PAGE 4
+        SAVETRD "build/scroller.trd","data4.C",$C000, page4_end - $C000
+        PAGE 6
+        SAVETRD "build/scroller.trd","data7.C", $C000, page6_end - $C000
