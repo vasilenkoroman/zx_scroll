@@ -1,3 +1,0 @@
-COLOR_REG_AF2             EQU    19275
-FIRST_LINE_DELAY          EQU    0
-UNSTABLE_STACK_POS        EQU    1

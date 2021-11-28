@@ -2999,7 +2999,7 @@ int serializeMainData(
     std::array<ofstream, kPagesForData> inpageDescrDataFiles;
     for (int i = 0; i < kPagesForData; ++i)
     {
-        std::string fileName = inputFileName + ".main" + std::to_string(i);
+        std::string fileName = inputFileName + "main" + std::to_string(i) + ".z80";
         mainDataFiles[i].open(fileName, std::ios::binary);
         if (!mainDataFiles[i].is_open())
         {
@@ -3007,7 +3007,7 @@ int serializeMainData(
             return -1;
         }
 
-        fileName = inputFileName + ".reach_descriptor" + std::to_string(i);
+        fileName = inputFileName + "reach_descriptor" + std::to_string(i) + ".z80";
         inpageDescrDataFiles[i].open(fileName, std::ios::binary);
         if (!inpageDescrDataFiles[i].is_open())
         {
@@ -3017,7 +3017,7 @@ int serializeMainData(
     }
 
     ofstream reachDescriptorFile;
-    std::string reachDescriptorFileName = inputFileName + ".mt_and_rt_reach.descriptor";
+    std::string reachDescriptorFileName = inputFileName + "mt_and_rt_reach_descriptor.z80";
     reachDescriptorFile.open(reachDescriptorFileName, std::ios::binary);
     if (!reachDescriptorFile.is_open())
     {
@@ -3276,7 +3276,7 @@ int serializeColorData(
     int imageHeight = colorData.data.size();
 
     ofstream colorDataFile;
-    std::string colorDataFileName = inputFileName + ".color";
+    std::string colorDataFileName = inputFileName + "color.z80";
     colorDataFile.open(colorDataFileName, std::ios::binary);
     if (!colorDataFile.is_open())
     {
@@ -3285,7 +3285,7 @@ int serializeColorData(
     }
 
     ofstream descriptorFile;
-    std::string descriptorFileName = inputFileName + ".color_descriptor";
+    std::string descriptorFileName = inputFileName + "color_descriptor.dat";
     descriptorFile.open(descriptorFileName, std::ios::binary);
     if (!descriptorFile.is_open())
     {
@@ -3388,7 +3388,7 @@ void serializeAsmFile(
     using namespace std;
 
     ofstream phaseFile;
-    std::string phaseFileName = inputFileName + ".asm";
+    std::string phaseFileName = inputFileName + "labels.asm";
     phaseFile.open(phaseFileName);
     if (!phaseFile.is_open())
     {
@@ -3413,7 +3413,7 @@ int serializeMultiColorData(
     using namespace std;
 
     ofstream colorDataFile;
-    std::string colorDataFileName = inputFileName + ".multicolor";
+    std::string colorDataFileName = inputFileName + "multicolor.z80";
     colorDataFile.open(colorDataFileName, std::ios::binary);
     if (!colorDataFile.is_open())
     {
@@ -3490,7 +3490,7 @@ int serializeMultiColorData(
     }
 
     ofstream file;
-    std::string fileName = inputFileName + ".mc_descriptors";
+    std::string fileName = inputFileName + "mc_descriptors.dat";
     file.open(fileName, std::ios::binary);
     if (!file.is_open())
     {
@@ -3517,7 +3517,7 @@ int serializeRastrDescriptors(
 
     ofstream spDeltaFile, offRastrFile, mcRastrFileBottom, mcRastrFileTop, mcRastrFileNext;
     {
-        std::string fileName = inputFileName + ".sp_delta.descriptors";
+        std::string fileName = inputFileName + "sp_delta_descriptors.dat";
         spDeltaFile.open(fileName, std::ios::binary);
         if (!spDeltaFile.is_open())
         {
@@ -3526,7 +3526,7 @@ int serializeRastrDescriptors(
         }
     }
     {
-        std::string fileName = inputFileName + ".off_rastr.descriptors";
+        std::string fileName = inputFileName + "off_rastr_descriptors.dat";
         offRastrFile.open(fileName, std::ios::binary);
         if (!offRastrFile.is_open())
         {
@@ -3536,7 +3536,7 @@ int serializeRastrDescriptors(
     }
 
     {
-        std::string fileName = inputFileName + ".mc_rastr_bottom.descriptors";
+        std::string fileName = inputFileName + "mc_rastr_bottom_descriptors.dat";
         mcRastrFileBottom.open(fileName, std::ios::binary);
         if (!mcRastrFileBottom.is_open())
         {
@@ -3546,7 +3546,7 @@ int serializeRastrDescriptors(
     }
 
     {
-        std::string fileName = inputFileName + ".mc_rastr_top.descriptors";
+        std::string fileName = inputFileName + "mc_rastr_top_descriptors.dat";
         mcRastrFileTop.open(fileName, std::ios::binary);
         if (!mcRastrFileTop.is_open())
         {
@@ -3556,7 +3556,7 @@ int serializeRastrDescriptors(
     }
 
     {
-        std::string fileName = inputFileName + ".mc_rastr_next.descriptors";
+        std::string fileName = inputFileName + "mc_rastr_next_descriptors.dat";
         mcRastrFileNext.open(fileName, std::ios::binary);
         if (!mcRastrFileNext.is_open())
         {
@@ -3807,7 +3807,7 @@ int serializeTimingData(
 
 
     ofstream timingDataFile;
-    std::string timingDataFileName = inputFileName + ".timings";
+    std::string timingDataFileName = inputFileName + "timings.dat";
     timingDataFile.open(timingDataFileName, std::ios::binary);
     if (!timingDataFile.is_open())
     {
@@ -3953,7 +3953,7 @@ int serializeJpIxDescriptors(
     std::array<ofstream, kPagesForData> jpIxDescriptorFiles;
     for (int i = 0; i < kPagesForData; ++i)
     {
-        std::string jpIxDescriptorFileName = inputFileName + ".jpix" + std::to_string(i);
+        std::string jpIxDescriptorFileName = inputFileName + "jpix" + std::to_string(i) + ".dat";
         jpIxDescriptorFiles[i].open(jpIxDescriptorFileName, std::ios::binary);
         if (!jpIxDescriptorFiles[i].is_open())
         {
@@ -3981,7 +3981,7 @@ int serializeJpIxDescriptors(
 #ifdef CREATE_JPIX_HELPER
     ofstream updateJpixHelper;
     {
-        std::string fileName = inputFileName + ".update_jpix_helper";
+        std::string fileName = inputFileName + "update_jpix_helper.dat";
         updateJpixHelper.open(fileName, std::ios::binary);
         if (!updateJpixHelper.is_open())
         {
@@ -4091,6 +4091,8 @@ int main(int argc, char** argv)
         outputFileName = sldFileName;
         sldFileName.clear();
     }
+    if (!ends_with(outputFileName, "\\") && !ends_with(outputFileName, "/"))
+        outputFileName += "/";
 
 
     int imageHeight = 192 * fileCount;
@@ -4135,13 +4137,13 @@ int main(int argc, char** argv)
     inverseImageIfNeed(buffer.data(), colorBuffer.data());
 
     std::ofstream firstScreenFile;
-    firstScreenFile.open(outputFileName + "_first_screen.scr", std::ios::binary);
+    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
     firstScreenFile.write((const char*) buffer.data() + buffer.size() - 6144, 6144);
 
     int codeOffset = sldFileName.empty() ? kDefaultCodeOffset : parseSldFile(sldFileName);
 
     deinterlaceBuffer(buffer);
-    writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + ".bmp");
+    writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + "image.bmp");
 
     const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
 

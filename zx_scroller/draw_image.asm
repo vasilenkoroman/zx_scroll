@@ -34,10 +34,10 @@ stack_top               equ stack_bottom + STACK_SIZE * 2  ; [18..25]
 
 runtime_var_end         equ stack_top + 4                  ; [30]
 
-        INCLUDE "resources/compressed_data.asm"
+        INCLUDE "generated_code/labels.asm"
 
     org 16384
-    INCBIN "resources/compressed_data_first_screen.scr", 0, 6144+768
+    INCBIN "generated_code/first_screen.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -942,67 +942,65 @@ move_code
 
 /*************** Image data. ******************/
         ORG 0x8000
-        INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
+        INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
 multicolor_code
-        INCBIN "resources/compressed_data.multicolor"
+        INCBIN "generated_code/multicolor.z80"
+main_page_data_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
-
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
-        //INCBIN "resources/compressed_data.update_jpix_helper"   ; TODO: can be generated at startup
-
-main_page_data_end
+        //INCBIN "generated_code/update_jpix_helper.dat"   ; TODO: can be generated at startup
 
         ASSERT $ < 0xc000
         ORG 0xc000
         PAGE 0
-        INCBIN "resources/compressed_data.jpix0"
-        INCBIN "resources/compressed_data.main0"
-        INCBIN "resources/compressed_data.reach_descriptor0"
+        INCBIN "generated_code/jpix0.dat"
+        INCBIN "generated_code/main0.z80"
+        INCBIN "generated_code/reach_descriptor0.z80"
 page0_end
 
         ORG 0xc000
         PAGE 1
-        INCBIN "resources/compressed_data.jpix1"
-        INCBIN "resources/compressed_data.main1"
-        INCBIN "resources/compressed_data.reach_descriptor1"
+        INCBIN "generated_code/jpix1.dat"
+        INCBIN "generated_code/main1.z80"
+        INCBIN "generated_code/reach_descriptor1.z80"
 page1_end
 
         ORG 0xc000
         PAGE 3
-        INCBIN "resources/compressed_data.jpix2"
-        INCBIN "resources/compressed_data.main2"
-        INCBIN "resources/compressed_data.reach_descriptor2"
+        INCBIN "generated_code/jpix2.dat"
+        INCBIN "generated_code/main2.z80"
+        INCBIN "generated_code/reach_descriptor2.z80"
 page3_end        
 
         ORG 0xc000
         PAGE 4
-        INCBIN "resources/compressed_data.jpix3"
-        INCBIN "resources/compressed_data.main3"
-        INCBIN "resources/compressed_data.reach_descriptor3"
+        INCBIN "generated_code/jpix3.dat"
+        INCBIN "generated_code/main3.z80"
+        INCBIN "generated_code/reach_descriptor3.z80"
 page4_end        
 
         ORG 0xc000
         PAGE 6
 color_code
-        INCBIN "resources/compressed_data.color"
+        INCBIN "generated_code/color.z80"
 color_descriptor
-        INCBIN "resources/compressed_data.color_descriptor"
+        INCBIN "generated_code/color_descriptor.dat"
 off_rastr_descriptors
-        INCBIN "resources/compressed_data.off_rastr.descriptors"
+        INCBIN "generated_code/off_rastr_descriptors.dat"
 off_rastr_sp_delta
-        INCBIN "resources/compressed_data.sp_delta.descriptors"
+        INCBIN "generated_code/sp_delta_descriptors.dat"
 mc_rastr_descriptors_bottom
-        INCBIN "resources/compressed_data.mc_rastr_bottom.descriptors"
+        INCBIN "generated_code/mc_rastr_bottom_descriptors.dat"
 mc_rastr_descriptors_top
-        INCBIN "resources/compressed_data.mc_rastr_top.descriptors"
+        INCBIN "generated_code/mc_rastr_top_descriptors.dat"
 mc_rastr_descriptors_next
-        INCBIN "resources/compressed_data.mc_rastr_next.descriptors"
+        INCBIN "generated_code/mc_rastr_next_descriptors.dat"
 mc_descriptors
-        INCBIN "resources/compressed_data.mc_descriptors"
+        INCBIN "generated_code/mc_descriptors.dat"
 
 timings_data
-        INCBIN "resources/compressed_data.timings"
+        INCBIN "generated_code/timings.dat"
 timings_data_end
 
 page6_end
