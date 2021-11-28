@@ -21,7 +21,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6200h
-generated_code          equ 27700
+generated_code          equ 27800
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -345,10 +345,23 @@ BEGIN   DISP runtime_var_end
 
 /*************** Main. ******************/
         // move main data block
-        LD HL, 32768
+ram2_size       EQU main_page_data_end - 32768        
+        LD HL, main_page_data_end-1
+        LD DE, update_jpix_helper-1
+        LD BC, ram2_size
+        LDDR
+
+        LD HL, update_jpix_helper - ram2_size
         LD DE, generated_code
-        LD BC, main_page_data_end - 32768
-        LDIR 
+        LD BC, ram2_size
+        LDIR
+
+/*
+        // unpack main data block (page2)
+        LD HL, update_jpix_helper - ram2_size
+        LD DE, generated_code
+        CALL  dzx0_standard
+*/        
 
         ld sp, stack_top
         call create_jpix_helper
@@ -928,6 +941,7 @@ t4                      EQU t3
         ret
 
         INCLUDE "draw_off_rastr.asm"
+        INCLUDE "zx0_standard.asm"
 
         ASSERT $ < generated_code
 
@@ -942,8 +956,10 @@ move_code
 
 /*************** Image data. ******************/
         ORG 0x8000
+        PAGE 2
         INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         INCBIN "generated_code/multicolor.z80"
+        //INCBIN "generated_code/ram2.zx0"
 main_page_data_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
