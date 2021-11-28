@@ -21,7 +21,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6200h
-generated_code          equ 27750
+generated_code          equ 27700
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -32,9 +32,7 @@ STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ color_data_to_restore + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [18..25]
 
-SET_PAGE_HELPER         EQU screen_end + 0x50              ; [80..87]
-SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
-runtime_var_end         EQU SET_PAGE_HELPER_END
+runtime_var_end         equ stack_top + 4                  ; [30]
 
         INCLUDE "resources/compressed_data.asm"
 
@@ -267,18 +265,13 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
-        MACRO set_page_by_logical_num
+        MACRO set_page_by_bank
                 ; a - bank number
+                rra
                 cp 2
                 ccf
                 adc 0x50
                 out (0xfd), a
-        ENDM
-
-        MACRO set_page_by_bank
-                ; a - bank number
-                rra
-                set_page_by_logical_num
         ENDM
 
 /************** delay routine *************/
@@ -344,7 +337,6 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-
         org start
 
         JP move_code
@@ -368,13 +360,11 @@ first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
 ticks_per_line                  equ  224
 
-
-        call create_page_helper
         call create_write_off_rastr_helper
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31942 + 6
+fixed_startup_delay     equ 31838 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -756,21 +746,6 @@ start_mc_drawing:
 /********************************** routines ******************************/
 
         INCLUDE "alignint.asm"
-
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-
-        ret
 
 create_write_off_rastr_helper
         //ld (draw_offrastr_offset), hl ; value 0 is not used not used

@@ -20,7 +20,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 27750;
+static const int kDefaultCodeOffset = 27700;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
