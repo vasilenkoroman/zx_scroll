@@ -971,7 +971,7 @@ update_jpix_helper
 main_page_data_end
 
 fix128k_script
-        incbin "fix128.C"
+        incbin "fix128k.C"
 fix128k_script_end
         
         ASSERT $ < 0xc000
@@ -1045,7 +1045,7 @@ imageHeight     equ (timings_data_end - timings_data) / 2
         SAVETRD "build/scroller.trd","screen.C", 16384, 6144+768 
         SAVETRD "build/scroller.trd","main.C", start, main_page_data_end - start 
 
-        SAVETRD "build/scroller.trd","fix128.C", fix128k_script, fix128k_script_end - fix128k_script  
+        SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, fix128k_script_end - fix128k_script  
 
         PAGE 0
         SAVETRD "build/scroller.trd","data0.C", $C000, page0_end - $C000
