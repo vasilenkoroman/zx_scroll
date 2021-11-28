@@ -4067,6 +4067,12 @@ inline bool ends_with(std::string const& value, std::string const& ending)
 }
 
 
+void runCompressor(const std::string& outFileName)
+{
+    const auto command = outFileName + "compress.bat";
+    system(command.data());
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -4216,5 +4222,8 @@ int main(int argc, char** argv)
 
     int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags);
     serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
+
+    runCompressor(outputFileName);
+
     return 0;
 }

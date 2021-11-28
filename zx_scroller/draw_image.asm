@@ -943,7 +943,6 @@ move_code
 /*************** Image data. ******************/
         ORG 0x8000
         INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
-multicolor_code
         INCBIN "generated_code/multicolor.z80"
 main_page_data_end
 
