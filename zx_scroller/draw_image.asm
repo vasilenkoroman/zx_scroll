@@ -17,30 +17,24 @@
  **/
 
 
-screen_addr:    equ 16384
-color_addr:     equ 5800h
-screen_end:     equ 5b00h
-start:          equ 5e00h
+screen_addr:            equ 16384
+color_addr:             equ 5800h
+screen_end:             equ 5b00h
+start:                  equ 6200h
+generated_code          equ 27750
 
-jpix_table EQU 0xc000
-
-draw_offrastr_offset    equ screen_end
+draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
 
-off_rastr_dec_hl        EQU draw_offrastr_off_end
-off_rastr_dec_hl_end    EQU draw_offrastr_offset + 48
-
-color_data_to_restore   equ off_rastr_dec_hl_end          ; offset  [44..45]
-//saved_bc                equ color_data_to_restore + 2
+color_data_to_restore   equ draw_offrastr_off_end          ; [16..17]
 
 STACK_SIZE:             equ 4  ; in words
-stack_bottom            equ SET_PAGE_HELPER_END
-stack_top               equ stack_bottom + STACK_SIZE * 2
+stack_bottom            equ color_data_to_restore + 2
+stack_top               equ stack_bottom + STACK_SIZE * 2  ; [18..25]
 
-SET_PAGE_HELPER         EQU screen_end + 0x50
+SET_PAGE_HELPER         EQU screen_end + 0x50              ; [80..87]
 SET_PAGE_HELPER_END     EQU SET_PAGE_HELPER + 8
-
-DEBUG_MODE              EQU 0
+runtime_var_end         EQU SET_PAGE_HELPER_END
 
         INCLUDE "resources/compressed_data.asm"
 
@@ -60,8 +54,6 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
                 pop hl
                 dec(hl)
         ENDM
-
-    org start
 
         MACRO update_colors_jpix
         //MACRO draw_colors
@@ -289,43 +281,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 set_page_by_logical_num
         ENDM
 
-/************* Routines **********************/
-
-create_page_helper
-        ld hl, SET_PAGE_HELPER
-        ld (hl), 0x51   ; 0-th
-        inc l
-        ld (hl), 0x53   ; 1-th
-        inc l
-        ld (hl), 0x53   ; 2-th, just filler
-        inc l
-        ld (hl), 0x54   ; 3-th
-        inc l
-        ld (hl), 0x50   ; 4-th
-        inc l
-
-        ret
-
-create_write_off_rastr_helper
-        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
-        ld hl, draw_off_rastr_1
-        ld (draw_offrastr_offset + 2), hl
-        ld hl, draw_off_rastr_2
-        ld (draw_offrastr_offset + 4), hl
-        ld hl, draw_off_rastr_3
-        ld (draw_offrastr_offset + 6), hl
-        ld hl, draw_off_rastr_4
-        ld (draw_offrastr_offset + 8), hl
-        ld hl, draw_off_rastr_5
-        ld (draw_offrastr_offset + 10), hl
-        ld hl, draw_off_rastr_6
-        ld (draw_offrastr_offset + 12), hl
-        ld hl, draw_off_rastr_7
-        ld (draw_offrastr_offset + 14), hl
-
-        ld sp, stack_top - 2
-        ret
-
 /************** delay routine *************/
         MACRO DO_DELAY
 
@@ -389,15 +344,21 @@ delay_end
         ENDM
 /************** end delay routine *************/        
 
-filler  defs 0, 0   // align code data
+
+        org start
+
+        JP move_code
+
+BEGIN   DISP runtime_var_end
 
 /*************** Main. ******************/
-main:
-        di
-        ld sp, stack_top
+        // move main data block
+        LD HL, 32768
+        LD DE, generated_code
+        LD BC, main_page_data_end - 32768
+        LDIR 
 
-        //call copy_image
-        //call copy_colors
+        ld sp, stack_top
         ld ix, 0xd3 + 0xfd * 256
         call prepare_interruption_table
         ; Pentagon timings
@@ -413,7 +374,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 42719 + 6
+fixed_startup_delay     equ 31942 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -792,18 +753,47 @@ start_mc_drawing:
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
 
-/*********************** routines *************/
+/********************************** routines ******************************/
 
-        INCLUDE "draw_off_rastr.asm"
         INCLUDE "alignint.asm"
 
-prepare_interruption_table:
+create_page_helper
+        ld hl, SET_PAGE_HELPER
+        ld (hl), 0x51   ; 0-th
+        inc l
+        ld (hl), 0x53   ; 1-th
+        inc l
+        ld (hl), 0x53   ; 2-th, just filler
+        inc l
+        ld (hl), 0x54   ; 3-th
+        inc l
+        ld (hl), 0x50   ; 4-th
+        inc l
 
-        //save data
-        LD   hl, #FE00
-        LD   de, screen_end + 256
-        LD   bc, #0200
-        ldir
+        ret
+
+create_write_off_rastr_helper
+        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
+        ld hl, draw_off_rastr_1
+        ld (draw_offrastr_offset + 2), hl
+        ld hl, draw_off_rastr_2
+        ld (draw_offrastr_offset + 4), hl
+        ld hl, draw_off_rastr_3
+        ld (draw_offrastr_offset + 6), hl
+        ld hl, draw_off_rastr_4
+        ld (draw_offrastr_offset + 8), hl
+        ld hl, draw_off_rastr_5
+        ld (draw_offrastr_offset + 10), hl
+        ld hl, draw_off_rastr_6
+        ld (draw_offrastr_offset + 12), hl
+        ld hl, draw_off_rastr_7
+        ld (draw_offrastr_offset + 14), hl
+
+        ld sp, stack_top - 2
+        ret
+
+prepare_interruption_table:
+        SET_PAGE 7
 
         // make interrupt table
         ld A, 18h       ; JR instruction code
@@ -834,16 +824,10 @@ after_align_int:
         ; remove interrupt data from stack
         //pop af                          ; 10 ticks
 
-        ; restore data
-        LD   de, #FE00
-        LD   hl, screen_end + 256
-        LD   bc, #0200
-        ldir
         ret
 
-//JP_IX_CODE          equ #e9dd
-JP_VIA_HL_CODE      equ #e9d9
-
+JP_VIA_HL_CODE          equ #e9d9
+jpix_table              EQU 0xc000
 jp_ix_record_size       equ 12
 jp_write_data_offset    equ 8
 data_page_count         equ 4
@@ -889,21 +873,6 @@ continue_page:
 
         ld sp, stack_top - 2
         ret
-
-/*
-copy_image:
-        ld hl, src_data
-        ld de, 16384
-        ld bc, 6144
-        ldir
-        ret
-copy_colors:
-        ld hl, color_data
-        ld de, 16384 + 6144
-        ld bc, 768
-        ldir
-        ret
-*/        
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret
@@ -956,24 +925,30 @@ t4                      EQU t3
                 ENDIF
         ret
 
+        INCLUDE "draw_off_rastr.asm"
+
+        ASSERT $ < generated_code
+
+        ENT     ; end of disp
+move_code
+        di
+        LD HL, BEGIN
+        LD DE, runtime_var_end
+        LD BC, move_code - BEGIN
+        LDIR 
+        JP runtime_var_end
 
 /*************** Image data. ******************/
-        ASSERT $ <= 28450
-         ORG 28450
-generated_code:
+        ORG 0x8000
         INCBIN "resources/compressed_data.mt_and_rt_reach.descriptor"
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
 update_jpix_helper
-        INCBIN "resources/compressed_data.update_jpix_helper"
+        INCBIN "resources/compressed_data.update_jpix_helper"   ; TODO: can be generated at startup
 
 main_page_data_end
 
-fix128k_script
-        incbin "fix128k.C"
-fix128k_script_end
-        
         ASSERT $ < 0xc000
         ORG 0xc000
         PAGE 0
@@ -1025,9 +1000,8 @@ mc_descriptors
 timings_data
         INCBIN "resources/compressed_data.timings"
 timings_data_end
-page6_end
 
-data_end:
+page6_end
 
 imageHeight     equ (timings_data_end - timings_data) / 2
 
@@ -1036,24 +1010,31 @@ imageHeight     equ (timings_data_end - timings_data) / 2
 
 /*************** Commands to SJ asm ******************/
 
-    SAVESNA "build/draw_image.sna", main
-    savetap "build/draw_image.tap", main
-
+        SAVESNA "build/draw_image.sna", start
+        savetap "build/draw_image.tap", start
 
         EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
         SAVETRD "build/scroller.trd","screen.C", 16384, 6144+768 
         SAVETRD "build/scroller.trd","main.C", start, main_page_data_end - start 
 
-        SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, fix128k_script_end - fix128k_script  
-
         PAGE 0
-        SAVETRD "build/scroller.trd","data0.C", $C000, page0_end - $C000
+        SAVETRD "build/scroller.trd","ram0.C", $C000, page0_end - $C000
         PAGE 1
-        SAVETRD "build/scroller.trd","data1.C",$C000, page1_end - $C000
+        SAVETRD "build/scroller.trd","ram1.C",$C000, page1_end - $C000
         PAGE 3
-        SAVETRD "build/scroller.trd","data3.C",$C000, page3_end - $C000
+        SAVETRD "build/scroller.trd","ram3.C",$C000, page3_end - $C000
         PAGE 4
-        SAVETRD "build/scroller.trd","data4.C",$C000, page4_end - $C000
+        SAVETRD "build/scroller.trd","ram4.C",$C000, page4_end - $C000
         PAGE 6
-        SAVETRD "build/scroller.trd","data7.C", $C000, page6_end - $C000
+        SAVETRD "build/scroller.trd","ram6.C", $C000, page6_end - $C000
+
+        // Just a fake address to load files into TRD
+        ORG 16384
+fix128k_script
+        incbin "fix128k.C"
+boot_start
+        incbin "boot.B"
+boot_end        
+        SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, boot_start - fix128k_script
+        SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start
