@@ -346,8 +346,8 @@ BEGIN   DISP runtime_var_end
 /*************** Main. ******************/
         ld sp, stack_top
         // move main data block
-ram2_size       EQU main_page_data_end - 32768        
-        LD HL, main_page_data_end-1
+ram2_size       EQU page2_end - 32768        
+        LD HL, page2_end-1
         LD DE, update_jpix_helper-1
         LD BC, ram2_size
         LDDR
@@ -947,14 +947,15 @@ move_code
         LDIR 
         JP runtime_var_end
 
-/*************** Image data. ******************/
+main_code_end
+
         ASSERT $ < 0x8000
         ORG 0x8000
         PAGE 2
         //INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
-main_page_data_end
+page2_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
@@ -1027,7 +1028,10 @@ imageHeight             equ (timings_data_end - timings_data) / 2
         EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
         SAVETRD "build/scroller.trd","screen.C", 16384, 6144+768 
-        SAVETRD "build/scroller.trd","main.C", start, main_page_data_end - start 
+        
+        SAVETRD "build/scroller.trd","main.C", start, main_code_end - start
+
+        SAVETRD "build/scroller.trd","ram2.C", $8000, page2_end - $8000
 
         PAGE 0
         SAVETRD "build/scroller.trd","ram0.C", $C000, page0_end - $C000
@@ -1041,7 +1045,7 @@ imageHeight             equ (timings_data_end - timings_data) / 2
         SAVETRD "build/scroller.trd","ram6.C", $C000, page6_end - $C000
 
         // Just a fake address to load files into TRD
-        ORG 16384
+        ORG 0x8000
 fix128k_script
         incbin "fix128k.C"
 boot_start
