@@ -351,6 +351,8 @@ BEGIN   DISP runtime_var_end
         LDIR 
 
         ld sp, stack_top
+        call create_jpix_helper
+       
         ld ix, 0xd3 + 0xfd * 256
         call prepare_interruption_table
         ; Pentagon timings
@@ -364,7 +366,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31838 + 6
+fixed_startup_delay     equ 31825 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -747,6 +749,32 @@ start_mc_drawing:
 
         INCLUDE "alignint.asm"
 
+create_jpix_helper
+        ASSERT(imageHeight / 4 < 256)
+        ld hl, update_jpix_helper
+        ld iy, 0xc000
+        ld ixl, imageHeight / 64
+.loop2  ld a, 16
+        push iy
+        pop de
+        ld bc, jpix_bank_size
+.loop:  ld (hl), e
+        inc hl
+        ld (hl), d
+        inc hl
+        ex hl, de
+        add hl, bc
+        ex hl, de
+
+        dec a
+        jr nz, .loop
+        ld bc, jp_ix_record_size
+        add iy, bc
+        dec ixl
+        jr nz, .loop2
+
+        ret
+
 create_write_off_rastr_helper
         //ld (draw_offrastr_offset), hl ; value 0 is not used not used
         ld hl, draw_off_rastr_1
@@ -764,7 +792,6 @@ create_write_off_rastr_helper
         ld hl, draw_off_rastr_7
         ld (draw_offrastr_offset + 14), hl
 
-        ld sp, stack_top - 2
         ret
 
 prepare_interruption_table:
@@ -919,8 +946,10 @@ move_code
 multicolor_code
         INCBIN "resources/compressed_data.multicolor"
 
-update_jpix_helper
-        INCBIN "resources/compressed_data.update_jpix_helper"   ; TODO: can be generated at startup
+        ASSERT $ < 0xc000 - imageHeight / 2
+
+update_jpix_helper   EQU 0xc000 - imageHeight / 2
+        //INCBIN "resources/compressed_data.update_jpix_helper"   ; TODO: can be generated at startup
 
 main_page_data_end
 
@@ -978,7 +1007,7 @@ timings_data_end
 
 page6_end
 
-imageHeight     equ (timings_data_end - timings_data) / 2
+imageHeight             equ (timings_data_end - timings_data) / 2
 
 /*************** Ennd image data. ******************/
 

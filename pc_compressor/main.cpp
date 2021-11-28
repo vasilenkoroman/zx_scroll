@@ -3874,7 +3874,7 @@ int serializeTimingData(
         int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531 - 3 + 10;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10;
             if (line == 0)
                 kZ80CodeDelay += 14;
         }
@@ -3978,6 +3978,7 @@ int serializeJpIxDescriptors(
     }
 
 
+#ifdef CREATE_JPIX_HELPER
     ofstream updateJpixHelper;
     {
         std::string fileName = inputFileName + ".update_jpix_helper";
@@ -3988,6 +3989,7 @@ int serializeJpIxDescriptors(
             return -1;
         }
     }
+#endif
 
     for (unsigned i = 0; i < imageHeight; ++i)
     {
@@ -4005,8 +4007,9 @@ int serializeJpIxDescriptors(
 
         uint16_t offset = innerNum * fullRecordSize + outerNum * recordSize;
         uint16_t address = rastrCodeStartAddrBase + offset;
-
+#ifdef  CREATE_JPIX_HELPER
         updateJpixHelper.write((const char*)&address, sizeof(uint16_t));
+#endif
         address += rastrCodeStartAddrBase;
     }
 
