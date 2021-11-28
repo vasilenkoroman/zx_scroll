@@ -103,6 +103,12 @@ struct Context
     }
 };
 
+struct Labels
+{
+    int mt_and_rt_reach_descriptor = 0;
+    int multicolor = 0;
+};
+
 void serialize(std::vector<uint8_t>& data, uint16_t value)
 {
     data.push_back((uint8_t)value);
@@ -3383,7 +3389,8 @@ void serializeAsmFile(
     const CompressedData& rastrData,
     const CompressedData& multicolorData,
     int rastrFlags,
-    int firstLineDelay)
+    int firstLineDelay,
+    const Labels& labels)
 {
     using namespace std;
 
@@ -3404,6 +3411,7 @@ void serializeAsmFile(
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
+    phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
 }
 
 int serializeMultiColorData(
@@ -4210,8 +4218,10 @@ int main(int argc, char** argv)
     std::vector<LineDescriptor> descriptors;
     std::vector<ColorDescriptor> colorDescriptors;
 
-    int mainDataSize = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
-    serializeMultiColorData(multicolorData, outputFileName, codeOffset + mainDataSize);
+    Labels labels;
+
+    labels.mt_and_rt_reach_descriptor = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
+    labels.multicolor = serializeMultiColorData(multicolorData, outputFileName, codeOffset + labels.mt_and_rt_reach_descriptor);
 
     // put JP to the latest line of colors
     colorData.data[colorData.data.size() - 1].jp(kColorDataStartAddr);
@@ -4221,7 +4231,7 @@ int main(int argc, char** argv)
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags);
-    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay);
+    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay, labels);
 
     runCompressor(outputFileName);
 

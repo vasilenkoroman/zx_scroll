@@ -958,6 +958,7 @@ main_code_end
 page2_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
+        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
         //INCBIN "generated_code/update_jpix_helper.dat"   ; TODO: can be generated at startup
 
@@ -1052,4 +1053,4 @@ boot_start
         incbin "boot.B"
 boot_end        
         SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, boot_start - fix128k_script
-        SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start
+        SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 1

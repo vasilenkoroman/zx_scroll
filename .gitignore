@@ -4,5 +4,5 @@ pc_compressor/release/
 pc_compressor/debug/
 pc_compressor/*.user
 zx_scroller/build/
-zx_scroller/generated_code/
 pc_compressor/.vs 
+
