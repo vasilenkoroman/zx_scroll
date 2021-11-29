@@ -24,12 +24,13 @@ draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
 
 color_data_to_restore   equ draw_offrastr_off_end          ; [16..17]
+saved_bc_value          equ color_data_to_restore + 2      ; [18..19]
 
 STACK_SIZE:             equ 4  ; in words
-stack_bottom            equ color_data_to_restore + 2
-stack_top               equ stack_bottom + STACK_SIZE * 2  ; [18..25]
+stack_bottom            equ saved_bc_value + 2
+stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
 
-runtime_var_end         equ stack_top + 0                  ; [26]
+runtime_var_end         equ stack_top + 0                  ; [28]
 
         INCLUDE "generated_code/labels.asm"
 
@@ -133,7 +134,19 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
-    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?:
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?
+                /*
+                IF (N? % 8 < 2)
+                        ld a, iyh
+                ELSE IF (N? % 8 < 4)
+                        ld a, iyl
+                ELSE IF (N? % 8 < 6)
+                        ld a, ixl
+                ELSE 
+                        ld a, ixh
+                ENDIF
+                out (0xfd), a
+                */
                 DRAW_MULTICOLOR_LINE  N?
                 DRAW_RASTR_LINE N?
     ENDM                
@@ -351,7 +364,6 @@ ram2_size       EQU page2_end - 32768
 
         call create_jpix_helper
        
-        ld ix, 0xd3 + 0xfd * 256
         call prepare_interruption_table
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
@@ -364,7 +376,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31825 + 6
+fixed_startup_delay     equ 31825 - 14 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -383,15 +395,15 @@ max_scroll_offset equ imageHeight - 1
         pop af
         ex af, af'
 
-        ld iy, 0h                       ; 14  ticks
         ld bc, 0h                       ; 10  ticks
         jp loop1
 lower_limit_reached:
-        ld iy,  max_scroll_offset + 1  ; 14 ticks
+        ld bc,  max_scroll_offset  ; 14 ticks
+        jp loop
 dec_and_loop:
-        dec iy        
+        ld bc, (saved_bc_value)
+        dec bc
 loop:  
-        ld bc, iy
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
 
@@ -434,6 +446,7 @@ no:
         DRAW_RASTR_LINE_S 23
 
 loop1:
+        ld (saved_bc_value), bc
         SET_PAGE 6
         ld a, 7
         and c
@@ -652,8 +665,9 @@ finish_non_mc_drawing_cont:
 
         // prepare  multicolor drawing (for next 7 mc steps)
         // calculate bc/8 * 10
-        ld de, iy
-        add hl, de
+        ld bc, (saved_bc_value)
+        ld de, bc
+        add hl, bc
 
         srl d: rr e
         srl d: rr e
@@ -688,10 +702,10 @@ finish_non_mc_drawing_cont:
         ld hl, 0x37 + 0x31*256 // restore data: scf, LD SP
         ld (start_mc_drawing), hl
         
-        dec iy
+        dec bc
         ; compare to -1
-        ld c, iyh
-        inc c
+        ld a, b
+        inc a
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 

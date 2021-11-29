@@ -3879,17 +3879,17 @@ int serializeTimingData(
         }
 
 
-        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10;
+        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 20;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12;
             if (line == 0)
-                kZ80CodeDelay += 14;
+                kZ80CodeDelay += 10;
         }
         else
         {
             if (line % 2 == 1)
-                kZ80CodeDelay += 13-6;
+                kZ80CodeDelay += 13;
         }
 
         // offscreen drawing branches has different length
@@ -4164,7 +4164,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors; // | OptimizeMcTicks | updateColorData; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
