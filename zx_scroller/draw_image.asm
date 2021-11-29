@@ -1,21 +1,18 @@
         DEVICE zxspectrum128
         SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION //< More debug symbols.
 
-
 /*
  * Page locations:
- * 0,1, 3,4 - rastrData + JP_IX_TABLE
+ * 0,1, 3,4 - rastrData, multicolor data, JP_IX_TABLE
  * 2 - static page 0x8000
  * 5 - static page 0x4000
  * Pages 2,5 include: reach descriptors, MC data
- * 7 - music data
- * 6 - second screen, second screen code, other descriptors
- * page 6: color data from address #1b00
+ * 7 - music data, second screen.
+ * 6 - descriptors, color drawing.
  * short port page selection:
  *    LD A, #50 + screen_num*8 + page_number
  *    OUT (#fd), A
  **/
-
 
 screen_addr:            equ 16384
 color_addr:             equ 5800h
@@ -32,12 +29,12 @@ STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ color_data_to_restore + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [18..25]
 
-runtime_var_end         equ stack_top + 4                  ; [30]
+runtime_var_end         equ stack_top + 0                  ; [26]
 
         INCLUDE "generated_code/labels.asm"
 
-    org 16384
-    INCBIN "generated_code/first_screen.scr", 0, 6144+768
+        org 16384
+        INCBIN "generated_code/first_screen.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -47,11 +44,6 @@ EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
                 exx
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
-
-        MACRO DO_DEC_SP
-                pop hl
-                dec(hl)
-        ENDM
 
         MACRO update_colors_jpix
         //MACRO draw_colors
@@ -443,7 +435,6 @@ no:
 
 loop1:
         SET_PAGE 6
-
         ld a, 7
         and c
         jp nz, mc_step_drawing
@@ -581,14 +572,14 @@ start_draw_colors0:
         add hl, bc
         ld sp, hl
 
-         pop hl: ld (RASTR_23+1), hl
-         pop hl: ld (RASTR0_22+1), hl: ld (RASTR_22+1), hl
-         pop hl: ld (RASTR0_21+1), hl: ld (RASTR_21+1), hl
-         pop hl: ld (RASTR0_20+1), hl: ld (RASTR_20+1), hl
-         pop hl: ld (RASTR0_19+1), hl: ld (RASTR_19+1), hl
-         pop hl: ld (RASTR0_18+1), hl: ld (RASTR_18+1), hl
-         pop hl: ld (RASTR0_17+1), hl: ld (RASTR_17+1), hl
-         pop hl: ld (RASTR0_16+1), hl: //ld (RASTR_16+1), hl
+        pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR0_22+1), hl: ld (RASTR_22+1), hl
+        pop hl: ld (RASTR0_21+1), hl: ld (RASTR_21+1), hl
+        pop hl: ld (RASTR0_20+1), hl: ld (RASTR_20+1), hl
+        pop hl: ld (RASTR0_19+1), hl: ld (RASTR_19+1), hl
+        pop hl: ld (RASTR0_18+1), hl: ld (RASTR_18+1), hl
+        pop hl: ld (RASTR0_17+1), hl: ld (RASTR_17+1), hl
+        pop hl: ld (RASTR0_16+1), hl: //ld (RASTR_16+1), hl
 
         ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
@@ -641,12 +632,10 @@ mc_step_drawing:
 start_draw_colors:
         jp 00                                           ; 8
 
-        //MACRO prepare_rastr_drawing
         sla c : rl b    // bc*2
         
         // Exec off rastr
         ld de, bank_drawing_common  // next jump
-
         ld h, high(draw_offrastr_offset)
         ld a, 15
         and c
@@ -659,7 +648,6 @@ start_draw_colors:
 finish_non_mc_drawing_cont:
         SET_PAGE 6
         // calculate address of the MC descriptors
-        // Draw from 0 to 23 is backward direction
         ld hl, mc_descriptors
 
         // prepare  multicolor drawing (for next 7 mc steps)
@@ -697,7 +685,6 @@ finish_non_mc_drawing_cont:
         PREPARE_MC_DRAWING 1
         PREPARE_MC_DRAWING 0
 
-
         ld hl, 0x37 + 0x31*256 // restore data: scf, LD SP
         ld (start_mc_drawing), hl
         
@@ -717,12 +704,10 @@ bank_drawing_common2:
         ; delay
         DO_DELAY
 
-
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
-
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
@@ -751,7 +736,9 @@ start_mc_drawing:
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
 
-/********************************** routines ******************************/
+/**     ----------------------------------------- routines -----------------------------------------
+ *      All routines are called once before drawing. They can be moved to another page to free memory.
+ */
 
         INCLUDE "alignint.asm"
 
