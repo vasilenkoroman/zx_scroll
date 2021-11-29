@@ -20,7 +20,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 27800;
+static const int kDefaultCodeOffset = 28050;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -2629,7 +2629,7 @@ struct DescriptorState
         int mcTicksBottom, int mcTicksTop, int mcTicksNext)
     {
         //if (bankNum % 2 == 1)
-        serializeSetPageCode(pageNum);
+        //serializeSetPageCode(pageNum);
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -3897,15 +3897,15 @@ int serializeTimingData(
         {
             case 1:
             case 2:
-                kZ80CodeDelay -= 4;
+                kZ80CodeDelay += -4 + 37;
                 break;
             case 3:
             case 4:
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay += -8 + 41;
                 break;
             case 5:
             case 6:
-                kZ80CodeDelay -= 12;
+                kZ80CodeDelay += -12 + 37;
                 break;
             case 0:
             case 7:

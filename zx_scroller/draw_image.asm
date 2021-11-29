@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 27800
+generated_code          equ 28050
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -40,6 +40,30 @@ runtime_var_end         equ stack_top + 0                  ; [28]
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
         MACRO DRAW_ONLY_RASTR_LINE N?
+
+                IF (N? < 16)
+                        IF (N? % 8 < 2)
+                                ld a, iyh
+                        ELSEIF (N? % 8 < 4)
+                                ld a, iyl
+                        ELSEIF (N? % 8 < 6)
+                                ld a, ixl
+                        ELSE 
+                                ld a, ixh
+                        ENDIF
+                ELSE                        
+                        IF (N? % 8 == 0 || N? % 8 == 7)
+                                ld a, iyh
+                        ELSEIF (N? % 8 < 3)
+                                ld a, iyl
+                        ELSEIF (N? % 8 < 5)
+                                ld a, ixl
+                        ELSE 
+                                ld a, ixh
+                        ENDIF
+                ENDIF
+                out (0xfd), a
+
                 ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld hl, $ + 7
                 exx
@@ -118,11 +142,24 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
     MACRO DRAW_MULTICOLOR_LINE N?:
                 ld sp, color_addr + N? * 32 + 16        ; 10
+
 MC_LINE_N?      jp 00                                   ; 10
                 // total ticks: 20 (30 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
+
+                IF (N? % 8 < 2)
+                        ld a, iyh
+                ELSEIF (N? % 8 < 4)
+                        ld a, iyl
+                ELSEIF (N? % 8 < 6)
+                        ld a, ixl
+                ELSE 
+                        ld a, ixh
+                ENDIF
+                out (0xfd), a
+
 RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld hl, $ + 7                                           ; 10
                 exx                                                    ; 4
@@ -131,22 +168,22 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
     MACRO DRAW_RASTR_LINE_S N?:
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
-    ENDM                
 
-    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?
-                /*
                 IF (N? % 8 < 2)
                         ld a, iyh
-                ELSE IF (N? % 8 < 4)
+                ELSEIF (N? % 8 < 4)
                         ld a, iyl
-                ELSE IF (N? % 8 < 6)
+                ELSEIF (N? % 8 < 6)
                         ld a, ixl
                 ELSE 
                         ld a, ixh
                 ENDIF
                 out (0xfd), a
-                */
+
+RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
+    ENDM                
+
+    MACRO DRAW_MULTICOLOR_AND_RASTR_LINE N?
                 DRAW_MULTICOLOR_LINE  N?
                 DRAW_RASTR_LINE N?
     ENDM                
@@ -364,6 +401,9 @@ ram2_size       EQU page2_end - 32768
 
         call create_jpix_helper
        
+        ld ix, 0x5051
+        ld iy, 0x5453
+
         call prepare_interruption_table
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
@@ -701,7 +741,22 @@ finish_non_mc_drawing_cont:
 
         ld hl, 0x37 + 0x31*256 // restore data: scf, LD SP
         ld (start_mc_drawing), hl
-        
+
+
+        // update ports [50..54] for the next step 7
+
+        LD a, 0X7D      // LD a, iyl (value 0x54 -> 0x53)
+        ld (RASTRS_17 - 3), a
+
+        LD a, 0X7C      // LD a, ixh (value 0x51 -> 0x50)
+        ld (RASTRS_21 - 3), a
+
+        LD a, 0XDD      // LD a, IX prefix (value 0x53 -> 0x51)
+        ld (RASTRS_19 - 4), a
+
+        LD hl, 0X7CFD      // LD a, IX prefix (value 0x50 -> 0x54)
+        ld (RASTR_23 - 4), hl
+
         dec bc
         ; compare to -1
         ld a, b
