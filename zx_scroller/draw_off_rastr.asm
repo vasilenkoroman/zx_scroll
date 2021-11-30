@@ -199,7 +199,6 @@ draw_off_rastr_7
                 UPDATE_SP0 OFF_0_6_SP,  OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,    RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8
 
                 RESTORE_OFF_END it0_end, 0xd3 + 0xfd * 256
-                //RESTORE_OFF_END_via_ix it0_end
                 ld a, iyh
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
@@ -225,7 +224,6 @@ draw_off_rastr_5
 
 
                 RESTORE_OFF_END it6_end, 0xd3 + 0xfd * 256
-                //RESTORE_OFF_END_via_ix it6_end
                 ld a, iyl
                 out (0xfd), a
                 START_OFF_DRAWING it5_start
@@ -251,7 +249,6 @@ draw_off_rastr_3
                 UPDATE_SP0 OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,    RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12
 
                 RESTORE_OFF_END it4_end, 0xd3 + 0xfd * 256
-                //RESTORE_OFF_END_via_ix it4_end
                 ld a, ixl
                 out (0xfd), a
                 START_OFF_DRAWING it3_start
