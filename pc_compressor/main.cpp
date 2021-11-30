@@ -2613,8 +2613,31 @@ struct DescriptorState
         if (pageNum >= 2)
             ++pageNum; //< Pages are: 0,1, 3,4
         std::vector<uint8_t> data;
-        data.push_back(0x3e);            // LD A, #50 + page_number
-        data.push_back(kPageNumPrefix + pageNum);  // LD A, #50 + page_number
+        
+        //data.push_back(0x3e);            // LD A, #50 + page_number
+        //data.push_back(kPageNumPrefix + pageNum);  // LD A, #50 + page_number
+        if (pageNum == 0)
+        {
+            data.push_back(0xdd);
+            data.push_back(0x7c);
+        }
+        else if (pageNum == 1)
+        {
+            data.push_back(0xdd);
+            data.push_back(0x7d);
+        }
+        else if (pageNum == 3)
+        {
+            data.push_back(0xfd);
+            data.push_back(0x7d);
+        }
+        else
+        {
+            data.push_back(0xfd);
+            data.push_back(0x7c);
+        }
+
+
         data.push_back(0xd3);            // OUT (#fd), A
         data.push_back(0xfd);            // OUT (#fd), A
         addToPreambule(data);
@@ -2629,7 +2652,7 @@ struct DescriptorState
         int mcTicksBottom, int mcTicksTop, int mcTicksNext)
     {
         //if (bankNum % 2 == 1)
-        //serializeSetPageCode(pageNum);
+        serializeSetPageCode(pageNum);
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -3879,10 +3902,10 @@ int serializeTimingData(
         }
 
 
-        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 20 + 19;
+        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 20;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12 + 504;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12     + 86;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }
@@ -3891,6 +3914,8 @@ int serializeTimingData(
             if (line % 2 == 1)
                 kZ80CodeDelay += 13;
         }
+        
+        kZ80CodeDelay += 456; // temp
 
         // offscreen drawing branches has different length
         switch (line % 8)
