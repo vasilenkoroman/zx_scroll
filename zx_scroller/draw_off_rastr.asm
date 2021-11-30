@@ -208,8 +208,6 @@ draw_off_rastr_6
 
                 LD A, 0X7C      // LD a, iyh 2-ND BYTE
                 ld (RASTRS_17 - 3), A
-                inc A      // LD a, iyl 2-ND BYTE
-                ld (RASTR_23 - 3), A
 
                 UPDATE_SP2 OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP,   RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17
                 UPDATE_SP1 OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,    RASTRS_2,  RASTRS_3,  RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1
@@ -237,8 +235,6 @@ draw_off_rastr_4
 
                 ld A, 0xFD      // (0x51 -> 0x53)
                 ld (RASTRS_19 - 4), A
-                ld A, 0xDD      //  (0x53 -> 0x51)
-                ld (RASTR_23 - 4), A
 
                 UPDATE_SP2 OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP,   RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19
                 UPDATE_SP1 OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,    RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3
@@ -265,8 +261,6 @@ draw_off_rastr_2
 
                 ld A, 0x7D      // (0x50 -> 0x51)
                 ld (RASTRS_21 - 3), A
-                dec a           //  (0x51 -> 0x50)
-                ld (RASTR_23 - 3), A
 
                 UPDATE_SP2 OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP,   RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21
                 UPDATE_SP1 OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,    RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3,  RASTRS_4, RASTRS_5

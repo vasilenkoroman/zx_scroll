@@ -168,18 +168,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
     MACRO DRAW_RASTR_LINE_S N?:
                 ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-
-                IF (N? % 8 < 2)
-                        ld a, iyh
-                ELSEIF (N? % 8 < 4)
-                        ld a, iyl
-                ELSEIF (N? % 8 < 6)
-                        ld a, ixl
-                ELSE 
-                        ld a, ixh
-                ENDIF
-                out (0xfd), a
-
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
 
@@ -447,9 +435,6 @@ loop:
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
 
-next_step_first_bank
-        SET_PAGE 0 //< Page number is updated in runtime
-
         // ------------------------- update jpix table
         // bc - screen address to draw
         // between frames: 73248/71456
@@ -470,6 +455,9 @@ no:
         ld sp, hl
         pop hl
         ld sp, hl
+
+next_step_first_bank
+        SET_PAGE 0 //< Page number is updated in runtime
 
         ld hl, loop1
         exx
@@ -753,9 +741,6 @@ finish_non_mc_drawing_cont:
 
         LD a, 0XDD      // LD a, IX prefix (value 0x53 -> 0x51)
         ld (RASTRS_19 - 4), a
-
-        LD hl, 0X7CFD      // LD a, IX prefix (value 0x50 -> 0x54)
-        ld (RASTR_23 - 4), hl
 
         dec bc
         ; compare to -1
