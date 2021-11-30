@@ -42,23 +42,23 @@ EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
         MACRO DRAW_ONLY_RASTR_LINE N?
 
                 IF (N? < 16)
-                        IF (N? % 8 < 2)
+                        IF (N? % 8 == 0)
                                 ld a, iyh
-                        ELSEIF (N? % 8 < 4)
+                        ELSEIF (N? % 8 == 2)
                                 ld a, iyl
-                        ELSEIF (N? % 8 < 6)
+                        ELSEIF (N? % 8 == 4)
                                 ld a, ixl
-                        ELSE 
+                        ELSEIF (N? % 8 == 6)
                                 ld a, ixh
                         ENDIF
                 ELSE                        
                         IF (N? % 8 == 0 || N? % 8 == 7)
                                 ld a, iyh
-                        ELSEIF (N? % 8 < 3)
+                        ELSEIF (N? % 8 == 1)
                                 ld a, iyl
-                        ELSEIF (N? % 8 < 5)
+                        ELSEIF (N? % 8 == 3)
                                 ld a, ixl
-                        ELSE 
+                        ELSEIF (N? % 8 == 5)
                                 ld a, ixh
                         ENDIF
                 ENDIF
@@ -404,7 +404,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31811  + 6
+fixed_startup_delay     equ 31830  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)

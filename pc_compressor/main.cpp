@@ -3905,7 +3905,7 @@ int serializeTimingData(
         int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 6;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12     + 60;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12     - 28;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }
@@ -3925,10 +3925,10 @@ int serializeTimingData(
                 kZ80CodeDelay += -4 + 20;
                 break;
             case 3:
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 8 + 3;
                 break;
             case 4:
-                kZ80CodeDelay += -8 + 17;
+                kZ80CodeDelay += -8 + 20;
                 break;
             case 5:
                 kZ80CodeDelay -= 12;
