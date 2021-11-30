@@ -286,7 +286,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
             FILL_SP_DATA_NON_MC_STEP 22, -1
             FILL_SP_DATA_NON_MC_STEP 23, -1
 
-            // total:106
         ENDM
 
 
@@ -497,6 +496,7 @@ start_draw_colors0:
         ld sp, hl
 
         // 2. Fill JP commands
+        exx
 
         pop hl: ld(OFF_7_0_JP+1), hl
         pop hl: ld(OFF_6_0_JP+1), hl
@@ -537,8 +537,8 @@ start_draw_colors0:
         pop hl: ld(OFF_0_14_JP+1), hl
         pop hl: ld(OFF_0_15_JP+1), hl
 
-        ld hl, (64-15) * 2
-        add hl, sp
+        exx
+        inc h
         ld sp, hl
 
         pop hl: ld(OFF_7_16_JP+1), hl

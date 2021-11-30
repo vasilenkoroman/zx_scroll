@@ -3905,7 +3905,7 @@ int serializeTimingData(
         int kZ80CodeDelay = 2488;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321;
+            kZ80CodeDelay += 6321 - 9;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }
