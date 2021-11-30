@@ -4193,7 +4193,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors; // | OptimizeMcTicks | updateColorData; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
