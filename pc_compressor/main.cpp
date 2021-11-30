@@ -31,7 +31,7 @@ static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 static const int kMinDelay = 78;
 static const int kPagesForData = 4;
-static const int kSetPageTicks = 18;
+static const int kSetPageTicks = 19;
 static const int kPageNumPrefix = 0x50;
 static const int kMinOffscreenBytes = 8; // < It contains at least 8 writted bytes to the screen
 static const int kThirdSpPartSize = 4;
@@ -3879,10 +3879,10 @@ int serializeTimingData(
         }
 
 
-        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 20;
+        int kZ80CodeDelay = 2951 - 168 - 56 - 10 - 6 - 8 - 211 - 10     + 20 + 19;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12;
+            kZ80CodeDelay += 2864 - 16 + 2325 + 559 + 44 + 24 + 36 + 531  + 10 - 12 + 504;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }
@@ -3896,14 +3896,20 @@ int serializeTimingData(
         switch (line % 8)
         {
             case 1:
+                kZ80CodeDelay -= 4;
+                break;
             case 2:
                 kZ80CodeDelay += -4 + 37;
                 break;
             case 3:
+                kZ80CodeDelay -= 8;
+                break;
             case 4:
-                kZ80CodeDelay += -8 + 41;
+                kZ80CodeDelay += -8 + 37;
                 break;
             case 5:
+                kZ80CodeDelay -= 12;
+                break;
             case 6:
                 kZ80CodeDelay += -12 + 37;
                 break;
