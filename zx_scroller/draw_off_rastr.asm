@@ -67,7 +67,7 @@ OFF_Iteration?_Step?_JP
 
                 ALIGN 32
 
-it0_start:      ld a, 0x54
+it0_start:      ld a, iyh
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 23,  it0_start
 L01:            DRAW_OFFSCREEN_LINES 0, 15,  L01
@@ -79,7 +79,7 @@ it7_start:      //ld a, 0x54
 L11:            DRAW_OFFSCREEN_LINES 0, 14, L11
 L12:            DRAW_OFFSCREEN_LINES 0, 6,  L12
 
-it6_start:      ld a, 0x53
+it6_start:      ld a, iyl
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 21, it6_start
 L21:            DRAW_OFFSCREEN_LINES 0, 13, L21
@@ -91,7 +91,7 @@ it5_start:      //ld a, 0x53
 L31:            DRAW_OFFSCREEN_LINES 0, 12, L31
 L32:            DRAW_OFFSCREEN_LINES 0, 4, L32
 
-it4_start:      ld a, 0x51
+it4_start:      ld a, ixl
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 19, it4_start
 L41:            DRAW_OFFSCREEN_LINES 0, 11, L41
@@ -103,7 +103,7 @@ it3_start:      //ld a, 0x51
 L51:            DRAW_OFFSCREEN_LINES 0, 10, L51
 L52:            DRAW_OFFSCREEN_LINES 0, 2,  L52
 
-it2_start:      ld a, 0x50
+it2_start:      ld a, ixh
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 17, it2_start
 L61:            DRAW_OFFSCREEN_LINES 0, 9,  L61
@@ -117,7 +117,7 @@ L72:            DRAW_OFFSCREEN_LINES 0, 0,  L72
 
                 // negative values (next 7 steps)
 
-L80:            ld a, 0x54
+L80:            ld a, iyh
 it0_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 1, 16, L80
 L81:            DRAW_OFFSCREEN_LINES 1, 8,  L81
@@ -130,7 +130,7 @@ it7_end:        //ld a, 0x54
 L91:            DRAW_OFFSCREEN_LINES 2, 8,  L91
 L92:            DRAW_OFFSCREEN_LINES 2, 0,  L92
 
-L100            ld a, 0x53
+L100            ld a, iyl
 it6_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 3, 16, L100
 L101:           DRAW_OFFSCREEN_LINES 3, 8,  L101
@@ -143,7 +143,7 @@ it5_end:        //ld a, 0x53
 L111:           DRAW_OFFSCREEN_LINES 4, 8,  L111
 L112:           DRAW_OFFSCREEN_LINES 4, 0,  L112
 
-L120:           ld a, 0x51
+L120:           ld a, ixl
 it4_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 5, 16, L120
 L121:           DRAW_OFFSCREEN_LINES 5, 8,  L121
@@ -156,7 +156,7 @@ it3_end:        //ld a, 0x51
 L131:           DRAW_OFFSCREEN_LINES 6, 8,  L131
 L132:           DRAW_OFFSCREEN_LINES 6, 0,  L132
 
-L140:           ld a, 0x50
+L140:           ld a, ixh
 it2_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 7, 16, L140
 L141:           DRAW_OFFSCREEN_LINES 7, 8,  L141
@@ -200,7 +200,7 @@ draw_off_rastr_7
 
                 RESTORE_OFF_END it0_end, 0xd3 + 0xfd * 256
                 //RESTORE_OFF_END_via_ix it0_end
-                ld a, 0x54
+                ld a, iyh
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
 draw_off_rastr_6
@@ -228,7 +228,7 @@ draw_off_rastr_5
 
                 RESTORE_OFF_END it6_end, 0xd3 + 0xfd * 256
                 //RESTORE_OFF_END_via_ix it6_end
-                ld a, 0x53
+                ld a, iyl
                 out (0xfd), a
                 START_OFF_DRAWING it5_start
 
@@ -256,7 +256,7 @@ draw_off_rastr_3
 
                 RESTORE_OFF_END it4_end, 0xd3 + 0xfd * 256
                 //RESTORE_OFF_END_via_ix it4_end
-                ld a, 0x51
+                ld a, ixl
                 out (0xfd), a
                 START_OFF_DRAWING it3_start
 
@@ -284,6 +284,6 @@ draw_off_rastr_1
 
                 RESTORE_OFF_END it2_end, 0xd3 + 0xfd * 256
                 //RESTORE_OFF_END_via_ix it2_end
-                ld a, 0x50
+                ld a, ixh
                 out (0xfd), a
                 START_OFF_DRAWING it1_start
