@@ -31,7 +31,7 @@ static const int kScrollDelta = 1;
 static const int kColorScrollDelta = 1;
 static const int kMinDelay = 78;
 static const int kPagesForData = 4;
-static const int kSetPageTicks = 19;
+static const int kSetPageTicks = 0;
 static const int kPageNumPrefix = 0x50;
 static const int kMinOffscreenBytes = 8; // < It contains at least 8 writted bytes to the screen
 static const int kThirdSpPartSize = 4;
@@ -60,7 +60,7 @@ enum Flags
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 72; // multicolor to rastr context switch delay
+static const int kRtMcContextSwitchDelay = 72 + 19; // multicolor to rastr context switch delay
 static const int kTicksOnScreenPerByte = 4;
 
 /**
@@ -2652,7 +2652,7 @@ struct DescriptorState
         int mcTicksBottom, int mcTicksTop, int mcTicksNext)
     {
         //if (bankNum % 2 == 1)
-        serializeSetPageCode(pageNum);
+        //serializeSetPageCode(pageNum);
 
         /*
          * In whole frame JP ix there is possible that first bytes of the line is 'broken' by JP iX command
@@ -3915,8 +3915,6 @@ int serializeTimingData(
                 kZ80CodeDelay += 13;
         }
         
-        kZ80CodeDelay += 456; // temp
-
         // offscreen drawing branches has different length
         switch (line % 8)
         {
