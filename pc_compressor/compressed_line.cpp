@@ -153,6 +153,16 @@ void CompressedLine::push_front(const std::vector<uint8_t>& v)
     }
 }
 
+void CompressedLine::push_front(uint8_t v)
+{
+    data.push_front(v);
+    for (auto& spPosHint : spPosHints)
+    {
+        if (spPosHint >= 0)
+            spPosHint++;
+    }
+}
+
 void CompressedLine::erase(int index, int count)
 {
     data.erase(index, count);

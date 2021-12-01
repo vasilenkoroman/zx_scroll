@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 28000
+generated_code          equ 28100
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -30,7 +30,7 @@ STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ saved_bc_value + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
 
-runtime_var_end         equ stack_top + 0                  ; [28]
+runtime_var_end         equ stack_top + 30                 ; [28]
 
         INCLUDE "generated_code/labels.asm"
 
@@ -141,7 +141,7 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
 jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
 
     MACRO DRAW_MULTICOLOR_LINE N?:
-                ld sp, color_addr + N? * 32 + 16        ; 10
+                //ld sp, color_addr + N? * 32 + 16        ; 10
 
 MC_LINE_N?      jp 00                                   ; 10
                 // total ticks: 20 (30 with ret)
@@ -177,10 +177,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
     ENDM                
 
         MACRO PREPARE_MC_DRAWING N?
-                // begin addr
-                pop hl                          
-                ld (MC_LINE_N? + 1), hl
-
                 // JP XX command+1 address (end addr)
                 pop hl
                 if (N? == 23)
@@ -193,12 +189,9 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                         ld (hl), high(MC_LINE_N? + 3)
                 ENDIF
 
-                ; e- first stack moving value, d - 2-nd stack moving to 32, delta of exec address
-                ; The value is relative from the line end
-
                 // Second stack moving, fixed at line + 32
-                ld de, color_addr + N? * 32 + 32
                 pop hl
+                ld de, color_addr + N? * 32 + 32
                 ld (hl), e
                 inc hl
                 ld (hl), d
@@ -208,11 +201,23 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 add hl, de
                 ex hl, de
 
-                // LD SP, XX first byte addr
+                // First stack moving, LD SP, XX first byte addr
                 pop hl                          
                 ld (hl), e
                 inc hl
                 ld (hl), d
+
+                // begin addr
+                pop hl                          
+                ld (MC_LINE_N? + 1), hl
+
+                // Line start stack
+                inc l   // it is always aligned here
+                ld (hl), low(color_addr + N? * 32 + 16)
+                inc l
+                ld (hl), d
+                // total: 25
+
 
         ENDM               
 
@@ -727,7 +732,8 @@ finish_non_mc_drawing_cont:
         PREPARE_MC_DRAWING 1
         PREPARE_MC_DRAWING 0
 
-        ld hl, 0x37 + 0x31*256 // restore data: scf, LD SP
+        //ld hl, 0x37 + 0x31*256 // restore data: scf, JP
+        ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
         ld (start_mc_drawing), hl
 
 

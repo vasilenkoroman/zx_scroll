@@ -20,7 +20,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 28000;
+static const int kDefaultCodeOffset = 28100;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -2790,11 +2790,11 @@ struct LineDescriptor
 
 struct MulticolorDescriptor
 {
-    uint16_t addressBegin = 0;
     uint16_t endLineJpAddr = 0;
     uint16_t moveSp2BytePos = 0;
-    uint16_t moveSpDelta = 0;
+    uint16_t moveSpDelta = -1;
     uint16_t moveSpBytePos = 0;
+    uint16_t addressBegin = 0;
 };
 
 struct ColorDescriptor
@@ -3460,9 +3460,24 @@ int serializeMultiColorData(
     //std::vector<int> ldHlOffset;
     for (int y = 0; y < colorImageHeight; ++y)
     {
-        lineOffset.push_back(serializedData.size());
+        int address = codeOffset + serializedData.size();
+        if (address % 256 == 254)
+        {
+            serializedData.push_back(0x00); // align
+            ++address;
+        }
+        if (address % 256 == 255)
+            serializedData.push_back(0x00); // align
 
-        const auto& line = data.data[y];
+
+        // add LD SP command in the begin of a line
+        serializedData.push_back(0x31);
+        serializedData.push_back(0x00);
+        serializedData.push_back(0x00);
+
+        lineOffset.push_back(serializedData.size());
+        auto& line = data.data[y];
+
         line.serialize(serializedData);
 
         // add JP XX command in the end of a line
@@ -3470,16 +3485,6 @@ int serializeMultiColorData(
         serializedData.push_back(0x00);
         serializedData.push_back(0x00);
     }
-
-#if 0
-    // Resolve LD HL, PREV_LINE_ADDR
-    for (int y = 0; y < colorImageHeight; ++y)
-    {
-        int prevLineOffset = y > 0 ? lineOffset[y - 1] : lineOffset[lineOffset.size() - 1];
-        uint16_t* ldHlPtr = (uint16_t*)(ldHlOffset[y] + serializedData.data());
-        *ldHlPtr = prevLineOffset + codeOffset;
-    }
-#endif
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
 
@@ -3493,7 +3498,7 @@ int serializeMultiColorData(
         MulticolorDescriptor descriptor;
         const auto& line = data.data[srcLine];
         const uint16_t lineAddressPtr = lineOffset[srcLine] + codeOffset;
-        descriptor.addressBegin = lineAddressPtr;
+        descriptor.addressBegin = lineAddressPtr - 3; // extra LD SP before line
 
         if (line.spPosHints[1] >= 0)
         {
@@ -3516,6 +3521,14 @@ int serializeMultiColorData(
             uint16_t value16 = line.data.buffer()[line.spPosHints[0] + 1];
             descriptor.moveSpDelta = value16 - 32;
         }
+
+        if (descriptor.moveSpDelta == 0)
+        {
+            std::swap(descriptor.moveSp2BytePos, descriptor.moveSpBytePos);
+            descriptor.moveSpDelta = -4;
+        }
+
+
         descriptor.endLineJpAddr = lineAddressPtr + line.data.size() + 1; // Line itself doesn't contains JP XX
         descriptors.push_back(descriptor);
     }
@@ -3904,7 +3917,7 @@ int serializeTimingData(
         int kZ80CodeDelay = 2488;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9;
+            kZ80CodeDelay += 6321 - 9 + 600;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }

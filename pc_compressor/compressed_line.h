@@ -165,6 +165,7 @@ struct CompressedLine
     void append(const std::vector<uint8_t>& data);
     void appendCommand(const z80Command& data);
     void push_front(const std::vector<uint8_t>& data);
+    void push_front(uint8_t v);
     void push_front(const ZxData& buffer);
     void erase(int index, int count);
 
