@@ -60,7 +60,7 @@ enum Flags
 
 static const int kJpFirstLineDelay = 10;
 static const int kLineDurationInTicks = 224;
-static const int kRtMcContextSwitchDelay = 72 + 19; // multicolor to rastr context switch delay
+static const int kRtMcContextSwitchDelay = 62 + 19; // multicolor to rastr context switch delay
 static const int kTicksOnScreenPerByte = 4;
 
 /**
@@ -3914,10 +3914,10 @@ int serializeTimingData(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2488;
+        int kZ80CodeDelay = 2488 + 10;
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230;
             if (line == 0)
                 kZ80CodeDelay += 10;
         }
@@ -3935,11 +3935,11 @@ int serializeTimingData(
                 kZ80CodeDelay += -4 + 20;
                 break;
             case 3:
-                kZ80CodeDelay -= 8 + 3;
+                kZ80CodeDelay -= 8;
                 kZ80CodeDelay += 13;
                 break;
             case 4:
-                kZ80CodeDelay += -8 + 20;
+                kZ80CodeDelay += -8 + 20 -3;
                 break;
             case 5:
                 kZ80CodeDelay -= 12;

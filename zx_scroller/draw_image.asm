@@ -143,12 +143,12 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
     MACRO DRAW_MULTICOLOR_LINE N?:
                 //ld sp, color_addr + N? * 32 + 16        ; 10
 
-MC_LINE_N?      jp 00                                   ; 10
+//MC_LINE_N?      jp 00                                   ; 10
                 // total ticks: 20 (30 with ret)
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
-
+RASTRB_N?
                 IF (N? % 8 < 2)
                         ld a, iyh
                 ELSEIF (N? % 8 < 4)
@@ -161,7 +161,7 @@ MC_LINE_N?      jp 00                                   ; 10
                 out (0xfd), a
 
 RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld hl, $ + 7                                           ; 10
+RASTRJ_N?       ld hl, $ + 7                                           ; 10
                 exx                                                    ; 4
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
@@ -176,17 +176,17 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 DRAW_RASTR_LINE N?
     ENDM                
 
-        MACRO PREPARE_MC_DRAWING N?
+        MACRO PREPARE_MC_DRAWING N?, prevN?
                 // JP XX command+1 address (end addr)
                 pop hl
-                if (N? == 23)
+                IF (N? == 23)
                         ld (hl), low(dec_and_loop)
                         inc hl
                         ld (hl), high(dec_and_loop)
                 ELSE
-                        ld (hl), low(MC_LINE_N? + 3)
+                        ld (hl), low(RASTRB_N?)
                         inc hl
-                        ld (hl), high(MC_LINE_N? + 3)
+                        ld (hl), high(RASTRB_N?)
                 ENDIF
 
                 // Second stack moving, fixed at line + 32
@@ -208,8 +208,13 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 ld (hl), d
 
                 // begin addr
-                pop hl                          
-                ld (MC_LINE_N? + 1), hl
+                pop hl
+                //ld (MC_LINE_N? + 1), hl
+                IF (N? == 0)
+                        ld (first_mc_line + 1), hl
+                ELSE
+                        ld (RASTRJ_prevN? + 1), hl
+                ENDIF
 
                 // Line start stack
                 inc l   // it is always aligned here
@@ -408,7 +413,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31830  + 6
+fixed_startup_delay     equ 31830 - 10  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -707,30 +712,30 @@ finish_non_mc_drawing_cont:
         add hl, de
         ld sp, hl
 
-        PREPARE_MC_DRAWING 23
-        PREPARE_MC_DRAWING 22
-        PREPARE_MC_DRAWING 21
-        PREPARE_MC_DRAWING 20
-        PREPARE_MC_DRAWING 19
-        PREPARE_MC_DRAWING 18
-        PREPARE_MC_DRAWING 17
-        PREPARE_MC_DRAWING 16
-        PREPARE_MC_DRAWING 15
-        PREPARE_MC_DRAWING 14
-        PREPARE_MC_DRAWING 13
-        PREPARE_MC_DRAWING 12
-        PREPARE_MC_DRAWING 11
-        PREPARE_MC_DRAWING 10
-        PREPARE_MC_DRAWING 9
-        PREPARE_MC_DRAWING 8
-        PREPARE_MC_DRAWING 7
-        PREPARE_MC_DRAWING 6
-        PREPARE_MC_DRAWING 5
-        PREPARE_MC_DRAWING 4
-        PREPARE_MC_DRAWING 3
-        PREPARE_MC_DRAWING 2
-        PREPARE_MC_DRAWING 1
-        PREPARE_MC_DRAWING 0
+        PREPARE_MC_DRAWING 23, 22
+        PREPARE_MC_DRAWING 22, 21
+        PREPARE_MC_DRAWING 21, 20
+        PREPARE_MC_DRAWING 20, 19
+        PREPARE_MC_DRAWING 19, 18
+        PREPARE_MC_DRAWING 18, 17
+        PREPARE_MC_DRAWING 17, 16
+        PREPARE_MC_DRAWING 16, 15
+        PREPARE_MC_DRAWING 15, 14
+        PREPARE_MC_DRAWING 14, 13
+        PREPARE_MC_DRAWING 13, 12
+        PREPARE_MC_DRAWING 12, 11
+        PREPARE_MC_DRAWING 11, 10
+        PREPARE_MC_DRAWING 10, 9
+        PREPARE_MC_DRAWING 9, 8
+        PREPARE_MC_DRAWING 8, 7
+        PREPARE_MC_DRAWING 7, 6
+        PREPARE_MC_DRAWING 6, 5
+        PREPARE_MC_DRAWING 5, 4
+        PREPARE_MC_DRAWING 4, 3
+        PREPARE_MC_DRAWING 3, 2
+        PREPARE_MC_DRAWING 2, 1
+        PREPARE_MC_DRAWING 1, 0
+        PREPARE_MC_DRAWING 0, -1
 
         //ld hl, 0x37 + 0x31*256 // restore data: scf, JP
         ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
@@ -768,6 +773,8 @@ start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf
+
+first_mc_line: JP 00
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
