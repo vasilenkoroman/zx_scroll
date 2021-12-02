@@ -30,7 +30,7 @@ STACK_SIZE:             equ 4  ; in words
 stack_bottom            equ saved_bc_value + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
 
-runtime_var_end         equ stack_top + 30                 ; [28]
+runtime_var_end         equ stack_top + 28                 ; [56]
 
         INCLUDE "generated_code/labels.asm"
 
@@ -209,7 +209,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
                 // begin addr
                 pop hl
-                //ld (MC_LINE_N? + 1), hl
                 IF (N? == 0)
                         ld (first_mc_line + 1), hl
                 ELSE
@@ -737,7 +736,6 @@ finish_non_mc_drawing_cont:
         PREPARE_MC_DRAWING 1, 0
         PREPARE_MC_DRAWING 0, -1
 
-        //ld hl, 0x37 + 0x31*256 // restore data: scf, JP
         ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
         ld (start_mc_drawing), hl
 
@@ -772,8 +770,7 @@ bank_drawing_common2:
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
-        scf
-
+        scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
