@@ -6,3 +6,5 @@ pc_compressor/*.user
 zx_scroller/build/
 pc_compressor/.vs 
 
+psg_compressor/x64/
+psg_compressor/.vs
