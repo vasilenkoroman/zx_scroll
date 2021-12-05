@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 
 #include "suffix_tree.h"
 
@@ -47,15 +48,15 @@ int parsePsg(const std::string& fileName)
 
     std::vector<uint16_t> ayFrames;
 
-    auto writeRegs = 
-        [&]() 
-        {
-            uint16_t symbol = toSymbol(std::move(ayRegs));
-            ayFrames.push_back(symbol); //< Flush previous frame.
-        };
+    auto writeRegs =
+        [&]()
+    {
+        uint16_t symbol = toSymbol(std::move(ayRegs));
+        ayFrames.push_back(symbol); //< Flush previous frame.
+    };
 
     bool firstTime = true;
-    //toSymbol(ayRegs); //< Write empty regs at symbol 0
+    toSymbol(ayRegs); //< Write empty regs at symbol 0
 
     while (pos < end)
     {
@@ -69,7 +70,8 @@ int parsePsg(const std::string& fileName)
         }
         else if (value == 0xfe)
         {
-            writeRegs();
+            if (!ayRegs.empty())
+                writeRegs();
             for (int i = 0; i < pos[1] * 4; ++i)
                 writeRegs();
             pos += 2;
@@ -104,8 +106,117 @@ int parsePsg(const std::string& fileName)
     tree.build_tree();
 #endif
 
-    SuffixTree<uint16_t> tree(ayFrames);
-    tree.build_tree();
+    // compressData
+    std::vector<uint8_t> compressedData;
+    std::vector<bool> isRef;
+    isRef.resize(ayFrames.size());
+
+    struct Stats
+    {
+        int emptyCnt = 0;
+        int emptyFrames = 0;
+
+        int refsCnt = 0;
+        int refsFrames = 0;
+
+        int ownCnt = 0;
+        int ownBytes = 0;
+    };
+    Stats stats;
+
+    auto serializeEmptyFrames = 
+        [&](int i)
+        {
+            int size = 0;
+            while (i < ayFrames.size() && ayFrames[i] == 0 && size < 64)
+            {
+                ++i;
+                ++size;
+            }
+            compressedData.push_back(size);
+            return size;
+        };
+
+    auto serializeRef = 
+        [&](uint16_t pos, uint8_t size)
+        {
+            compressedData.push_back(pos % 256);
+            compressedData.push_back(pos >> 8);
+            compressedData.push_back(size);
+            for (int i = pos; i < pos + size; ++i)
+                isRef[i] = true;
+        };
+
+    auto serializeFrame =
+        [&](uint16_t pos)
+    {
+        uint16_t symbol = ayFrames[pos];
+        auto regs = symbolToRegs[symbol];
+        compressedData.push_back(0); // mask1
+        compressedData.push_back(0); // mask2
+        stats.ownBytes += 2;
+        for (const auto& reg : regs)
+            compressedData.push_back(reg.second); // reg value
+        stats.ownBytes += regs.size();
+    };
+
+    auto findPrevChain = 
+        [&](int pos) 
+        {
+            int maxLength = std::min(64, (int) ayFrames.size() - pos);
+            int maxChainLen = -1;
+            int chainPos = -1;
+            for (int i = 0; i < pos; ++i)
+            {
+                if (ayFrames[i] == ayFrames[pos] && !isRef[i])
+                {
+                    int chainLen = 0;
+                    for (int j = 0; j < maxLength; ++j)
+                    {
+                        if (ayFrames[i + j] != ayFrames[pos + j] && !isRef[i + j] && ayFrames[i + j] != 0)
+                            break;
+                        ++chainLen;
+                    }
+                    if (chainLen >= maxChainLen)
+                    {
+                        maxChainLen = chainLen;
+                        chainPos = i;
+                    }
+                }
+            }
+            return std::tuple<int,int> { chainPos, maxChainLen };
+        };
+
+    for (int i = 0; i < ayFrames.size();)
+    {
+        if (ayFrames[i] == 0)
+        {
+            int count = serializeEmptyFrames(i);
+            i += count;
+            ++stats.emptyCnt;
+            stats.emptyFrames += count;
+        }
+        else
+        {
+            auto [pos, len] = findPrevChain(i);
+            if (len > 1)
+            {
+                serializeRef(pos, len);
+                i += len;
+                stats.refsCnt++;
+                stats.refsFrames += len;
+            }
+            else
+            {
+                serializeFrame(i);
+                ++i;
+                ++stats.ownCnt;
+            }
+        }
+    }
+
+    //SuffixTree<uint16_t> tree(ayFrames);
+    //tree.build_tree();
 
     return 0;
 }
