@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <cassert>
 
 #include "suffix_tree.h"
 
@@ -31,7 +32,9 @@ public:
     std::map<uint16_t, AYRegs> symbolToRegs;
     std::vector<uint16_t> ayFrames;
     AYRegs ayRegs;
+    AYRegs lastValues;
     Stats stats;
+    uint8_t initReg13 = 0;
 
     std::vector<uint8_t> compressedData;
     std::vector<bool> isRef;
@@ -65,7 +68,7 @@ private:
             ++i;
             ++size;
         }
-        uint8_t header = 0; //< 00 xxxxxx   for pause command
+        uint8_t header = 0x80; //< 00 xxxxxx   for pause command
         compressedData.push_back(header + size);
         return size;
     };
@@ -73,8 +76,9 @@ private:
     void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
     {
         uint16_t offset = frameOffsets[pos];
+        uint16_t delta = offset - frameOffsets.size();
 
-        uint8_t* ptr = (uint8_t*)&offset;
+        uint8_t* ptr = (uint8_t*)&delta;
         
         // Serialize in network byte order
         compressedData.push_back(ptr[1]);
@@ -88,13 +92,16 @@ private:
     uint8_t makeRegMask(const AYRegs& regs, int from, int to)
     {
         uint8_t result = 0;
-        for (const auto& reg : regs)
+        uint8_t bit = 0x80;
+        for (int i = from; i < to; ++i)
         {
-            if (reg.first >= from && reg.first < to)
+            const auto reg = regs.find(i);
+            if (reg == regs.end())
             {
-                ++result;
-                result <<= 1;
+                // Mask is inverted. 1 means skip reg.
+                result += bit;
             }
+            bit >>= 1;
         }
         return result;
     }
@@ -118,19 +125,19 @@ private:
             }
         }
 #endif
-        uint8_t header1 = usePsg2 ? 0x80 : 0x40;
+        uint8_t header1 = 0;
         if (usePsg2)
         {
-            header1 += makeRegMask(regs, 0, 6);
+            header1 = (makeRegMask(regs, 0, 6) >> 2) + 0x00;
+            compressedData.push_back(header1);
+
             for (const auto& reg : regs)
             {
                 if (reg.first < 6)
                     compressedData.push_back(reg.second); // reg value
             }
 
-            uint8_t header2 = makeRegMask(regs, 7, 14);
-            if (header2 == 0x7f)
-                header2 = 0xff; //< indicate all regs are need to play
+            uint8_t header2 = makeRegMask(regs, 6, 14);
             compressedData.push_back(header2);
             for (const auto& reg : regs)
             {
@@ -140,11 +147,12 @@ private:
         }
         else
         {
+            header1 = 0x40;
             header1 += regs.begin()->first; //< Reg index in low 4 bit.
+            compressedData.push_back(header1);
             for (const auto& reg : regs)
                 compressedData.push_back(reg.second); // reg value
         }
-        compressedData.push_back(header1);
 
         stats.ownBytes += compressedData.size() - prevSize;
 
@@ -237,7 +245,16 @@ public:
             }
             else
             {
-                ayRegs[value] = pos[1];
+                assert(value <= 13);
+                if (value != 13 && pos[1] == lastValues[value])
+                {
+                    ; // skip
+                }
+                else
+                {
+                    ayRegs[value] = pos[1];
+                    lastValues[value] = pos[1];
+                }
                 pos += 2;
             }
         }

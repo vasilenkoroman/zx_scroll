@@ -6,44 +6,23 @@
 init		jr mus_init
 play		jp play_frame					; 10t					; 10t
 
-play_frame
-            ld   hl, (curPos)
-            ld   a, (hl)
-
-            // Execute command in high 2 bits:
-            // 11 - ref to previous frames command
-            // 10 - pause
-            // 00 - Play PSG2
-            // 01 - Play PSG1
-
-            add  a
-            jr   c, pl_ref_pause
-
-            add  a
-            jr   c, pl_psg1
-
-pl_psg1
-            // TODO: implement me
-            ret
 
 pl_pause    
             ld   b, a
             ld   a, (pl_counter)
+            or   a
+            jr   nz, pause_continue
+pause_init  ld a, b
+            rra: rra
+            ld   (pl_counter), a
+pause_continue
             dec  a
-            ret  nc 
-            cp   0xff
-            jr   z, pl_pause_init
-
-pl_pause_finis
-            inc  hl
             ld   (pl_counter), a
-            jp   pl_finish
+            ret  nz
 
-pl_pause_init            
-            ld a, b
-            ld   (pl_counter), a
+            inc hl
+            ld  (curPos), hl
             ret
-
 
 pl_ref_pause
             add  a
@@ -66,71 +45,88 @@ mus_init
 			ret
 
 
+pl_psg1
+            and  0x0f
+            ld   bc, #FFFD
+            out (c), a
+            inc  hl
+            ld   b, #BF
+            outi
+			
+            jp pl_finish
+
 pl_full_psg2_1:
 			dup 5
 				out (c), d
-				exx
+                ld   b, #ff
+				out (c), d
+                ld   b, e
 				outi
-                exx
 	    	    inc d
 			edup
 			dup 1
 				out (c), d
-				exx
+                ld   b, #ff
+				out (c), d
+                ld   b, e
 				outi
-                exx
 1	    	    
 			edup
             jp   pl_psg2_2
 
+play_frame
+            ld   hl, (curPos)
+            ld   a, (hl)
+
+            // Execute command in high 2 bits:
+            // 11 - ref to previous frames command
+            // 10 - pause
+            // 00 - Play PSG2
+            // 01 - Play PSG1
+
+            add  a
+            jr   c, pl_ref_pause
+
+            add  a
+            inc  hl
+            jr   c, pl_psg1
+
 pl_psg2
-            ld   bc, #FFFD
-            exx
-            ld   bc, #BFFD
-            exx
-            ld   d, 0
+            //ld   bc, #FFFD
+            //ld   bc, #BFFD
+            ld   de, #00BF
             jr z, pl_full_psg2_1
-			dup 5
+			dup 6
 				add  a
-				jr nc, 1F
+				jr c, 1F
+                ld   b, #ff
 				out (c), d
-				exx
+                ld   b, e
 				outi
-                exx
 1	    	    inc d
 			edup
-			dup 1
-				add  a
-				jr nc, 1F
-				out (c), d
-				exx
-				outi
-                exx
-1	    	    
-			edup
 pl_psg2_2
-            ld   d, 6
             ld   a, (hl)
             inc  hl
             or   a
             jr   z, pl_full_psg2_2
 
-			dup 6
+			dup 7
 				add  a
-				jr nc, 1F
+				jr c, 1F
+                ld   b, #ff
 				out (c), d
-				exx
+                ld   b, e
 				outi
-                exx
 1	    	    inc d
 			edup
 			dup 1
 				add  a
-				jr nc, 1F
+				jr c, 1F
+                ld   b, #ff
 				out (c), d
-				exx
-				outi
-                exx
+                ld   b, e
+                outi
 1	    	    
 			edup
             jp   pl_finish
@@ -138,16 +134,18 @@ pl_psg2_2
 pl_full_psg2_2:
 			dup 6
 				out (c), d
-				exx
+                ld   b, #ff
+				out (c), d
+                ld   b, e
 				outi
-                exx
 	    	    inc d
 			edup
 			dup 1
 				out (c), d
-				exx
+                ld   b, #ff
+				out (c), d
+                ld   b, e
 				outi
-                exx
 1	    	    
 			edup
             jp  pl_finish
@@ -156,6 +154,7 @@ pl_finish   ld   a, (pl_counter)
             dec  a
             jr   nz, pl_end
             ld hl, (prevPos)
+            ld   (pl_counter), a
 pl_end:     ld   (curPos), hl
             ret
 
