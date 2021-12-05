@@ -180,14 +180,25 @@ private:
     }
 
 public:
-    int parsePsg(const std::string& fileName)
+    int parsePsg(const std::string& inputFileName, const std::string& outputFileName)
     {
         using namespace std;
 
         ifstream fileIn;
-        fileIn.open(fileName, std::ios::binary);
+        fileIn.open(inputFileName, std::ios::binary);
         if (!fileIn.is_open())
+        {
+            std::cerr << "Can't open input file " << inputFileName << std::endl;
             return -1;
+        }
+
+        ofstream fileOut;
+        fileOut.open(outputFileName, std::ios::binary | std::ios::trunc);
+        if (!fileOut.is_open())
+        {
+            std::cerr << "Can't open output file " << outputFileName << std::endl;
+            return -1;
+        }
 
         fileIn.seekg(0, ios::end);
         int fileSize = fileIn.tellg();
@@ -292,6 +303,8 @@ public:
         //SuffixTree<uint16_t> tree(ayFrames);
         //tree.build_tree();
 
+        fileOut.write((const char*) compressedData.data(), compressedData.size());
+
         return 0;
     }
 
@@ -301,7 +314,12 @@ public:
 int main(int argc, char** argv)
 {
     PgsPacker packer;
-    packer.parsePsg("c:/zx/tbk-psg/machined.psg");
 
-    return 0;
+    if (argc != 3)
+    {
+        std::cout << "Usage: psg_pack <input_file> <output_file>" << std::endl;
+        return -1;
+    }
+
+    return packer.parsePsg(argv[1], argv[2]);
 }

@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 28100
+generated_code          equ 28500
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -400,6 +400,9 @@ ram2_size       EQU page2_end - 32768
         ld ix, 0x5051
         ld iy, 0x5453
 
+        ld  hl, packed_music
+        call  init // player init
+
         call prepare_interruption_table
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
@@ -767,6 +770,9 @@ bank_drawing_common2:
         ; delay
         DO_DELAY
 
+        ld sp, stack_top
+        call play
+
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
@@ -986,6 +992,7 @@ t4                      EQU t3
 
         INCLUDE "draw_off_rastr.asm"
         INCLUDE "zx0_standard.asm"
+        INCLUDE "include/physic_player.asm"
 
         ASSERT $ < generated_code
 
@@ -1007,6 +1014,9 @@ main_code_end
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
 page2_end
+
+packed_music
+        INCBIN "c:/zx/my_packer.ayp"
 
         ASSERT $ < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
