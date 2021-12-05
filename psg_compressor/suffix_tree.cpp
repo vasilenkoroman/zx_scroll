@@ -4,13 +4,8 @@
 
 using namespace std;
 
-SuffixTree::SuffixTree(const std::string& s):
-	s(s),
-	sz(1)
-{
-}
-
-SuffixTree::State SuffixTree::go(State st, int l, int r)
+template <typename T>
+State SuffixTree<T>::go(State st, int l, int r)
 {
 	while (l < r)
 	{
@@ -19,7 +14,8 @@ SuffixTree::State SuffixTree::go(State st, int l, int r)
 		if (st.pos == t[st.v].len())
 		{
 			st = State{ t[st.v].get(s[l]), 0 };
-			if (st.v == -1)  return st;
+			if (st.v == -1)  
+				return st;
 		}
 		else
 		{
@@ -33,16 +29,20 @@ SuffixTree::State SuffixTree::go(State st, int l, int r)
 	}
 	return st;
 }
- 
-void SuffixTree::ensureNodeSize(int x1, int x2, int x3)
+
+template <typename T>
+void SuffixTree<T>::ensureNodeSize(int x1, int x2, int x3)
 {
 	int value = std::max(std::max(x1, x2), x3);
-	if (t.size() <= value)
+	if ((int) t.size() <= value)
 		t.resize(value + 1);
 }
 
-int SuffixTree::split(SuffixTree::State st)
+template <typename T>
+int SuffixTree<T>::split(State st)
 {
+	ensureNodeSize(st.v);
+
 	if (st.pos == t[st.v].len())
 		return st.v;
 	if (st.pos == 0)
@@ -50,7 +50,7 @@ int SuffixTree::split(SuffixTree::State st)
 	Node v = t[st.v];
 	int id = sz++;
 
-	ensureNodeSize(id, v.par, st.v);
+	ensureNodeSize(id, v.par);
 	t[id] = Node(v.l, v.l+st.pos, v.par);
 	t[v.par].get( s[v.l] ) = id;
 	t[id].get( s[v.l+st.pos] ) = st.v;
@@ -59,7 +59,8 @@ int SuffixTree::split(SuffixTree::State st)
 	return id;
 }
  
-int SuffixTree::get_link (int v)
+template <typename T>
+int SuffixTree<T>::get_link (int v)
 {
 	if (t[v].link != -1)  return t[v].link;
 	if (t[v].par == -1)  return 0;
@@ -67,7 +68,8 @@ int SuffixTree::get_link (int v)
 	return t[v].link = split(go(State{ to, t[to].len() }, t[v].l + (t[v].par == 0), t[v].r));
 }
  
-void SuffixTree::tree_extend (int pos)
+template <typename T>
+void SuffixTree<T>::tree_extend (int pos)
 {
 	for(;;) 
 	{
@@ -88,9 +90,13 @@ void SuffixTree::tree_extend (int pos)
 		if (!mid)  break;
 	}
 }
- 
-void SuffixTree::build_tree()
+
+template <typename T>
+void SuffixTree<T>::build_tree()
 {
 	for (int i = 0; i < s.size(); ++i)
 		tree_extend (i);
 }
+
+template class SuffixTree<char>;
+template class SuffixTree<uint16_t>;

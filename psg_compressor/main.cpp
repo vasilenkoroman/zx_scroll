@@ -6,6 +6,23 @@
 
 #include "suffix_tree.h"
 
+using AYRegs = std::map<int, int>;
+
+std::map<AYRegs, uint16_t> regsToSymbol;
+std::map<uint16_t, AYRegs> symbolToRegs;
+
+uint16_t toSymbol(AYRegs regs)
+{
+    auto itr = regsToSymbol.find(regs);
+    if (itr != regsToSymbol.end())
+        return itr->second;
+
+    uint16_t value = regsToSymbol.size();
+    regsToSymbol.emplace(regs, value);
+    symbolToRegs.emplace(value, regs);
+
+    return value;
+}
 
 int parsePsg(const std::string& fileName)
 {
@@ -26,46 +43,35 @@ int parsePsg(const std::string& fileName)
     const uint8_t* pos = data.data() + 16;
     const uint8_t* end = data.data() + data.size();
 
-    std::vector<int> ayRegs;
+    AYRegs ayRegs;
 
-    std::set<std::vector<int>> ayFrames;
+    std::vector<uint16_t> ayFrames;
 
-    auto writeRegs = [&]()
-    {
-        if (ayRegs.empty())
+    auto writeRegs = 
+        [&]() 
         {
-            ayRegs.resize(14);
-        }
-        else
-        {
-            ayFrames.insert(ayRegs);
-            ayRegs.clear();
-            ayRegs.resize(14);
-        }
-    };
+            uint16_t symbol = toSymbol(std::move(ayRegs));
+            ayFrames.push_back(symbol); //< Flush previous frame.
+        };
 
-    int frameCount = 0;
-    int frameRegs = 0;
-    int pauses = 0;
+    bool firstTime = true;
+    //toSymbol(ayRegs); //< Write empty regs at symbol 0
 
     while (pos < end)
     {
         uint8_t value = *pos;
         if (value == 0xff)
         {
-            ++frameCount;
-
-            if (pos == end - 1 || pos[1] == 0xff)
-                ++pauses;
-
             ++pos;
-            writeRegs();
+            if (!firstTime)
+                writeRegs();
+            firstTime = false;
         }
         else if (value == 0xfe)
         {
             writeRegs();
-            frameCount += pos[1] * 4;
-            pauses += pos[1] * 4;
+            for (int i = 0; i < pos[1] * 4; ++i)
+                writeRegs();
             pos += 2;
         }
         else if (value == 0xfd)
@@ -76,10 +82,12 @@ int parsePsg(const std::string& fileName)
         {
             ayRegs[value] = pos[1];
             pos += 2;
-            ++frameRegs;
         }
     }
+    writeRegs();
 
+
+#if 0
     float avaragePsgRegsPerFrame = frameRegs / (float)frameCount;
     std::cout << "avarage frame size = " << avaragePsgRegsPerFrame << std::endl;
     float avarageCompressedFrameSize = avaragePsgRegsPerFrame + 2;
@@ -87,9 +95,16 @@ int parsePsg(const std::string& fileName)
     std::cout << "frames = " << frameCount << ". Uniq AY frames =" << ayFrames.size() << " . pauses=" << pauses << std::endl;
     std::cout << "PSG2 total frame size = " << avarageCompressedFrameSize * ayFrames.size() << std::endl;
     std::cout << "Expected compressed size = " << avarageCompressedFrameSize * ayFrames.size() + 1 * frameCount;
+#endif
 
-    //SuffixTree tree("abcadfbc");
-    SuffixTree tree("abcdfcdfab");
+#if 0
+    std::string str = "abcdfcdfab";
+    std::vector<char> testStr(str.begin(), str.end());
+    SuffixTree<char> tree(testStr);
+    tree.build_tree();
+#endif
+
+    SuffixTree<uint16_t> tree(ayFrames);
     tree.build_tree();
 
     return 0;

@@ -1,18 +1,25 @@
 #pragma once
 
-#include <string>
 #include <map>
 #include <vector>
 
+struct State
+{
+	int v = 0;
+	int pos = 0;
+};
+
+template <typename T>
 class SuffixTree
 {
 public:
 
-    SuffixTree(const std::string& s);
+	SuffixTree(const std::vector<T>& s): s(s)
+	{
+	}
 
     void build_tree();
 
-private:
 	struct Node
 	{
 		int l, r, par, link;
@@ -28,17 +35,12 @@ private:
 		}
 	};
 
-	struct State
-	{
-		int v = 0;
-		int pos = 0;
-	};
 	State ptr;
 
 
-	std::string s;
+	const std::vector<T> s;
 	std::vector<Node> t;
-    int sz;
+    int sz = 1;
 
 private:
 	State go(State st, int l, int r);
