@@ -771,6 +771,7 @@ bank_drawing_common2:
         DO_DELAY
 
         ld sp, stack_top
+        SET_PAGE 7
         call play
 
 start_mc_drawing:
@@ -1015,9 +1016,6 @@ main_code_end
         INCBIN "generated_code/ram2.zx0"
 page2_end
 
-packed_music
-        INCBIN "c:/zx/my_packer.ayp"
-
         ASSERT $ < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
@@ -1051,6 +1049,11 @@ page3_end
         INCBIN "generated_code/main3.z80"
         INCBIN "generated_code/reach_descriptor3.z80"
 page4_end        
+
+        ORG 0xc000
+        PAGE 7
+packed_music
+        INCBIN "c:/zx/my_packer.ayp", 0, 16384
 
         ORG 0xc000
         PAGE 6

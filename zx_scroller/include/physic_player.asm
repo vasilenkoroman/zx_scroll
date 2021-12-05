@@ -24,22 +24,6 @@ pause_continue
             ld  (curPos), hl
             ret
 
-pl_ref_pause
-            add  a
-            jr   nc, pl_pause
-pl_ref      
-            ld   d, (hl)
-            inc  hl
-            ld   e, (hl)
-            add  hl, de
-            inc  hl
-            ld   a, (hl)            // size and psg1/psg2 switch in low bit
-            inc  hl
-            ccf
-            rr  a
-            ld   (pl_counter), a
-            jr   c, pl_psg1
-
 mus_init	
             ld   (curPos), hl
 			ret
@@ -49,7 +33,6 @@ pl_psg1
             and  0x0f
             ld   bc, #FFFD
             out (c), a
-            inc  hl
             ld   b, #BF
             outi
 			
@@ -57,7 +40,6 @@ pl_psg1
 
 pl_full_psg2_1:
 			dup 5
-				out (c), d
                 ld   b, #ff
 				out (c), d
                 ld   b, e
@@ -65,12 +47,10 @@ pl_full_psg2_1:
 	    	    inc d
 			edup
 			dup 1
-				out (c), d
                 ld   b, #ff
 				out (c), d
                 ld   b, e
 				outi
-1	    	    
 			edup
             jp   pl_psg2_2
 
@@ -89,11 +69,32 @@ play_frame
 
             add  a
             inc  hl
+
+            jr   c, pl_psg1
+            jp   pl_psg2
+
+pl_ref_pause
+            add  a
+            jr   nc, pl_pause
+pl_ref      
+            ld   d, (hl)
+            inc  hl
+            ld   e, (hl)
+            inc  hl
+            ld   a, (hl)            // size and psg1/psg2 switch in low bit
+            ld   (pl_counter), a
+            inc  hl
+            ld   (prevPos), hl
+            
+            add  hl, de
+            ld   a, (hl)
+            inc  hl
+            add  a: add  a
+
             jr   c, pl_psg1
 
 pl_psg2
-            //ld   bc, #FFFD
-            //ld   bc, #BFFD
+            ld   c, #fd
             ld   de, #00BF
             jr z, pl_full_psg2_1
 			dup 6
@@ -133,7 +134,6 @@ pl_psg2_2
 
 pl_full_psg2_2:
 			dup 6
-				out (c), d
                 ld   b, #ff
 				out (c), d
                 ld   b, e
@@ -141,7 +141,6 @@ pl_full_psg2_2:
 	    	    inc d
 			edup
 			dup 1
-				out (c), d
                 ld   b, #ff
 				out (c), d
                 ld   b, e
@@ -151,10 +150,11 @@ pl_full_psg2_2:
             jp  pl_finish
 
 pl_finish   ld   a, (pl_counter)
-            dec  a
+            sub  1
+            jr   c, pl_end  // no counter
+            ld   (pl_counter), a
             jr   nz, pl_end
             ld hl, (prevPos)
-            ld   (pl_counter), a
 pl_end:     ld   (curPos), hl
             ret
 

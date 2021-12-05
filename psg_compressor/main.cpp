@@ -37,9 +37,26 @@ public:
     uint8_t initReg13 = 0;
 
     std::vector<uint8_t> compressedData;
-    std::vector<bool> isRef;
+    std::vector<bool> frameSerialized;
 
 private:
+
+    bool isPsg2(const AYRegs& regs) const
+    {
+        bool usePsg2 = regs.size() > 1;
+#if 0
+        // TODO: support PSG1 for 2 regs (it give 100+ bytes extra compression for machined.psg)
+        if (regs.size() == 2)
+        {
+            for (const auto& reg : regs)
+            {
+                if ((reg.first & ~3) == 4)
+                    usePgs2 = false;
+            }
+        }
+#endif
+        return usePsg2;
+    }
 
     uint16_t toSymbol(const AYRegs& regs)
     {
@@ -75,8 +92,9 @@ private:
 
     void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
     {
-        uint16_t offset = frameOffsets[pos];
-        uint16_t delta = offset - frameOffsets.size();
+        int offset = frameOffsets[pos];
+        int16_t delta = offset - compressedData.size() - 3;
+        assert(delta < 0);
 
         uint8_t* ptr = (uint8_t*)&delta;
         
@@ -84,9 +102,17 @@ private:
         compressedData.push_back(ptr[1]);
         compressedData.push_back(ptr[0]);
 
-        compressedData.push_back(size);
-        for (int i = pos; i < pos + size; ++i)
-            isRef[i] = true;
+        uint8_t data = size;
+
+#if 0
+        assert(size < 128);
+        const auto symbol = ayFrames[pos];
+        const auto regs = symbolToRegs[symbol];
+        if (!isPsg2(regs))
+            data |= 1;
+#endif
+
+        compressedData.push_back(data);
     };
 
     uint8_t makeRegMask(const AYRegs& regs, int from, int to)
@@ -113,18 +139,8 @@ private:
         uint16_t symbol = ayFrames[pos];
         auto regs = symbolToRegs[symbol];
         
-        bool usePsg2 = regs.size() > 1;
-#if 0
-        // TODO: support PSG1 for 2 regs (it give 100+ bytes extra compression for machined.psg)
-        if (regs.size() == 2)
-        {
-            for (const auto& reg : regs)
-            {
-                if ((reg.first & ~3) == 4)
-                    usePgs2 = false;
-            }
-        }
-#endif
+        bool usePsg2 = isPsg2(regs);
+
         uint8_t header1 = 0;
         if (usePsg2)
         {
@@ -165,12 +181,12 @@ private:
         int chainPos = -1;
         for (int i = 0; i < pos; ++i)
         {
-            if (ayFrames[i] == ayFrames[pos] && !isRef[i])
+            if (ayFrames[i] == ayFrames[pos] && frameSerialized[i])
             {
                 int chainLen = 0;
                 for (int j = 0; j < maxLength; ++j)
                 {
-                    if (ayFrames[i + j] != ayFrames[pos + j] && !isRef[i + j] && ayFrames[i + j] != 0)
+                    if (ayFrames[i + j] != ayFrames[pos + j] || !frameSerialized[i + j] || ayFrames[i + j] == 0)
                         break;
                     ++chainLen;
                 }
@@ -279,7 +295,7 @@ public:
 #endif
 
         // compressData
-        isRef.resize(ayFrames.size());
+        frameSerialized.resize(ayFrames.size());
 
         std::vector<int> frameOffsets;
 
@@ -297,8 +313,11 @@ public:
             }
             else
             {
+                auto symbol = ayFrames[i];
+                auto currentRegs = symbolToRegs[symbol];
+
                 auto [pos, len] = findPrevChain(i);
-                if (len > 1)
+                if (len > 1 || len == 1 && isPsg2(currentRegs))
                 {
                     serializeRef(frameOffsets, pos, len);
                     i += len;
@@ -308,6 +327,7 @@ public:
                 else
                 {
                     serializeFrame(i);
+                    frameSerialized[i] = true;
                     ++i;
                     ++stats.ownCnt;
                 }
