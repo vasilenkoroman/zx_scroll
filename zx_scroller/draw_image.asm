@@ -400,7 +400,7 @@ ram2_size       EQU page2_end - 32768
         ld ix, 0x5051
         ld iy, 0x5453
 
-        ld  hl, packed_music
+        //ld  hl, packed_music
         call  init // player init
 
         call prepare_interruption_table
@@ -1052,8 +1052,8 @@ page4_end
 
         ORG 0xc000
         PAGE 7
-packed_music
-        INCBIN "c:/zx/my_packer.ayp", 0, 16384
+music
+        INCBIN "c:/zx/my_packer.ayp"
 
         ORG 0xc000
         PAGE 6

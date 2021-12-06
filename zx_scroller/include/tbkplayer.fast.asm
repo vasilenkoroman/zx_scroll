@@ -2,10 +2,10 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 							; MAX DURATION				; MIN DURATION
-init		ld hl,music
+init			ld hl,music
 			jr mus_init
-play		jp trb_play					; 10t					; 10t
-stop		ld c,#fd
+play			jp trb_play					; 10t					; 10t
+stop			ld c,#fd
 			ld hl,#ffbf
 			ld de,#0d00
 1			ld b,h
@@ -33,10 +33,10 @@ trb_pause	//pause - skip frame
 			ld (play+1), a
 			jp trb_rep
 
-pl00		sub 120
+pl00			sub 120
 			jr nc,pl_pause
 			ld de,#ffbf
-//psg1
+		//psg1
 			ld a,(hl)
 			and #0f
 			cp (hl)
@@ -73,9 +73,9 @@ endtrack	//end of track
 			call init
 			jp trb_play
 			
-trb_play	//play note
-pl_track	ld hl,0					; 10t (10+10 = 20t)
-inside		//single repeat
+trb_play		//play note
+pl_track		ld hl,0					; 10t (10+10 = 20t)
+inside			//single repeat
 			ld a,(hl)
 			add a
 			jr nc,pl0x			; 7+4+7=18t
@@ -88,21 +88,21 @@ inside		//single repeat
 			ld a,1
 			jr nc, pl10				; 4+7+7=18t (20+18+28+18 = 84t)
 
-pl11		inc hl
+pl11			inc hl
 			ld a,(hl)
 			res 6,b			; 6+7+8=21t
 
-pl10		ld (trb_rest+1),hl
+pl10			ld (trb_rest+1),hl
 			ld (trb_rep+1),a		; 16+13=29t
 			sbc hl,bc
 			dec hl
 			ld a,(hl)
 			add a		; 15+6+7+4=32t (84+21+29+32 = 166t)
 
-pl0x		ld c,#fd					; 7t
+pl0x			ld c,#fd					; 7t
 			add a
 			jr nc,pl00				; 4+7=11t
-pl01	// player PSG2
+pl01			// player PSG2
 			exa
 			inc hl
 			ld a,(hl)
@@ -141,12 +141,12 @@ pl01	// player PSG2
 1	
 trb_end	//end of play note
 			ld (pl_track+1),hl				; 16t (927+53+16 = 996t)
-trb_rep		ld a,0						; 7t					; 7t
+trb_rep			ld a,0						; 7t					; 7t
 			dec a
 			ld (trb_rep+1),a
 			jr nz,bookkeeping	; 4+13+7=24t				; 4+13+12=29t (44+7+29 = 80t)
 // end of repeat, restore position in track
-trb_rest 	ld hl,0
+trb_rest 		ld hl,0
 			inc hl
 			ld (trb_play+1),hl		; 10+6+16=32t
 			ld a,low trb_play

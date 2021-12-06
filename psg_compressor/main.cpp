@@ -8,6 +8,8 @@
 
 #include "suffix_tree.h"
 
+static const uint8_t kEndTrackMarker = 0x3f;
+
 class PgsPacker
 {
 public:
@@ -24,6 +26,7 @@ public:
         int ownBytes = 0;
 
         std::map<int, int> frameRegs;
+        std::map<int, int> regsChange;
     };
 
     using AYRegs = std::map<int, int>;
@@ -34,16 +37,15 @@ public:
     AYRegs ayRegs;
     AYRegs lastValues;
     Stats stats;
-    uint8_t initReg13 = 0;
 
     std::vector<uint8_t> compressedData;
-    std::vector<bool> frameSerialized;
+    std::vector<int> refCount;
 
 private:
 
     bool isPsg2(const AYRegs& regs) const
     {
-        bool usePsg2 = regs.size() > 1;
+        bool usePsg2 = regs.size() > 2;
 #if 0
         // TODO: support PSG1 for 2 regs (it give 100+ bytes extra compression for machined.psg)
         if (regs.size() == 2)
@@ -80,29 +82,37 @@ private:
     int serializeEmptyFrames (int i)
     {
         int size = 0;
-        while (i < ayFrames.size() && ayFrames[i] == 0 && size < 64)
+        while (i < ayFrames.size() && ayFrames[i] == 0)
         {
             ++i;
             ++size;
         }
-        uint8_t header = 0x80; //< 00 xxxxxx   for pause command
-        compressedData.push_back(header + size);
-        return size;
+        int result = size;
+        while (size > 0)
+        {
+            uint8_t value = std::min(33, size);
+            uint8_t header = 30;
+            compressedData.push_back(header + value - 1);
+            size -= value;
+        }
+        return result;
     };
 
     void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
     {
         int offset = frameOffsets[pos];
-        int16_t delta = offset - compressedData.size() - 3;
+        int recordSize = size == 1 ? 2 : 3;
+        int16_t delta = offset - compressedData.size() - (recordSize - 1);
         assert(delta < 0);
 
         uint8_t* ptr = (uint8_t*)&delta;
         
+        if (size == 1)
+            ptr[1] &= ~0x40; // reset 6-th bit
+
         // Serialize in network byte order
         compressedData.push_back(ptr[1]);
         compressedData.push_back(ptr[0]);
-
-        uint8_t data = size;
 
 #if 0
         assert(size < 128);
@@ -111,8 +121,8 @@ private:
         if (!isPsg2(regs))
             data |= 1;
 #endif
-
-        compressedData.push_back(data);
+        if (size > 1)
+            compressedData.push_back(size);
     };
 
     uint8_t makeRegMask(const AYRegs& regs, int from, int to)
@@ -122,9 +132,8 @@ private:
         for (int i = from; i < to; ++i)
         {
             const auto reg = regs.find(i);
-            if (reg == regs.end())
+            if (reg != regs.end())
             {
-                // Mask is inverted. 1 means skip reg.
                 result += bit;
             }
             bit >>= 1;
@@ -144,7 +153,7 @@ private:
         uint8_t header1 = 0;
         if (usePsg2)
         {
-            header1 = (makeRegMask(regs, 0, 6) >> 2) + 0x00;
+            header1 = 0x40 + (makeRegMask(regs, 0, 6) >> 2);
             compressedData.push_back(header1);
 
             for (const auto& reg : regs)
@@ -163,11 +172,13 @@ private:
         }
         else
         {
-            header1 = 0x40;
-            header1 += regs.begin()->first; //< Reg index in low 4 bit.
-            compressedData.push_back(header1);
+            header1 = regs.size() == 1 ? 0x10 : 0;
             for (const auto& reg : regs)
+            {
+                compressedData.push_back(reg.first + header1);
                 compressedData.push_back(reg.second); // reg value
+                header1 = 0;
+            }
         }
 
         stats.ownBytes += compressedData.size() - prevSize;
@@ -176,17 +187,17 @@ private:
 
     auto findPrevChain(int pos)
     {
-        int maxLength = std::min(64, (int)ayFrames.size() - pos);
+        int maxLength = 255;
         int maxChainLen = -1;
         int chainPos = -1;
         for (int i = 0; i < pos; ++i)
         {
-            if (ayFrames[i] == ayFrames[pos] && frameSerialized[i])
+            if (ayFrames[i] == ayFrames[pos] && refCount[i] ==  0)
             {
                 int chainLen = 0;
-                for (int j = 0; j < maxLength; ++j)
+                for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
-                    if (ayFrames[i + j] != ayFrames[pos + j] || !frameSerialized[i + j] || ayFrames[i + j] == 0)
+                    if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 0 || ayFrames[i + j] == 0)
                         break;
                     ++chainLen;
                 }
@@ -262,15 +273,9 @@ public:
             else
             {
                 assert(value <= 13);
-                if (value != 13 && pos[1] == lastValues[value])
-                {
-                    ; // skip
-                }
-                else
-                {
-                    ayRegs[value] = pos[1];
-                    lastValues[value] = pos[1];
-                }
+                ayRegs[value] = pos[1];
+                lastValues[value] = pos[1];
+                ++stats.regsChange[value];
                 pos += 2;
             }
         }
@@ -295,7 +300,7 @@ public:
 #endif
 
         // compressData
-        frameSerialized.resize(ayFrames.size());
+        refCount.resize(ayFrames.size());
 
         std::vector<int> frameOffsets;
 
@@ -317,9 +322,13 @@ public:
                 auto currentRegs = symbolToRegs[symbol];
 
                 auto [pos, len] = findPrevChain(i);
-                if (len > 1 || len == 1 && isPsg2(currentRegs))
+                if (len > 0)
                 {
                     serializeRef(frameOffsets, pos, len);
+
+                    for (int j = i; j < i + len; ++j)
+                        refCount[j] = len;
+
                     i += len;
                     stats.refsCnt++;
                     stats.refsFrames += len;
@@ -327,12 +336,13 @@ public:
                 else
                 {
                     serializeFrame(i);
-                    frameSerialized[i] = true;
                     ++i;
                     ++stats.ownCnt;
                 }
             }
         }
+
+        compressedData.push_back(kEndTrackMarker);
 
         for (const auto& v : symbolToRegs)
             ++stats.frameRegs[v.second.size()];
