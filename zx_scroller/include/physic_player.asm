@@ -116,7 +116,8 @@ inside		// single repeat
 
 			ld a, (hl)
 			add a		            ; 15+6+7+4=32t (84+21+29+32 = 166t)
-			jp pl0x
+			call pl0x
+			jp	 trb_rep
 
 pl11		ld a, (hl)
 			ld (trb_rep+1), a		; 16+13=29t
@@ -144,13 +145,12 @@ stack_ptr	ld hl,  rest_data
 			ret
 
 pl_frame	call pl0x
+			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
 trb_rep		ld a, 0						; 7t					; 7t
 			sub 1
-			jr z, trb_rest
-			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
 			ret c
 			ld (trb_rep+1), a
-			ret
+			ret nz
 
 // end of repeat, restore position in track
 trb_rest	ld hl, 0
@@ -165,7 +165,6 @@ trb_rest	ld hl, 0
 			// total: +42t
 */
 			ld (trb_play+1), hl		; 10+6+16=32t
-			ld (trb_rep+1), a
 			ret						; 10t (996+7+24+32+20+10 = 1089t)
 
 pl0x		ld c, #fd				; 7t

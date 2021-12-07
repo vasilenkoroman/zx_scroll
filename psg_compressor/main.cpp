@@ -182,7 +182,7 @@ private:
 
     };
 
-    auto findPrevChain(int pos)
+    auto findRef(int pos)
     {
         const int maxLength = std::min(255, (int)ayFrames.size() - pos);
 
@@ -195,8 +195,7 @@ private:
                 int chainLen = 0;
                 for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
-                    if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 0)
-                        //if (ayFrames[i + j] != ayFrames[pos + j])
+                    if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 1)
                         break;
                     ++chainLen;
                 }
@@ -323,7 +322,7 @@ public:
                 auto symbol = ayFrames[i];
                 auto currentRegs = symbolToRegs[symbol];
 
-                auto [pos, len] = findPrevChain(i);
+                auto [pos, len] = findRef(i);
                 if (len > 1 || len == 1 && currentRegs.size() > 1)
                 {
                     serializeRef(frameOffsets, pos, len);
