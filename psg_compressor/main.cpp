@@ -90,7 +90,7 @@ private:
         }
     }
 
-    void serializeEmptyFrames (int count)
+    void serializeEmptyFrames(int count)
     {
         while (count > 0)
         {
@@ -105,11 +105,11 @@ private:
     {
         int offset = frameOffsets[pos];
         int recordSize = size == 1 ? 2 : 3;
-        int16_t delta = offset - compressedData.size() - (recordSize - 1);
+        int16_t delta = offset - compressedData.size() - recordSize;
         assert(delta < 0);
 
         uint8_t* ptr = (uint8_t*)&delta;
-        
+
         if (size == 1)
             ptr[1] &= ~0x40; // reset 6-th bit
 
@@ -118,7 +118,7 @@ private:
         compressedData.push_back(ptr[0]);
 
         if (size > 1)
-            compressedData.push_back(size);
+            compressedData.push_back(size - 1);
     };
 
     uint8_t makeRegMask(const AYRegs& regs, int from, int to)
@@ -137,19 +137,20 @@ private:
         return result;
     }
 
-    auto serializeFrame (uint16_t pos)
+    auto serializeFrame(uint16_t pos)
     {
         int prevSize = compressedData.size();
 
         uint16_t symbol = ayFrames[pos];
         auto regs = symbolToRegs[symbol];
-        
+
         bool usePsg2 = isPsg2(regs);
 
         uint8_t header1 = 0;
         if (usePsg2)
         {
-            header1 = 0x40 + (makeRegMask(regs, 0, 6) >> 2);
+            auto mask = (makeRegMask(regs, 0, 6) >> 2);
+            header1 = 0x40 + mask;
             compressedData.push_back(header1);
 
             for (const auto& reg : regs)
@@ -183,18 +184,19 @@ private:
 
     auto findPrevChain(int pos)
     {
-        const int maxLength = std::min(255, (int) ayFrames.size() - pos);
+        const int maxLength = std::min(255, (int)ayFrames.size() - pos);
 
         int maxChainLen = -1;
         int chainPos = -1;
         for (int i = 0; i < pos; ++i)
         {
-            if (ayFrames[i] == ayFrames[pos] && refCount[i] ==  0)
+            if (ayFrames[i] == ayFrames[pos] && refCount[i] == 0)
             {
                 int chainLen = 0;
                 for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
                     if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 0)
+                        //if (ayFrames[i + j] != ayFrames[pos + j])
                         break;
                     ++chainLen;
                 }
@@ -205,8 +207,6 @@ private:
                 }
             }
         }
-        if (maxChainLen > 255)
-            maxChainLen = 255;
 
         return std::tuple<int, int> { chainPos, maxChainLen };
     }
@@ -352,7 +352,7 @@ public:
             ++stats.frameRegs[v.second.size()];
 
 
-        fileOut.write((const char*) compressedData.data(), compressedData.size());
+        fileOut.write((const char*)compressedData.data(), compressedData.size());
         fileOut.close();
 
         return 0;

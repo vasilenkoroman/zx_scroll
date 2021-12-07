@@ -3,7 +3,7 @@
 //source for sjasm cross-assembler
 
 /*
-11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания nnnnnnnn значений по адресу 11hhhhhh llllllll
+11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
 10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
 01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - битовая маска регистров, далее следуют значения регистров
 
@@ -48,28 +48,7 @@ trb_pause	//pause - skip frame
 			ld (play+1), a
 			ret
 
-pl00		sub 120
-			jr nc, pl_pause
-			ld de,#ffbf
-		//psg1
-			ld a, (hl)
-			and #0f
-			cp (hl)
-			jp nz, 7f
-			ld b,d
-			outi
-			ld b, e
-			outi
-			ld a,(hl)
-			and #0f
-7			inc hl
-			ld b,d
-			out (c),a
-			ld b,e
-			outi
-			//jp trb_end	
-			ret
-			
+		
 // 2 registr - maximum, second without check
 
 // pause or end track
@@ -92,12 +71,35 @@ endtrack	//end of track
 			call init
 			jp trb_play
 			
+pl00		sub 120
+			jr nc, pl_pause
+			ld de,#ffbf
+		//psg1
+			ld a, (hl)
+			and #0f
+			cp (hl)
+			jp nz, 7f
+			ld b,d
+			outi
+			ld b, e
+			outi
+			ld a,(hl)
+			and #0f
+7			inc hl
+			ld b,d
+			out (c),a
+			ld b,e
+			outi
+			//jp trb_end	
+			ret
+
+
 trb_play		//play note
 pl_track	ld hl, 0					; 10t (10+10 = 20t)
 inside		// single repeat
 			ld a, (hl)
 			add a
-			jr c, pl_frame		; 7+4+7=18t
+			jr nc, pl_frame		; 7+4+7=18t
 
 			// Process ref
 
@@ -109,7 +111,7 @@ inside		// single repeat
 			inc hl
 			jr c, pl11			; 4+7+7=18t (20+18+28+18 = 84t)
 
-			ld (trb_play+1), hl		; 10+6+16=32t
+			ld (pl_track+1), hl		; 10+6+16=32t
 			add hl, bc
 
 			ld a, (hl)
@@ -120,8 +122,8 @@ pl11		ld a, (hl)
 			ld (trb_rep+1), a		; 16+13=29t
 			inc hl
 			
-			//ld (trb_rest+1), hl
-
+			ld (trb_rest+1), hl
+/*
 			ex de, hl
 stack_ptr	ld hl,  rest_data
 			ld (hl), e
@@ -131,6 +133,7 @@ stack_ptr	ld hl,  rest_data
 			ld (stack_ptr +1), hl
 			ex de, hl
 			// total: +40t
+*/			
 
 			add hl, bc
 			ld a, (hl)
@@ -150,7 +153,9 @@ trb_rep		ld a, 0						; 7t					; 7t
 			ret
 
 // end of repeat, restore position in track
-trb_rest	ld hl, (stack_ptr + 1)  // +6
+trb_rest	ld hl, 0
+/*
+			ld hl, (stack_ptr + 1)  // +6
 			dec l
 			ld d, (hl)
 			dec l
@@ -158,8 +163,7 @@ trb_rest	ld hl, (stack_ptr + 1)  // +6
 			ld (stack_ptr + 1), hl
 			ex de, hl
 			// total: +42t
-
-			//inc hl
+*/
 			ld (trb_play+1), hl		; 10+6+16=32t
 			ld (trb_rep+1), a
 			ret						; 10t (996+7+24+32+20+10 = 1089t)
