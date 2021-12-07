@@ -118,7 +118,19 @@ inside		// single repeat
 
 pl11		ld a, (hl)
 			ld (trb_rep+1), a		; 16+13=29t
-			ld (trb_rest+1), hl
+			inc hl
+			
+			//ld (trb_rest+1), hl
+
+			ex de, hl
+stack_ptr	ld hl,  rest_data
+			ld (hl), e
+			inc l
+			ld (hl), d
+			inc l
+			ld (stack_ptr +1), hl
+			ex de, hl
+			// total: +40t
 
 			add hl, bc
 			ld a, (hl)
@@ -138,8 +150,16 @@ trb_rep		ld a, 0						; 7t					; 7t
 			ret
 
 // end of repeat, restore position in track
-trb_rest	ld hl, 0
-			inc hl
+trb_rest	ld hl, (stack_ptr + 1)  // +6
+			dec l
+			ld d, (hl)
+			dec l
+			ld e, (hl)
+			ld (stack_ptr + 1), hl
+			ex de, hl
+			// total: +42t
+
+			//inc hl
 			ld (trb_play+1), hl		; 10+6+16=32t
 			ld (trb_rep+1), a
 			ret						; 10t (996+7+24+32+20+10 = 1089t)
@@ -182,5 +202,7 @@ pl01			// player PSG2
 			outi	//!!! 4+10+7+12+4+16=53t
 1	
 			ret
+
+rest_data	DW 0, 0, 0, 0	// Maximum nested level for refs is 4
 
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"
