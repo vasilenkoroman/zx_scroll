@@ -110,7 +110,7 @@ private:
 
         uint8_t* ptr = (uint8_t*)&delta;
 
-        if (size == 1)
+        if (size > 1)
             ptr[1] &= ~0x40; // reset 6-th bit
 
         // Serialize in network byte order

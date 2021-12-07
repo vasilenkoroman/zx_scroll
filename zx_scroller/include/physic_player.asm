@@ -3,8 +3,8 @@
 //source for sjasm cross-assembler
 
 /*
-11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
-10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
+10hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
+11hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
 01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - битовая маска регистров, далее следуют значения регистров
 
 00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
@@ -98,33 +98,62 @@ trb_play		//play note
 pl_track	ld hl, 0					; 10t (10+10 = 20t)
 inside		// single repeat
 			ld a, (hl)
+			ld b, a
 			add a
-			jr nc, pl_frame		; 7+4+7=18t
+			jr nc, pl_frame				; 7+4+4+7 = 22t (total 42t)
 
 			// Process ref
 
-			ld b, (hl)
 			inc hl
 			ld c, (hl)
-			set 6, b		    ; 7+6+7+8=28t
 			add a
 			inc hl
-			jr c, pl11			; 4+7+7=18t (20+18+28+18 = 84t)
+			jr nc, pl10					; 6+7+4+6+7 = 30t  (total 72t)
 
-			ld (pl_track+1), hl		; 10+6+16=32t
+			ld (pl_track+1), hl		
 			add hl, bc
 
 			ld a, (hl)
-			add a		            ; 15+6+7+4=32t (84+21+29+32 = 166t)
-			call pl0x
-			jp	 trb_rep
+			add a		            
+			call pl0x					; 16+11+7+4+17 = 65t (total 127t)
+			
+trb_rep		ld a, 0						
+			sub 1
+			ret c
+			ld (trb_rep+1), a
+			ret nz						; 7+7+5+13+5 = 37t (total 164t)
+			// end of repeat, restore position in track
+trb_rest	ld hl, 0
 
-pl11		ld a, (hl)
+/*
+			// TODO: Nested refs
+			ld hl, (stack_ptr + 1)  // +6
+			dec l
+			ld d, (hl)
+			dec l
+			ld e, (hl)
+			ld (stack_ptr + 1), hl
+			ex de, hl
+			// total: +42t
+*/
+			ld (trb_play+1), hl		; 
+			ret						; 10+16+10=36t (total 200t + pl0x time)
+
+
+
+pl_frame	call pl0x
+			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
+			jr trb_rep
+
+pl10		set 6, b		    ; 7+6+7+8=28t
+			ld a, (hl)
 			ld (trb_rep+1), a		; 16+13=29t
 			inc hl
 			
 			ld (trb_rest+1), hl
+
 /*
+			TODO: nested refs
 			ex de, hl
 stack_ptr	ld hl,  rest_data
 			ld (hl), e
@@ -144,28 +173,6 @@ stack_ptr	ld hl,  rest_data
 			ld (pl_track+1), hl			; 16t (927+53+16 = 996t)
 			ret
 
-pl_frame	call pl0x
-			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
-trb_rep		ld a, 0						; 7t					; 7t
-			sub 1
-			ret c
-			ld (trb_rep+1), a
-			ret nz
-
-// end of repeat, restore position in track
-trb_rest	ld hl, 0
-/*
-			ld hl, (stack_ptr + 1)  // +6
-			dec l
-			ld d, (hl)
-			dec l
-			ld e, (hl)
-			ld (stack_ptr + 1), hl
-			ex de, hl
-			// total: +42t
-*/
-			ld (trb_play+1), hl		; 10+6+16=32t
-			ret						; 10t (996+7+24+32+20+10 = 1089t)
 
 pl0x		ld c, #fd				; 7t
 			add a
@@ -198,14 +205,17 @@ pl01			// player PSG2
 			edup
 
  			add a
-			jp nc,1f
+			ret nc
 			ld b,#ff
 			out (c),d
 			ld b,e
 			outi	//!!! 4+10+7+12+4+16=53t
-1	
+
 			ret
 
+/*
+			TODO: nested refs
 rest_data	DW 0, 0, 0, 0	// Maximum nested level for refs is 4
+*/
 
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"
