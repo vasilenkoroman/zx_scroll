@@ -120,7 +120,7 @@ private:
         if (size > 1)
             compressedData.push_back(size - 1);
     };
-
+    
     uint8_t makeRegMask(const AYRegs& regs, int from, int to)
     {
         uint8_t result = 0;
@@ -128,7 +128,7 @@ private:
         for (int i = from; i < to; ++i)
         {
             const auto reg = regs.find(i);
-            if (reg != regs.end())
+            if (reg == regs.end())
             {
                 result += bit;
             }
@@ -319,11 +319,12 @@ public:
             }
             else
             {
-                auto symbol = ayFrames[i];
-                auto currentRegs = symbolToRegs[symbol];
+                const auto symbol = ayFrames[i];
+                const auto currentRegs = symbolToRegs[symbol];
 
-                auto [pos, len] = findRef(i);
-                if (len > 1 || len == 1 && currentRegs.size() > 1)
+                const auto [pos, len] = findRef(i);
+                //if (len > 1 || len == 1 && currentRegs.size() > 1)
+                if (len > 0)
                 {
                     serializeRef(frameOffsets, pos, len);
 

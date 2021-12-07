@@ -5,7 +5,7 @@
 /*
 10hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
 11hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
-01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - битовая маска регистров, далее следуют значения регистров
+01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров
 
 00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
 00111111					1	маркер оцончания трека
@@ -138,7 +138,7 @@ trb_rest	ld hl, 0
 */
 			ld (trb_play+1), hl		; 
 			ret						; 10+16+10=36t+164=200t
-			// total: 200t + pl0x time = 807t = 1007
+			// total: 200t + pl0x time(807t) = 1007t
 
 
 pl_frame	call pl0x
@@ -181,7 +181,7 @@ pl01			// player PSG2
 
 			dup 6
 				add a
-				jr nc,1f
+				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
@@ -194,7 +194,7 @@ pl01			// player PSG2
 
 			dup 7
 				add a
-				jr nc,1f
+				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
@@ -203,7 +203,7 @@ pl01			// player PSG2
 			edup
 
  			add a
-			ret nc
+			ret c
 			ld b,#ff
 			out (c),d
 			ld b,e
