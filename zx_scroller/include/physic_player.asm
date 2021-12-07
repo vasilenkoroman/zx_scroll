@@ -96,7 +96,7 @@ pl00		sub 120
 
 trb_play		//play note
 pl_track	ld hl, 0					; 10t (10+10 = 20t)
-inside		// single repeat
+
 			ld a, (hl)
 			ld b, a
 			add a
@@ -137,20 +137,18 @@ trb_rest	ld hl, 0
 			// total: +42t
 */
 			ld (trb_play+1), hl		; 
-			ret						; 10+16+10=36t (total 200t + pl0x time)
-
+			ret						; 10+16+10=36t+164=200t
+			// total: 200t + pl0x time = 807t = 1007
 
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
 			jr trb_rep
 
-pl10		set 6, b		    ; 7+6+7+8=28t
-			ld a, (hl)
-			ld (trb_rep+1), a		; 16+13=29t
+pl10		ld a, (hl)
+			ld (trb_rep+1), a		
 			inc hl
-			
-			ld (trb_rest+1), hl
+			ld (trb_rest+1), hl				; 8+7+13+6+16=50t
 
 /*
 			TODO: nested refs
@@ -164,22 +162,22 @@ stack_ptr	ld hl,  rest_data
 			ex de, hl
 			// total: +40t
 */			
-
+			set 6, b
 			add hl, bc
 			ld a, (hl)
-			add a		            ; 15+6+7+4=32t (84+21+29+32 = 166t)
+			add a		            
 
 			call pl0x
-			ld (pl_track+1), hl			; 16t (927+53+16 = 996t)
-			ret
+			ld (pl_track+1), hl		
+			ret								; 11+7+4+17+16+10=65	(total 65+50+77 = 192 + pl0x)
 
 
-pl0x		ld c, #fd				; 7t
-			add a
-			jr nc, pl00				; 4+7=11t
+pl0x		ld c, #fd				
+			add a					; 7+4=11t
+			jr nc, pl00
 pl01			// player PSG2
 			inc hl
-			ld de,#00bf					; 10t (166+7+11+27+10 = 221t)
+			ld de,#00bf				; 11+7+6+10=34t
 
 			dup 6
 				add a
@@ -187,12 +185,12 @@ pl01			// player PSG2
 				ld b,#ff
 				out (c),d
 				ld b,e
-				outi	; 4+7+7+12+4+16+4=54t (221+54*6 = 545t)
-1				inc d
+				outi				
+1				inc d				; 34+6*(4+7+7+12+4+16+4)=34+54*6=358t
 			edup
 
 			ld a, (hl)
-			inc hl
+			inc hl					; 7+6+358=371t
 
 			dup 7
 				add a
@@ -200,8 +198,8 @@ pl01			// player PSG2
 				ld b,#ff
 				out (c),d
 				ld b,e
-				outi	; 54t (545+4+7*54 = 927t)
-1				inc d
+				outi	
+1				inc d				; 54*7=378 + 371 = 749t
 			edup
 
  			add a
@@ -209,9 +207,8 @@ pl01			// player PSG2
 			ld b,#ff
 			out (c),d
 			ld b,e
-			outi	//!!! 4+10+7+12+4+16=53t
-
-			ret
+			outi					
+			ret						; 4+5+7+12+4+16+10=58 + 749 = 807t
 
 /*
 			TODO: nested refs
