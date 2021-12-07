@@ -9,6 +9,7 @@
 #include "suffix_tree.h"
 
 static const uint8_t kEndTrackMarker = 0x3f;
+static const int kMaxDelay = 33;
 
 class PgsPacker
 {
@@ -72,30 +73,31 @@ private:
         return value;
     }
 
-    void writeRegs()
+    void writeRegs(int delay)
     {
-        uint16_t symbol = toSymbol(ayRegs);
-        ayFrames.push_back(symbol); //< Flush previous frame.
-        ayRegs.clear();
+        if (!ayRegs.empty())
+        {
+            uint16_t symbol = toSymbol(ayRegs);
+            ayFrames.push_back(symbol); //< Flush previous frame.
+            ayRegs.clear();
+        }
+        while (delay > 0)
+        {
+            int d = std::min(kMaxDelay, delay);
+            ayFrames.push_back(d); //< Special code for delay
+            delay -= d;
+        }
     }
 
-    int serializeEmptyFrames (int i)
+    void serializeEmptyFrames (int count)
     {
-        int size = 0;
-        while (i < ayFrames.size() && ayFrames[i] == 0)
+        while (count > 0)
         {
-            ++i;
-            ++size;
-        }
-        int result = size;
-        while (size > 0)
-        {
-            uint8_t value = std::min(33, size);
+            uint8_t value = std::min(33, count);
             uint8_t header = 30;
             compressedData.push_back(header + value - 1);
-            size -= value;
+            count -= value;
         }
-        return result;
     };
 
     void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
@@ -198,7 +200,7 @@ private:
                 int chainLen = 0;
                 for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
-                    if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 0 || ayFrames[i + j] == 0)
+                    if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 0)
                         break;
                     ++chainLen;
                 }
@@ -246,8 +248,15 @@ public:
         const uint8_t* pos = data.data() + 16;
         const uint8_t* end = data.data() + data.size();
 
-        bool firstTime = true;
-        toSymbol(ayRegs); //< Write empty regs at symbol 0
+        for (int i = 0; i <= kMaxDelay; ++i)
+        {
+            AYRegs fakeRegs;
+            fakeRegs[-1] = i;
+            regsToSymbol.emplace(fakeRegs, i);
+            symbolToRegs.emplace(i, fakeRegs);
+        }
+
+        int delayCounter = 0;
 
         while (pos < end)
         {
@@ -255,16 +264,11 @@ public:
             if (value == 0xff)
             {
                 ++pos;
-                if (!firstTime)
-                    writeRegs();
-                firstTime = false;
+                ++delayCounter;
             }
             else if (value == 0xfe)
             {
-                if (!ayRegs.empty())
-                    writeRegs();
-                for (int i = 0; i < pos[1] * 4; ++i)
-                    writeRegs();
+                delayCounter += pos[1] * 4;
                 pos += 2;
             }
             else if (value == 0xfd)
@@ -273,6 +277,10 @@ public:
             }
             else
             {
+                if (delayCounter > 0)
+                    writeRegs(delayCounter - 1);
+                delayCounter = 0;
+
                 assert(value <= 13);
                 ayRegs[value] = pos[1];
                 lastValues[value] = pos[1];
@@ -280,8 +288,7 @@ public:
                 pos += 2;
             }
         }
-        writeRegs();
-
+        writeRegs(delayCounter);
 
 #if 0
         float avaragePsgRegsPerFrame = frameRegs / (float)frameCount;
@@ -310,12 +317,12 @@ public:
             while (frameOffsets.size() <= i)
                 frameOffsets.push_back(compressedData.size());
 
-            if (ayFrames[i] == 0)
+            if (ayFrames[i] <= kMaxDelay)
             {
-                int count = serializeEmptyFrames(i);
-                i += count;
+                serializeEmptyFrames(ayFrames[i]);
+                stats.emptyFrames += ayFrames[i];
                 ++stats.emptyCnt;
-                stats.emptyFrames += count;
+                ++i;
             }
             else
             {
@@ -348,8 +355,6 @@ public:
         for (const auto& v : symbolToRegs)
             ++stats.frameRegs[v.second.size()];
 
-        //SuffixTree<uint16_t> tree(ayFrames);
-        //tree.build_tree();
 
         fileOut.write((const char*) compressedData.data(), compressedData.size());
 
