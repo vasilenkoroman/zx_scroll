@@ -42,10 +42,11 @@ trb_pause	//pause - skip frame
 			ld a, 0
 			dec a
 			ld (trb_pause+1), a
-			jp nz,trb_rep						; 7+4+13+10=34t (10+34 = 44t)
-			ld a,low trb_play
+			ret nz
+								; 7+4+13+10=34t (10+34 = 44t)
+			ld a, low trb_play
 			ld (play+1), a
-			jp trb_rep
+			ret
 
 pl00		sub 120
 			jr nc, pl_pause
@@ -66,22 +67,26 @@ pl00		sub 120
 			out (c),a
 			ld b,e
 			outi
-			jp trb_end	
+			//jp trb_end	
+			ret
+			
 // 2 registr - maximum, second without check
 
 // pause or end track
 pl_pause
 			inc hl
-			jp z, trb_end	//pause length
+			ld (pl_track+1), hl
+			ret z
 			cp 4 * 63 - 120
 			jr z, endtrack
 			//set pause
 			rrca
 			rrca
-			ld (trb_pause+1),a	
+			ld (trb_pause+1), a	
 			ld a, low trb_pause
 			ld (play+1), a
-			jp trb_end
+			
+			ret
 //
 endtrack	//end of track
 			call init
@@ -92,28 +97,56 @@ pl_track	ld hl, 0					; 10t (10+10 = 20t)
 inside		// single repeat
 			ld a, (hl)
 			add a
-			jr nc,pl0x			; 7+4+7=18t
+			jr c, pl_frame		; 7+4+7=18t
+
+			// Process ref
 
 			ld b, (hl)
 			inc hl
 			ld c, (hl)
 			set 6, b		    ; 7+6+7+8=28t
 			add a
-			ld a, 1
-			jr nc, pl10			; 4+7+7=18t (20+18+28+18 = 84t)
+			inc hl
+			jr c, pl11			; 4+7+7=18t (20+18+28+18 = 84t)
 
-pl11		inc hl
+			ld (trb_play+1), hl		; 10+6+16=32t
+			add hl, bc
+
 			ld a, (hl)
+			add a		            ; 15+6+7+4=32t (84+21+29+32 = 166t)
+			jp pl0x
 
-pl10		ld (trb_rest+1), hl
+pl11		ld a, (hl)
 			ld (trb_rep+1), a		; 16+13=29t
+			ld (trb_rest+1), hl
+
 			add hl, bc
 			ld a, (hl)
 			add a		            ; 15+6+7+4=32t (84+21+29+32 = 166t)
 
+			call pl0x
+			ld (pl_track+1), hl			; 16t (927+53+16 = 996t)
+			ret
+
+pl_frame	call pl0x
+trb_rep		ld a, 0						; 7t					; 7t
+			sub 1
+			jr z, trb_rest
+			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
+			ret c
+			ld (trb_rep+1), a
+			ret
+
+// end of repeat, restore position in track
+trb_rest	ld hl, 0
+			inc hl
+			ld (trb_play+1), hl		; 10+6+16=32t
+			ld (trb_rep+1), a
+			ret						; 10t (996+7+24+32+20+10 = 1089t)
+
 pl0x		ld c, #fd				; 7t
 			add a
-			jr nc,pl00				; 4+7=11t
+			jr nc, pl00				; 4+7=11t
 pl01			// player PSG2
 			inc hl
 			ld de,#00bf					; 10t (166+7+11+27+10 = 221t)
@@ -148,23 +181,6 @@ pl01			// player PSG2
 			ld b,e
 			outi	//!!! 4+10+7+12+4+16=53t
 1	
-trb_end	//end of play note
-			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
-trb_rep		ld a,0						; 7t					; 7t
-			dec a
-			ld (trb_rep+1),a
-			jr nz,bookkeeping	; 4+13+7=24t				; 4+13+12=29t (44+7+29 = 80t)
-// end of repeat, restore position in track
-trb_rest	ld hl,0
-			inc hl
-			ld (trb_play+1),hl		; 10+6+16=32t
-			ld a,low trb_play
-			ld (play+1),a			; 7+13=20t
-			ret						; 10t (996+7+24+32+20+10 = 1089t)
+			ret
 
-bookkeeping inc a
-			ret nz
-			ld (trb_rep+1),a
-			ret							; 4+11=15t (80+15 = 95t)
-	
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"

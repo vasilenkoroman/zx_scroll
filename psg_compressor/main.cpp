@@ -117,13 +117,6 @@ private:
         compressedData.push_back(ptr[1]);
         compressedData.push_back(ptr[0]);
 
-#if 0
-        assert(size < 128);
-        const auto symbol = ayFrames[pos];
-        const auto regs = symbolToRegs[symbol];
-        if (!isPsg2(regs))
-            data |= 1;
-#endif
         if (size > 1)
             compressedData.push_back(size);
     };
