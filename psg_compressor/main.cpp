@@ -20,8 +20,9 @@ public:
         int emptyCnt = 0;
         int emptyFrames = 0;
 
-        int refsCnt = 0;
-        int refsFrames = 0;
+        int singleRepeat = 0;
+        int allRepeat = 0;
+        int allRepeatFrames = 0;
 
         int ownCnt = 0;
         int ownBytes = 0;
@@ -330,7 +331,7 @@ public:
                 auto currentRegs = symbolToRegs[symbol];
 
                 auto [pos, len] = findPrevChain(i);
-                if (len > 0)
+                if (len > 1 || len == 1 && currentRegs.size() > 1)
                 {
                     serializeRef(frameOffsets, pos, len);
 
@@ -338,8 +339,10 @@ public:
                         refCount[j] = len;
 
                     i += len;
-                    stats.refsCnt++;
-                    stats.refsFrames += len;
+                    if (len == 1)
+                        stats.singleRepeat++;
+                    stats.allRepeat++;
+                    stats.allRepeatFrames += len;
                 }
                 else
                 {
@@ -357,6 +360,7 @@ public:
 
 
         fileOut.write((const char*) compressedData.data(), compressedData.size());
+        fileOut.close();
 
         return 0;
     }
