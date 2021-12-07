@@ -187,7 +187,8 @@ private:
 
     auto findPrevChain(int pos)
     {
-        int maxLength = 255;
+        const int maxLength = std::min(255, (int) ayFrames.size() - pos);
+
         int maxChainLen = -1;
         int chainPos = -1;
         for (int i = 0; i < pos; ++i)
