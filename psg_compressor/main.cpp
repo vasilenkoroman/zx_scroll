@@ -29,6 +29,9 @@ public:
 
         std::map<int, int> frameRegs;
         std::map<int, int> regsChange;
+
+        std::map<int, int> firstHalfRegs;
+        std::map<int, int> secondHalfRegs;
     };
 
     using AYRegs = std::map<int, int>;
@@ -37,7 +40,7 @@ public:
     std::map<uint16_t, AYRegs> symbolToRegs;
     std::vector<uint16_t> ayFrames;
     AYRegs ayRegs;
-    AYRegs lastValues;
+    AYRegs lastRegValues;
     Stats stats;
 
     std::vector<uint8_t> compressedData;
@@ -74,7 +77,7 @@ private:
         return value;
     }
 
-    void writeRegs(int delay)
+    void writeRegs()
     {
         if (!ayRegs.empty())
         {
@@ -82,6 +85,10 @@ private:
             ayFrames.push_back(symbol); //< Flush previous frame.
             ayRegs.clear();
         }
+    }
+
+    void writeDelay(int delay)
+    {
         while (delay > 0)
         {
             int d = std::min(kMaxDelay, delay);
@@ -137,7 +144,7 @@ private:
         return result;
     }
 
-    auto serializeFrame(uint16_t pos)
+    void serializeFrame(uint16_t pos)
     {
         int prevSize = compressedData.size();
 
@@ -153,11 +160,17 @@ private:
             header1 = 0x40 + mask;
             compressedData.push_back(header1);
 
+            int firstsHalfRegs = 0; //< Statistics
             for (const auto& reg : regs)
             {
                 if (reg.first < 6)
+                {
                     compressedData.push_back(reg.second); // reg value
+                    ++firstsHalfRegs;
+                }
             }
+            ++stats.firstHalfRegs[firstsHalfRegs];
+            ++stats.secondHalfRegs[regs.size() - firstsHalfRegs];
 
             uint8_t header2 = makeRegMask(regs, 6, 14);
             compressedData.push_back(header2);
@@ -180,6 +193,18 @@ private:
 
         stats.ownBytes += compressedData.size() - prevSize;
 
+    }
+
+    int serializedFrameSize(uint16_t pos)
+    {
+        const uint16_t symbol = ayFrames[pos];
+        if (symbol <= kMaxDelay)
+            return 1;
+
+        auto regs = symbolToRegs[symbol];
+        if (isPsg2(regs))
+            return 2 + regs.size();
+        return regs.size() * 2;
     };
 
     auto findRef(int pos)
@@ -188,19 +213,26 @@ private:
 
         int maxChainLen = -1;
         int chainPos = -1;
+        int bestBenifit = 0;
+
         for (int i = 0; i < pos; ++i)
         {
             if (ayFrames[i] == ayFrames[pos] && refCount[i] == 0)
             {
                 int chainLen = 0;
+                int serializedSize = 0;
                 for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
                     if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 1)
                         break;
                     ++chainLen;
+                    serializedSize += serializedFrameSize(pos + j);
                 }
-                if (chainLen >= maxChainLen)
+                   
+                int benifit = serializedSize - (chainLen == 1 ? 2 : 3);
+                if (benifit > bestBenifit)
                 {
+                    bestBenifit = benifit;
                     maxChainLen = chainLen;
                     chainPos = i;
                 }
@@ -254,15 +286,20 @@ public:
         while (pos < end)
         {
             uint8_t value = *pos;
-            if (value == 0xff)
+            if (value >= 0xfe)
             {
-                ++pos;
-                ++delayCounter;
-            }
-            else if (value == 0xfe)
-            {
-                delayCounter += pos[1] * 4;
-                pos += 2;
+                writeRegs();
+
+                if (value == 0xff)
+                {
+                    ++delayCounter;
+                    ++pos;
+                }
+                else
+                {
+                    delayCounter += pos[1] * 4;
+                    pos += 2;
+                }
             }
             else if (value == 0xfd)
             {
@@ -270,35 +307,18 @@ public:
             }
             else
             {
-                if (delayCounter > 0)
-                    writeRegs(delayCounter - 1);
+                writeDelay(delayCounter-1);
                 delayCounter = 0;
 
                 assert(value <= 13);
                 ayRegs[value] = pos[1];
-                lastValues[value] = pos[1];
+                lastRegValues[value] = pos[1];
                 ++stats.regsChange[value];
                 pos += 2;
             }
         }
-        writeRegs(delayCounter);
-
-#if 0
-        float avaragePsgRegsPerFrame = frameRegs / (float)frameCount;
-        std::cout << "avarage frame size = " << avaragePsgRegsPerFrame << std::endl;
-        float avarageCompressedFrameSize = avaragePsgRegsPerFrame + 2;
-
-        std::cout << "frames = " << frameCount << ". Uniq AY frames =" << ayFrames.size() << " . pauses=" << pauses << std::endl;
-        std::cout << "PSG2 total frame size = " << avarageCompressedFrameSize * ayFrames.size() << std::endl;
-        std::cout << "Expected compressed size = " << avarageCompressedFrameSize * ayFrames.size() + 1 * frameCount;
-#endif
-
-#if 0
-        std::string str = "abcdfcdfab";
-        std::vector<char> testStr(str.begin(), str.end());
-        SuffixTree<char> tree(testStr);
-        tree.build_tree();
-#endif
+        writeRegs();
+        writeDelay(delayCounter-1);
 
         // compressData
         refCount.resize(ayFrames.size());
@@ -323,7 +343,6 @@ public:
                 const auto currentRegs = symbolToRegs[symbol];
 
                 const auto [pos, len] = findRef(i);
-                //if (len > 1 || len == 1 && currentRegs.size() > 1)
                 if (len > 0)
                 {
                     serializeRef(frameOffsets, pos, len);
