@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 911t (-178t)
+//Max time reduced from 1089t to 905t (-184t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -17,10 +17,12 @@
 
 */
 
+LD_HL_CODE	EQU 0x21
+JR_CODE		EQU 0x18
 							
-init		ld hl,music
+init		ld hl, music
 			jr mus_init
-play		jp trb_play					; 10t					; 10t
+play		EQU trb_play
 stop		ld c,#fd
 			ld hl,#ffbf
 			ld de,#0d00
@@ -33,11 +35,11 @@ stop		ld c,#fd
 			ret
 		
 mus_init	
-			ld (trb_play+1), hl
+			ld (pl_track+1), hl
 			xor a
-			ld (trb_rep+1),a
-			ld a,low trb_play
-			ld (play+1),a
+			ld (trb_rep+1), a
+			ld hl, LD_HL_CODE * 256
+			ld (trb_play), hl
 			jr stop
 
 trb_pause	//pause - skip frame
@@ -46,8 +48,8 @@ trb_pause	//pause - skip frame
 			ld (trb_pause+1), a
 			ret nz
 								; 7+4+13+10=34t (10+34 = 44t)
-			ld a, low trb_play
-			ld (play+1), a
+			ld hl, LD_HL_CODE * 256	; end of pause
+			ld (trb_play), hl
 			ret
 
 		
@@ -62,22 +64,24 @@ pl_pause
 			rrca
 			rrca
 			ld (trb_pause+1), a	
-			ld a, low trb_pause
-			ld (play+1), a
+
+			ld de, JR_CODE + (trb_pause - trb_play - 2) * 256
+			ld (trb_play), de
 			
 			ret
 //
 endtrack	//end of track
 			call init
-			jp trb_play
+			jp pl_track
 			
-trb_play		//play note
-pl_track	ld hl, 0					; 10t (10+10 = 20t)
+			//play note
+trb_play	nop							; 4
+pl_track	ld hl, 0					; 10t (10+4 = 14t)
 
 			ld a, (hl)
 			ld b, a
 			add a
-			jr nc, pl_frame				; 7+4+4+7 = 22t (total 42t)
+			jr nc, pl_frame				; 7+4+4+7 = 22t (total 36t)
 
 			// Process ref
 
@@ -85,7 +89,7 @@ pl_track	ld hl, 0					; 10t (10+10 = 20t)
 			ld c, (hl)
 			add a
 			inc hl
-			jr nc, pl10					; 6+7+4+6+7 = 30t  (total 72t)
+			jr nc, pl10					; 6+7+4+6+7 = 30t  (total 66t)
 
 pl11		ld a, (hl)						
 			ld (trb_rep+1), a		
@@ -98,8 +102,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 72+36+65=173t
-			// 	+ pl0x time(738t) = 911t(max)
+			// total: 66+36+65=167t + pl0x time(738t) = 905t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -123,7 +126,7 @@ trb_rep		ld a, 0
 			// end of repeat, restore position in track
 trb_rest	ld hl, 0
 			inc hl
-			ld (trb_play+1), hl		; 
+			ld (pl_track+1), hl		; 
 			ret								; 10+16+10=36t, 73 for rep/rest
 
 
