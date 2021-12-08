@@ -5,6 +5,7 @@
 #include <fstream>
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 
 #include "suffix_tree.h"
 
@@ -43,6 +44,7 @@ public:
     AYRegs lastRegValues;
     Stats stats;
 
+    std::vector<uint8_t> data;
     std::vector<uint8_t> compressedData;
     std::vector<int> refCount;
 
@@ -243,7 +245,7 @@ private:
     }
 
 public:
-    int parsePsg(const std::string& inputFileName, const std::string& outputFileName)
+    int parsePsg(const std::string& inputFileName)
     {
         using namespace std;
 
@@ -255,20 +257,12 @@ public:
             return -1;
         }
 
-        ofstream fileOut;
-        fileOut.open(outputFileName, std::ios::binary | std::ios::trunc);
-        if (!fileOut.is_open())
-        {
-            std::cerr << "Can't open output file " << outputFileName << std::endl;
-            return -1;
-        }
-
         fileIn.seekg(0, ios::end);
         int fileSize = fileIn.tellg();
         fileIn.seekg(0, ios::beg);
 
-        std::vector<uint8_t> data(fileSize);
-        fileIn.read((char*)data.data(), fileSize);
+        data.resize(fileSize);
+        fileIn.read((char*) data.data(), fileSize);
 
         const uint8_t* pos = data.data() + 16;
         const uint8_t* end = data.data() + data.size();
@@ -307,7 +301,7 @@ public:
             }
             else
             {
-                writeDelay(delayCounter-1);
+                writeDelay(delayCounter - 1);
                 delayCounter = 0;
 
                 assert(value <= 13);
@@ -318,7 +312,23 @@ public:
             }
         }
         writeRegs();
-        writeDelay(delayCounter-1);
+        writeDelay(delayCounter - 1);
+
+        return 0;
+    }
+
+    int packPsg(const std::string& outputFileName)
+    {
+        using namespace std;
+
+        ofstream fileOut;
+        fileOut.open(outputFileName, std::ios::binary | std::ios::trunc);
+        if (!fileOut.is_open())
+        {
+            std::cerr << "Can't open output file " << outputFileName << std::endl;
+            return -1;
+        }
+
 
         // compressData
         refCount.resize(ayFrames.size());
@@ -390,5 +400,19 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    return packer.parsePsg(argv[1], argv[2]);
+    using namespace std::chrono;
+
+    std::cout << "Starting compression..." << std::endl;
+    auto timeBegin = std::chrono::steady_clock::now();
+    auto result = packer.parsePsg(argv[1]);
+    if (result == 0)
+        result = packer.packPsg(argv[2]); 
+    if (result != 0)
+        return result;
+    auto timeEnd = steady_clock::now();
+
+    std::cout << "Compression done in " << duration_cast<milliseconds>(timeEnd - timeBegin).count() / 1000.0 << " seconds" << std::endl;
+    std::cout << "Input size: " << packer.data.size() << ".Packed size: " << packer.compressedData.size() <<  std::endl;
+
+    return 0;
 }
