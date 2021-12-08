@@ -1,6 +1,8 @@
 //player for TBK PSG Packer
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
+//modified by physic 8.12.2021
+//Max time reduced from 1089t to 942t (-147t)
 
 /*
 10hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -15,7 +17,7 @@
 
 */
 
-							; MAX DURATION				; MIN DURATION
+							
 init		ld hl,music
 			jr mus_init
 play		jp trb_play					; 10t					; 10t
@@ -49,8 +51,6 @@ trb_pause	//pause - skip frame
 			ret
 
 		
-// 2 registr - maximum, second without check
-
 // pause or end track
 pl_pause
 			inc hl
@@ -71,29 +71,6 @@ endtrack	//end of track
 			call init
 			jp trb_play
 			
-pl00		sub 120
-			jr nc, pl_pause
-			ld de,#ffbf
-		//psg1
-			ld a, (hl)
-			and #0f
-			cp (hl)
-			jp nz, 7f
-			ld b,d
-			outi
-			ld b, e
-			outi
-			ld a,(hl)
-			and #0f
-7			inc hl
-			ld b,d
-			out (c),a
-			ld b,e
-			outi
-			//jp trb_end	
-			ret
-
-
 trb_play		//play note
 pl_track	ld hl, 0					; 10t (10+10 = 20t)
 
@@ -138,7 +115,7 @@ trb_rest	ld hl, 0
 */
 			ld (trb_play+1), hl		; 
 			ret						; 10+16+10=36t+164=200t
-			// total: 200t + pl0x time(807t) = 1007t
+			// total: 200t + pl0x time(742t) = 942t
 
 
 pl_frame	call pl0x
@@ -172,12 +149,46 @@ stack_ptr	ld hl,  rest_data
 			ret								; 11+7+4+17+16+10=65	(total 65+50+77 = 192 + pl0x)
 
 
+pl00		sub 120
+			jr nc, pl_pause
+			ld de,#ffbf
+		//psg1
+			// 2 registr - maximum, second without check
+			ld a, (hl)
+			and #0f
+			cp (hl)
+			jp nz, 7f
+			ld b,d
+			outi
+			ld b, e
+			outi
+			ld a,(hl)
+			and #0f
+7			inc hl
+			ld b,d
+			out (c),a
+			ld b,e
+			outi
+			ret
+
+play_all1
+			cpl
+			dup 6
+				ld b, a
+				out (c),d
+				ld b,e
+				outi				
+1				inc d				; 6*43t
+			edup
+			jr psg2_continue
+
 pl0x		ld c, #fd				
-			add a					; 7+4=11t
+			add a					
 			jr nc, pl00
 pl01			// player PSG2
 			inc hl
-			ld de,#00bf				; 11+7+6+10=34t
+			ld de,#00bf
+			jr z, play_all1			; 7+4+7+6+10+7=41t
 
 			dup 6
 				add a
@@ -186,20 +197,32 @@ pl01			// player PSG2
 				out (c),d
 				ld b,e
 				outi				
-1				inc d				; 34+6*(4+7+7+12+4+16+4)=34+54*6=358t
-			edup
-
+1				inc d				
+			edup					; 5 * 54 + 15 = 285t max	(play_all1 261t with ret)
+									; 41 + 285 = 326t
+			
+psg2_continue
 			ld a, (hl)
-			inc hl					; 7+6+358=371t
+			inc hl					
 
-			dup 7
+			add a
+			jr c,1f
+			jr z, play_all2
+
+			ld b,#ff
+			out (c),d
+			ld b,e
+			outi	
+1			inc d					; 7+6+4+7+7+7+12+4+16+4=74t, 74t + 326t = 400t
+
+			dup 6
 				add a
 				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
 				outi	
-1				inc d				; 54*7=378 + 371 = 749t
+1				inc d				; 54*5+14=284 + 400 = 684t
 			edup
 
  			add a
@@ -208,7 +231,23 @@ pl01			// player PSG2
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+7+12+4+16+10=58 + 749 = 807t
+			ret						; 4+5+7+12+4+16+10=58 + 684 = 742t
+
+play_all2
+			cpl
+			dup 7
+				ld b, a
+				out (c),d
+				ld b,e
+				outi				
+1				inc d				; 6*43t
+			edup
+
+			ld b, a
+			out (c),d
+			ld b,e
+			outi					
+			ret
 
 /*
 			TODO: nested refs
