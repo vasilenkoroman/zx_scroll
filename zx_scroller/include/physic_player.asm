@@ -155,9 +155,8 @@ pl00		sub 120
 		//psg1
 			// 2 registr - maximum, second without check
 			ld a, (hl)
-			and #0f
-			cp (hl)
-			jp nz, 7f
+			sub #10
+			jp nc, 7f
 			outi
 			ld b, e
 			outi
@@ -180,7 +179,7 @@ play_all1
 			edup
 			jr psg2_continue
 
-pl0x			ld bc, #fffd				
+pl0x		ld bc, #fffd				
 			add a					
 			jr nc, pl00
 pl01			// player PSG2
