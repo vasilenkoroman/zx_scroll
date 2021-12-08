@@ -2,11 +2,11 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 938t (-151t)
+//Max time reduced from 1089t to 917t (-172t)
 
 /*
-10hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
-11hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
+11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
+10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
 01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров
 
 00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
@@ -87,66 +87,46 @@ pl_track	ld hl, 0					; 10t (10+10 = 20t)
 			inc hl
 			jr nc, pl10					; 6+7+4+6+7 = 30t  (total 72t)
 
-			ld (pl_track+1), hl		
-			add hl, bc
-
-			ld a, (hl)
-			add a		            
-			call pl0x					; 16+11+7+4+17 = 65t (total 127t)
-			
-trb_rep		ld a, 0						
-			sub 1
-			ret c
-			ld (trb_rep+1), a
-			ret nz						; 7+7+5+13+5 = 37t (total 164t)
-			// end of repeat, restore position in track
-trb_rest	ld hl, 0
-
-/*
-			// TODO: Nested refs
-			ld hl, (stack_ptr + 1)  // +6
-			dec l
-			ld d, (hl)
-			dec l
-			ld e, (hl)
-			ld (stack_ptr + 1), hl
-			ex de, hl
-			// total: +42t
-*/
-			ld (trb_play+1), hl		; 
-			ret						; 10+16+10=36t+164=200t
-			// total: 200t + pl0x time(738t) = 938t
-
-
-pl_frame	call pl0x
-			ld (pl_track+1), hl				; 16t (927+53+16 = 996t)
-			jr trb_rep
-
-pl10		ld a, (hl)
+pl11		ld a, (hl)						
 			ld (trb_rep+1), a		
 			inc hl
-			ld (trb_rest+1), hl				; 8+7+13+6+16=50t
+			ld (trb_rest+1), hl				; 7+13+6+16=42t
 
-/*
-			TODO: nested refs
-			ex de, hl
-stack_ptr	ld hl,  rest_data
-			ld (hl), e
-			inc l
-			ld (hl), d
-			inc l
-			ld (stack_ptr +1), hl
-			ex de, hl
-			// total: +40t
-*/			
-			set 6, b
 			add hl, bc
 			ld a, (hl)
 			add a		            
 
 			call pl0x
 			ld (pl_track+1), hl		
-			ret								; 11+7+4+17+16+10=65	(total 65+50+77 = 192 + pl0x)
+			ret								; 11+7+4+17+16+10=65t
+			// total: 72+42+65=179t
+			// 	+ pl0x time(738t) = 917t(max)
+
+pl10
+			ld (pl_track+1), hl		
+			set 6, b
+			add hl, bc
+
+			ld a, (hl)
+			add a		            
+			jp pl0x					; 16+11+7+4+10 = 58t
+			// total: 72+8+5+58=143
+			
+
+pl_frame	call pl0x
+			ld (pl_track+1), hl				
+			
+trb_rep		ld a, 0						
+			sub 1
+			ret c
+			ld (trb_rep+1), a
+			ret nz							; 7+7+5+13+5 = 37t
+			// end of repeat, restore position in track
+trb_rest	ld hl, 0
+
+			ld (trb_play+1), hl		; 
+			ret								; 10+16+10=36t, 73 for rep/rest
+
 
 
 pl00		sub 120

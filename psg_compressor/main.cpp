@@ -119,7 +119,7 @@ private:
 
         uint8_t* ptr = (uint8_t*)&delta;
 
-        if (size > 1)
+        if (size == 1)
             ptr[1] &= ~0x40; // reset 6-th bit
 
         // Serialize in network byte order
@@ -216,32 +216,50 @@ private:
         int maxChainLen = -1;
         int chainPos = -1;
         int bestBenifit = 0;
+        int maxReducedLen = -1;
 
         for (int i = 0; i < pos; ++i)
         {
             if (ayFrames[i] == ayFrames[pos] && refCount[i] == 0)
             {
                 int chainLen = 0;
+                int reducedLen = 0;
                 int serializedSize = 0;
+                std::vector<int> sizes;
+                
                 for (int j = 0; j < maxLength && i + j < pos; ++j)
                 {
                     if (ayFrames[i + j] != ayFrames[pos + j] || refCount[i + j] > 1)
                         break;
                     ++chainLen;
+                    if (refCount[i + j] == 0)
+                        ++reducedLen; //< Don't count 1-symbol refs during ref serialization
                     serializedSize += serializedFrameSize(pos + j);
+                    sizes.push_back(serializedSize);
+                }
+                while (refCount[i + chainLen - 1] == 1)
+                {
+                    sizes.pop_back();
+                    --chainLen;
                 }
                    
-                int benifit = serializedSize - (chainLen == 1 ? 2 : 3);
+                int benifit = *sizes.rbegin() - (chainLen == 1 ? 2 : 3);
                 if (benifit > bestBenifit)
                 {
                     bestBenifit = benifit;
                     maxChainLen = chainLen;
+                    maxReducedLen = reducedLen;
                     chainPos = i;
                 }
             }
         }
 
-        return std::tuple<int, int> { chainPos, maxChainLen };
+        if (maxChainLen != maxReducedLen)
+        {
+            int gg = 4;
+        }
+
+        return std::tuple<int, int, int> { chainPos, maxChainLen, maxReducedLen };
     }
 
 public:
@@ -352,10 +370,10 @@ public:
                 const auto symbol = ayFrames[i];
                 const auto currentRegs = symbolToRegs[symbol];
 
-                const auto [pos, len] = findRef(i);
+                const auto [pos, len, reducedLen] = findRef(i);
                 if (len > 0)
                 {
-                    serializeRef(frameOffsets, pos, len);
+                    serializeRef(frameOffsets, pos, reducedLen);
 
                     for (int j = i; j < i + len; ++j)
                         refCount[j] = len;
