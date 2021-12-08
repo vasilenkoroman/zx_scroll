@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 917t (-172t)
+//Max time reduced from 1089t to 911t (-178t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -89,8 +89,7 @@ pl_track	ld hl, 0					; 10t (10+10 = 20t)
 
 pl11		ld a, (hl)						
 			ld (trb_rep+1), a		
-			inc hl
-			ld (trb_rest+1), hl				; 7+13+6+16=42t
+			ld (trb_rest+1), hl				; 7+13+16=36t
 
 			add hl, bc
 			ld a, (hl)
@@ -99,8 +98,8 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 72+42+65=179t
-			// 	+ pl0x time(738t) = 917t(max)
+			// total: 72+36+65=173t
+			// 	+ pl0x time(738t) = 911t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -110,7 +109,7 @@ pl10
 			ld a, (hl)
 			add a		            
 			jp pl0x					; 16+11+7+4+10 = 58t
-			// total: 72+8+5+58=143
+			// total: 72+8+5+58=143t
 			
 
 pl_frame	call pl0x
@@ -123,7 +122,7 @@ trb_rep		ld a, 0
 			ret nz							; 7+7+5+13+5 = 37t
 			// end of repeat, restore position in track
 trb_rest	ld hl, 0
-
+			inc hl
 			ld (trb_play+1), hl		; 
 			ret								; 10+16+10=36t, 73 for rep/rest
 
