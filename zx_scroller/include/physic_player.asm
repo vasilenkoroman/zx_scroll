@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 837t (-252t)
+//Max time reduced from 1089t to 833t (-256t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -107,7 +107,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(674t) = 837t(max)
+			// total: 32+30+36+65=163t + pl0x time(670t) = 833t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -159,53 +159,56 @@ pl0x		ld bc, #fffd
 
 pl01	// player PSG2
 			inc hl
-			ld de,#00bf
-			jr z, play_all1		; 10+4+7+6+10+7=44t
-
+			ld de, #01bf
+			jr z, play_all_0_6		; 10+4+7+6+10+7=44t
 play_by_mask
 			add a				
 			jr c,1f
-			out (c),d
+			out (c), 0
 			ld b,e
 			outi				
 1									; 4+7+12+4+16=43
 			dup 4
-				inc d
 				add a
 				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
 				outi				
-1								
+1				inc d
 			edup					;54*2 + 15*2=138
 
 			add a
 			jr c, psg2_continue
 
-			inc d
 			ld b,#ff
 			out (c),d
 			ld b,e
-			outi					; 4+7+4+7+12+4+16=54
+			outi					; 4+7+7+12+4+16=50
 			jp psg2_continue
-			// total:  regular = 44+43+138+54+10=289
+			// total:  regular = 44+43+138+50+10=285
 
-play_all1
+play_all_0_6
 			cpl						; 0->ff
-			dup 5
+
+			ld b, a
+			out (c), 0
+			ld b,e
+			outi					; 4+4+12+4+16=40
+
+			dup 4
 				ld b, a
 				out (c),d
 				ld b,e
 				outi				
-1				inc d				
-			edup					
+				inc d				
+			edup					; 40
+
 			ld b, a
 			out (c),d
 			ld b,e
-			outi				; 4 + 5*40+36  = 240
-
-			// total:  playall1 = 	44+5+240=289
+			outi				; 5*40+36  = 236
+			// total:  playall1 = 	44+5+236=285
 
 psg2_continue
 			ld a, (hl)
@@ -213,7 +216,7 @@ psg2_continue
 			ld	 d, 13
 
 			add a
-			jr z, play_all2			; 7+6+7+4+7=31
+			jr z, play_all_12_6		; 7+6+7+4+7=31
 
 			jr c,1f
 			ld b,#ff
@@ -240,9 +243,9 @@ psg2_continue
 			ld b,e
 			outi					
 			ret						; 4+5+4+7+12+4+16+10=62
-			// total: 289+31+46+246+62=674
+			// total: 285+31+46+246+62=670
 
-play_all2
+play_all_12_6
 			cpl						; 0->ff, keep flag c
 
 			jr c,1f					; Don't touch reg 13 if it unchanged in playAll mode as well
