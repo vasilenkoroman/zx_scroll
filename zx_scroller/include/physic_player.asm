@@ -42,25 +42,26 @@ mus_init
 			ld (trb_rep+1), a
 			ld hl, LD_HL_CODE * 256
 			ld (trb_play), hl
-			jr stop
+			ret
 
 trb_pause	//pause - skip frame
 			ld a, 0
 			dec a
 			ld (trb_pause+1), a
 			ret nz
-								; 7+4+13+10=34t (10+34 = 44t)
+									; 7+4+13+10=34t (10+34 = 44t)
 			ld hl, LD_HL_CODE * 256	; end of pause
 			ld (trb_play), hl
-			ret
+			ret						; 10+16+10=36t
+			// total: 34+38=70t
 		
 // pause or end track
-pl_pause
+pl_pause								; 103t on enter
 			inc hl
 			ld (pl_track+1), hl
 			ret z
 			cp 4 * 63 - 120
-			jr z, endtrack
+			jr z, endtrack				; 6+16+5+7+7=41
 			//set pause
 			rrca
 			rrca
@@ -69,11 +70,11 @@ pl_pause
 			ld de, JR_CODE + (trb_pause - trb_play - 2) * 256
 			ld (trb_play), de
 			
-			ret
-//
+			ret							; 4+4+13+10+20=51
+			// total for pause: 103+41+51=195t
+
 endtrack	//end of track
 			call init
-			jp pl_track
 			
 			//play note
 trb_play	nop							; 4
@@ -85,7 +86,6 @@ pl_track	ld hl, 0					; 10t (10+4 = 14t)
 			jr nc, pl_frame				; 7+4+4+7 = 22t (total 36t)
 
 			// Process ref
-
 			inc hl
 			ld c, (hl)
 			add a
@@ -152,7 +152,8 @@ pl00		sub 120
 pl0x		ld bc, #fffd				
 			add a					
 			jr nc, pl00
-pl01			// player PSG2
+
+pl01	// player PSG2
 			inc hl
 			ld de,#00bf
 			jr z, play_all1		; 10+4+7+6+10+7=44t
@@ -257,6 +258,6 @@ play_all2
 			ld b,e
 			outi					
 			ret						; 4+12+4+16+10=46
-			// total: 294+51+240+46=631
+			// total: 289+5+51+240+46=631
 
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"
