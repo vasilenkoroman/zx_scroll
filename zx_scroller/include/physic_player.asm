@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 841t (-248t)
+//Max time reduced from 1089t to 837t (-252t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -40,8 +40,8 @@ mus_init
 			ld (pl_track+1), hl
 			xor a
 			ld (trb_rep+1), a
-			ld hl, LD_HL_CODE * 256
-			ld (trb_play), hl
+			ld a, LD_HL_CODE
+			ld (trb_play), a
 			ret
 
 trb_pause	//pause - skip frame
@@ -50,10 +50,11 @@ trb_pause	//pause - skip frame
 			ld (trb_pause+1), a
 			ret nz
 									; 7+4+13+10=34t (10+34 = 44t)
-			ld hl, LD_HL_CODE * 256	; end of pause
+saved_track	
+			ld hl, LD_HL_CODE	; end of pause
 			ld (trb_play), hl
-			ret						; 10+16+10=36t
-			// total: 34+38=70t
+			jr trb_rep					; 10+16+12=38t
+			// total: 34+38=72t
 		
 // pause or end track
 pl_pause								; 103t on enter
@@ -66,35 +67,37 @@ pl_pause								; 103t on enter
 			rrca
 			rrca
 			ld (trb_pause+1), a	
-
-			ld de, JR_CODE + (trb_pause - trb_play - 2) * 256
-			ld (trb_play), de
+			ld  a, l
+			ld (saved_track+2), a
+			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
+			ld (trb_play), hl
 			
-			ret							; 4+4+13+10+20=51
-			// total for pause: 103+41+51=195t
+			pop	 hl						; 10
+			ret							; 4+4+13+4+13+10+16+10+10=84
+			// total for pause: 103+41+84=228t
 
 endtrack	//end of track
 			call init
 			
 			//play note
-trb_play	nop							; 4
-pl_track	ld hl, 0					; 10t (10+4 = 14t)
+trb_play	
+pl_track	ld hl, 0				
 
 			ld a, (hl)
 			ld b, a
 			add a
-			jr nc, pl_frame				; 7+4+4+7 = 22t (total 36t)
+			jr nc, pl_frame				; 10+7+4+4+7=32t
 
 			// Process ref
 			inc hl
 			ld c, (hl)
 			add a
 			inc hl
-			jr nc, pl10					; 6+7+4+6+7 = 30t  (total 66t)
+			jr nc, pl10					; 6+7+4+6+7=30t
 
 pl11		ld a, (hl)						
 			ld (trb_rep+1), a		
-			ld (trb_rest+1), hl				; 7+13+16=36t
+			ld (trb_rest+1), hl			; 7+13+16=36t
 
 			add hl, bc
 			ld a, (hl)
@@ -103,7 +106,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 66+36+65=167t + pl0x time(674t) = 841t(max)
+			// total: 32+30+36+65=163t + pl0x time(674t) = 837t(max)
 
 pl10
 			ld (pl_track+1), hl		
