@@ -2,19 +2,21 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 881t (-208t)
+//Max time reduced from 1089t to 846t (-243t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
 10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
-01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров
+01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров.
+							во 2-м байте также инвертирован порядок следования регистров (13..6)
 
 00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
-00111111					1	маркер оцончания трека
+00111111					1	маркер окончания трека
 
 0001hhhh vvvvvvvv			2	PSG1 проигрывание, 1 register, 0000hhhh - номер регистра, vvvvvvvv - значение
 0000hhhh vvvvvvvv			4	PSG1 проигрывание, 2 registers, 0000hhhh - номер регистра, vvvvvvvv - значение
 
+Также эта версия частично поддерживает короткие вложенные ссылки уровня 2 (доп. ограничение - они не могут стоять в конце длинной ссылки уровня 1).
 */
 
 LD_HL_CODE	EQU 0x21
@@ -51,7 +53,6 @@ trb_pause	//pause - skip frame
 			ld hl, LD_HL_CODE * 256	; end of pause
 			ld (trb_play), hl
 			ret
-
 		
 // pause or end track
 pl_pause
@@ -102,7 +103,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 66+36+65=167t + pl0x time(714t) = 881t(max)
+			// total: 66+36+65=167t + pl0x time(679t) = 846t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -111,9 +112,8 @@ pl10
 
 			ld a, (hl)
 			add a		            
-			jp pl0x					; 16+11+7+4+10 = 58t
+			jp pl0x					; 16+11+7+4+10=58t
 			// total: 72+8+5+58=143t
-			
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				
@@ -122,14 +122,13 @@ trb_rep		ld a, 0
 			sub 1
 			ret c
 			ld (trb_rep+1), a
-			ret nz							; 7+7+5+13+5 = 37t
+			ret nz							; 7+7+5+13+5=37t
 			// end of repeat, restore position in track
 trb_rest	ld hl, 0
 			inc hl
 			ld (pl_track+1), hl		; 
-			ret								; 10+16+10=36t, 73 for rep/rest
-
-
+			ret								; 10+16+10=36t
+			// total: 36+5+37+36=114t
 
 pl00		sub 120
 			jr nc, pl_pause
@@ -159,15 +158,20 @@ pl01			// player PSG2
 			jr nz, play_by_mask		; 10+4+7+6+10+7=44t
 play_all1
 			cpl
-			dup 6
+			dup 5
 				ld b, a
 				out (c),d
 				ld b,e
 				outi				
 1				inc d				
-			edup					; 4 + 6*40  = 244
+			edup					
+			ld b, a
+			out (c),d
+			ld b,e
+			outi				; 4 + 5*40+36  = 240
+
 			jp psg2_continue
-			// total:  playall1 = 	44+244+10=298
+			// total:  playall1 = 	44+240+10=294
 
 play_by_mask
 			add a				
@@ -177,7 +181,7 @@ play_by_mask
 			outi				
 1			inc d					; 4+7+12+4+16+4=47
 
-			dup 5
+			dup 4
 				add a
 				jr c,1f
 				ld b,#ff
@@ -185,22 +189,32 @@ play_by_mask
 				ld b,e
 				outi				
 1				inc d				
-			edup					; 3*54+30 = 192
-			// total:  regular = 44+5+47+192=288
+			edup					;54*2 + 15*2=138
+
+			add a
+			jr c,1f
+			ld b,#ff
+			out (c),d
+			ld b,e
+			outi					; 4+7+7+12+4+16=50
+1			
+
+			// total:  regular = 44+5+47+138+50=284
 
 psg2_continue
 			ld a, (hl)
 			inc hl					
+			ld	 d, 13
 
 			add a
-			jr c,1f
-			jr z, play_all2
+			jr z, play_all2			; 7+6+7+4+7=31
 
+			jr c,1f
 			ld b,#ff
 			out (c),d
 			ld b,e
 			outi	
-1			inc d					; 7+6+4+7+7+7+12+4+16+4=74t, 74t + 298 = 372
+1			dec d					;  7+7+12+4+16+4=50
 
 			dup 6
 				add a
@@ -209,7 +223,7 @@ psg2_continue
 				out (c),d
 				ld b,e
 				outi	
-1				inc d				; 54*5+14=284 + 372 = 656
+1				dec d				; 54*4 + 15*2=246
 			edup
 
  			add a
@@ -218,27 +232,32 @@ psg2_continue
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+7+12+4+16+10=58 + 656 = 714
+			ret						; 4+5+7+12+4+16+10=58
+			// total: 294+31+50+246+58=679
 
 play_all2
 			cpl
-			dup 7
+
+			jr c,1f					; Don't touch reg 13 if it unchanged in playAll mode as well
+			ld b, a
+			out (c),d
+			ld b,e
+			outi	
+1			dec d					;  4+7+4+12+4+16+4=51
+
+			dup 6
 				ld b, a
 				out (c),d
 				ld b,e
 				outi				
-1				inc d				; 6*43t
+				dec d				; 6*40=240
 			edup
 
 			ld b, a
 			out (c),d
 			ld b,e
 			outi					
-			ret
-
-/*
-			TODO: nested refs
-rest_data	DW 0, 0, 0, 0	// Maximum nested level for refs is 4
-*/
+			ret						; 4+12+4+16+10=46
+			// total: 294+51+240+46=631
 
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"

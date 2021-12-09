@@ -149,6 +149,15 @@ private:
         }
     };
 
+    uint8_t reverseBits(uint8_t value)
+    {
+        uint8_t b = value;
+        b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+        b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+        b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+        return b;
+    }
+
     void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
     {
         int offset = frameOffsets[pos];
@@ -216,11 +225,12 @@ private:
             ++stats.secondHalfRegs[regs.size() - firstsHalfRegs];
 
             uint8_t header2 = makeRegMask(regs, 6, 14);
+            header2 = reverseBits(header2);
             compressedData.push_back(header2);
-            for (const auto& reg : regs)
+            for (auto itr = regs.rbegin(); itr != regs.rend(); ++itr)
             {
-                if (reg.first >= 6)
-                    compressedData.push_back(reg.second); // reg value
+                if (itr->first >= 6)
+                    compressedData.push_back(itr->second); // reg value
             }
         }
         else
