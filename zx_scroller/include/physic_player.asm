@@ -168,26 +168,28 @@ play_by_mask
 			out (c),d
 			ld b,e
 			outi				
-1			inc d					; 4+7+12+4+16+4=47
-
+1									; 4+7+12+4+16=43
 			dup 4
+				inc d
 				add a
 				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
 				outi				
-1				inc d				
+1								
 			edup					;54*2 + 15*2=138
 
 			add a
 			jr c, psg2_continue
+
+			inc d
 			ld b,#ff
 			out (c),d
 			ld b,e
-			outi					; 4+7+7+12+4+16=50
+			outi					; 4+7+4+7+12+4+16=54
 			jp psg2_continue
-			// total:  regular = 44+47+138+50+10=289
+			// total:  regular = 44+43+138+54+10=289
 
 play_all1
 			cpl						; 0->ff
