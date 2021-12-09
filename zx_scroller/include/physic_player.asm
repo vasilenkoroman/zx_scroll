@@ -32,7 +32,7 @@ stop		ld c,#fd
 			ld b,l
 			out (c),e
 			dec d
-			jp nz,1b
+			jr nz,1b
 			ret
 		
 mus_init	ld hl, music
@@ -41,17 +41,16 @@ mus_init	ld hl, music
 			ld (trb_rep+1), a
 			ld a, LD_HL_CODE
 			ld (trb_play), a
-			ret								; 10+16+4+13+7+13+10=73
+			ret							; 10+16+4+13+7+13+10=73
 			// total for looping: 171+73=244
 
-trb_pause	//pause - skip frame
-			ld a, 0
-			dec a
-			ld (trb_pause+1), a
-			ret nz
-									; 7+4+13+10=34t (10+34 = 44t)
+pause_rep   db 0
+trb_pause   ld hl, pause_rep
+			dec	 (hl)
+			ret nz						; 10+11+5=26t
+
 saved_track	
-			ld hl, LD_HL_CODE	; end of pause
+			ld hl, LD_HL_CODE			; end of pause
 			ld (trb_play), hl
 			jr trb_rep					; 10+16+12=38t
 			// total: 34+38=72t
@@ -66,7 +65,7 @@ pl_pause								; 103t on enter
 			//set pause
 			rrca
 			rrca
-			ld (trb_pause+1), a	
+			ld (pause_rep), a	
 			ld  a, l
 			ld (saved_track+2), a
 			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
@@ -117,7 +116,7 @@ pl10
 
 			ld a, (hl)
 			add a		            
-			jp pl0x					; 16+11+7+4+10=58t
+			jp pl0x							; 16+11+7+4+10=58t
 			// total: 72+8+5+58=143t
 
 pl_frame	call pl0x
@@ -131,7 +130,7 @@ trb_rep		ld a, 0
 			// end of repeat, restore position in track
 trb_rest	ld hl, 0
 			inc hl
-			ld (pl_track+1), hl		; 
+			ld (pl_track+1), hl
 			ret								; 10+16+10=36t
 			// total: 36+5+37+36=114t
 
@@ -182,16 +181,16 @@ play_by_mask
 			edup					;54*2 + 15*2=138
 
 			add a
-			jr c,1f
+			jr c, psg2_continue
 			ld b,#ff
 			out (c),d
 			ld b,e
 			outi					; 4+7+7+12+4+16=50
-1			jp psg2_continue
+			jp psg2_continue
 			// total:  regular = 44+47+138+50+10=289
 
 play_all1
-			cpl
+			cpl						; 0->ff
 			dup 5
 				ld b, a
 				out (c),d
@@ -218,51 +217,47 @@ psg2_continue
 			ld b,#ff
 			out (c),d
 			ld b,e
-			outi	
-1			dec d					;  7+7+12+4+16+4=50
-
+			outi					;  7+7+12+4+16=46
+1			
 			dup 6
+				dec d
 				add a
 				jr c,1f
 				ld b,#ff
 				out (c),d
 				ld b,e
-				outi	
-1				dec d				; 54*4 + 15*2=246
+				outi				
+1									; 54*4 + 15*2=246
 			edup
 
  			add a
 			ret c
+			dec d
 			ld b,#ff
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+7+12+4+16+10=58
-			// total: 289+31+50+246+58=674
+			ret						; 4+5+4+7+12+4+16+10=62
+			// total: 289+31+46+246+62=674
 
 play_all2
-			cpl
+			cpl						; 0->ff, keep flag c
 
 			jr c,1f					; Don't touch reg 13 if it unchanged in playAll mode as well
 			ld b, a
 			out (c),d
 			ld b,e
-			outi	
-1			dec d					;  4+7+4+12+4+16+4=51
-
-			dup 6
+			outi					;  4+7+4+12+4+16=47
+1
+			dup 7
+				dec d				
 				ld b, a
 				out (c),d
 				ld b,e
-				outi				
-				dec d				; 6*40=240
+				outi				; 7*40=280
 			edup
 
-			ld b, a
-			out (c),d
-			ld b,e
-			outi					
-			ret						; 4+12+4+16+10=46
-			// total: 289+5+51+240+46=631
+			ret						
+			// total: 289+5+47+280+10=631
 
 			DISPLAY	"player code occupies ", /D, $-init, " bytes"
