@@ -12,6 +12,12 @@
 static const uint8_t kEndTrackMarker = 0x3f;
 static const int kMaxDelay = 33;
 
+enum Flags
+{
+    none = 0,
+    avoidFullMinus1 = 1
+};
+
 class PgsPacker
 {
 public:
@@ -47,6 +53,7 @@ public:
     std::vector<uint8_t> data;
     std::vector<uint8_t> compressedData;
     std::vector<int> refCount;
+    Flags flags = avoidFullMinus1;
 
 private:
 
@@ -81,6 +88,38 @@ private:
 
     void writeRegs()
     {
+        if (flags & flags)
+        {
+            decltype(ayRegs) firstReg, secondReg;
+            for(const auto& reg: ayRegs)
+            {
+                if (reg.first < 6)
+                    firstReg.insert(reg);
+                else if (reg.first != 13)
+                    secondReg.insert(reg);
+            }
+            
+            if (firstReg.size() == 5)
+            {
+                // Regs are about to full. Extend them to full regs.
+                for (const auto& reg: lastRegValues)
+                {
+                    if (reg.first < 6)
+                        ayRegs[reg.first] = reg.second;
+                }
+            }
+
+            if (secondReg.size() == 6)
+            {
+                // Regs are about to full. Extend them to full regs (exclude reg13)
+                for (const auto& reg: lastRegValues)
+                {
+                    if (reg.first >= 6 && reg.first != 13)
+                        ayRegs[reg.first] = reg.second;
+                }
+            }
+        }
+
         if (!ayRegs.empty())
         {
             uint16_t symbol = toSymbol(ayRegs);
@@ -256,11 +295,6 @@ private:
             }
         }
 
-        if (maxChainLen != maxReducedLen)
-        {
-            int gg = 4;
-        }
-
         return std::tuple<int, int, int> { chainPos, maxChainLen, maxReducedLen };
     }
 
@@ -268,6 +302,9 @@ public:
     int parsePsg(const std::string& inputFileName)
     {
         using namespace std;
+
+        for (int i = 0; i < 14; ++i)
+            lastRegValues[i] = 0;
 
         ifstream fileIn;
         fileIn.open(inputFileName, std::ios::binary);

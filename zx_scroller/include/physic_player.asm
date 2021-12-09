@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 905t (-184t)
+//Max time reduced from 1089t to 881t (-208t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -102,7 +102,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 66+36+65=167t + pl0x time(738t) = 905t(max)
+			// total: 66+36+65=167t + pl0x time(714t) = 881t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -150,6 +150,13 @@ pl00		sub 120
 			outi
 			ret
 
+pl0x		ld bc, #fffd				
+			add a					
+			jr nc, pl00
+pl01			// player PSG2
+			inc hl
+			ld de,#00bf
+			jr nz, play_by_mask		; 10+4+7+6+10+7=44t
 play_all1
 			cpl
 			dup 6
@@ -157,24 +164,18 @@ play_all1
 				out (c),d
 				ld b,e
 				outi				
-1				inc d				; 6*43t
-			edup
-			jr psg2_continue
+1				inc d				
+			edup					; 4 + 6*40  = 244
+			jp psg2_continue
+			// total:  playall1 = 	44+244+10=298
 
-pl0x		ld bc, #fffd				
-			add a					
-			jr nc, pl00
-pl01			// player PSG2
-			inc hl
-			ld de,#00bf
-			jr z, play_all1			; 10+4+7+6+10+7=44t
-
-			add a
+play_by_mask
+			add a				
 			jr c,1f
 			out (c),d
 			ld b,e
 			outi				
-1			inc d				
+1			inc d					; 4+7+12+4+16+4=47
 
 			dup 5
 				add a
@@ -184,9 +185,9 @@ pl01			// player PSG2
 				ld b,e
 				outi				
 1				inc d				
-			edup					; 47+ 4*54+15 = 278t max	(play_all1 261t with ret)
-								; 44 + 278 = 322t
-			
+			edup					; 3*54+30 = 192
+			// total:  regular = 44+5+47+192=288
+
 psg2_continue
 			ld a, (hl)
 			inc hl					
@@ -199,7 +200,7 @@ psg2_continue
 			out (c),d
 			ld b,e
 			outi	
-1			inc d					; 7+6+4+7+7+7+12+4+16+4=74t, 74t + 322t = 396t
+1			inc d					; 7+6+4+7+7+7+12+4+16+4=74t, 74t + 298 = 372
 
 			dup 6
 				add a
@@ -208,7 +209,7 @@ psg2_continue
 				out (c),d
 				ld b,e
 				outi	
-1				inc d				; 54*5+14=284 + 396 = 680t
+1				inc d				; 54*5+14=284 + 372 = 656
 			edup
 
  			add a
@@ -217,7 +218,7 @@ psg2_continue
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+7+12+4+16+10=58 + 680 = 738t
+			ret						; 4+5+7+12+4+16+10=58 + 656 = 714
 
 play_all2
 			cpl
