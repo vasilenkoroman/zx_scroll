@@ -22,8 +22,7 @@
 LD_HL_CODE	EQU 0x21
 JR_CODE		EQU 0x18
 							
-init		ld hl, music
-			jr mus_init
+init		EQU mus_init
 play		EQU trb_play
 stop		ld c,#fd
 			ld hl,#ffbf
@@ -36,13 +35,14 @@ stop		ld c,#fd
 			jp nz,1b
 			ret
 		
-mus_init	
+mus_init	ld hl, music
 			ld (pl_track+1), hl
 			xor a
 			ld (trb_rep+1), a
 			ld a, LD_HL_CODE
 			ld (trb_play), a
-			ret
+			ret								; 10+16+4+13+7+13+10=73
+			// total for looping: 171+73=244
 
 trb_pause	//pause - skip frame
 			ld a, 0
@@ -77,8 +77,10 @@ pl_pause								; 103t on enter
 			// total for pause: 103+41+84=228t
 
 endtrack	//end of track
-			call init
-			
+			pop	 hl
+			jr mus_init
+			// total: 103+41+5+10+12=171t
+
 			//play note
 trb_play	
 pl_track	ld hl, 0				
