@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 811t (-278t)
+//Max time reduced from 1089t to 813t (-276t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -110,7 +110,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(648t) = 811t(max)
+			// total: 32+30+36+65=163t + pl0x time(650t) = 813t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -221,23 +221,17 @@ psg2_continue
 
 play_all_12_6
 			cpl						; 0->ff, keep flag c
-
-			dup 7
+			jr	 c, 1f				; 4+7=11
+			dup 8
 				inc d				
 				ld b, a
 				out (c),d
 				ld b,e
-				outi				; 7*40=280
+				outi				; 8*40=320
+1				
 			edup
-
-			ret c					; Don't touch reg 13 if it unchanged in playAll mode as well
-			inc	d
-			ld b, a
-			out (c),d
-			ld b,e
-			outi					
-			ret						;  5+4+4+12+4+16+10=55
-			// total: 285+24+4+280+55=648
+			ret						
+			// total: 285+24+11+320+10=650
 
 play_by_mask2			
 			ld	d, 13
