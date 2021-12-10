@@ -109,7 +109,7 @@ private:
                 }
             }
 
-            if (secondReg.size() == 6)
+            if (secondReg.size() == 6 || secondReg.size() == 5)
             {
                 // Regs are about to full. Extend them to full regs (exclude reg13)
                 for (const auto& reg: lastRegValues)
