@@ -227,12 +227,27 @@ private:
             ++stats.secondHalfRegs[regs.size() - firstsHalfRegs];
 
             uint8_t header2 = makeRegMask(regs, 6, 14);
-            header2 = reverseBits(header2);
-            compressedData.push_back(header2);
-            for (auto itr = regs.rbegin(); itr != regs.rend(); ++itr)
+
+            if ((header2 >> 1) == 0)
             {
-                if (itr->first >= 6)
-                    compressedData.push_back(itr->second); // reg value
+                // play_all branch. Make reg13 first, then regs 6..12
+                header2 = (header2 & 1) ? 128 : 0;
+                compressedData.push_back(header2);
+                for (auto itr = regs.begin(); itr != regs.end(); ++itr)
+                {
+                    if (itr->first >= 6)
+                        compressedData.push_back(itr->second);
+                }
+            }
+            else
+            {
+                header2 = reverseBits(header2);
+                compressedData.push_back(header2);
+                for (auto itr = regs.rbegin(); itr != regs.rend(); ++itr)
+                {
+                    if (itr->first >= 6)
+                        compressedData.push_back(itr->second); // reg value
+                }
             }
         }
         else

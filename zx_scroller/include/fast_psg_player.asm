@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 794t (-295t)
+//Max time reduced from 1089t to 811t (-278t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -110,7 +110,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(631t) = 794t(max)
+			// total: 32+30+36+65=163t + pl0x time(648t) = 811t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -215,16 +215,37 @@ play_all_0_6
 psg2_continue
 			ld a, (hl)
 			inc hl					
-			ld	 d, 13
 
 			add a
-			jr z, play_all_12_6		; 7+6+7+4+7=31
+			jr nz,play_by_mask2		; 7+6+4+7=24
 
+play_all_12_6
+			cpl						; 0->ff, keep flag c
+
+			dup 7
+				inc d				
+				ld b, a
+				out (c),d
+				ld b,e
+				outi				; 7*40=280
+			edup
+
+			ret c					; Don't touch reg 13 if it unchanged in playAll mode as well
+			inc	d
+			ld b, a
+			out (c),d
+			ld b,e
+			outi					
+			ret						;  5+4+4+12+4+16+10=55
+			// total: 285+24+4+280+55=648
+
+play_by_mask2			
+			ld	d, 13
 			jr c,1f
 			ld b,#ff
 			out (c),d
 			ld b,e
-			outi					;  7+7+12+4+16=46
+			outi					;  7+7+7+12+4+16=53
 1			
 			dup 6
 				dec d
@@ -245,26 +266,7 @@ psg2_continue
 			ld b,e
 			outi					
 			ret						; 4+5+4+7+12+4+16+10=62
-			// total: 285+31+46+207+62=631
+			// total: 285+24+5+53+207+62=636
 
-play_all_12_6
-			cpl						; 0->ff, keep flag c
-
-			jr c,1f					; Don't touch reg 13 if it unchanged in playAll mode as well
-			ld b, a
-			out (c),d
-			ld b,e
-			outi					;  4+7+4+12+4+16=47
-1
-			dup 7
-				dec d				
-				ld b, a
-				out (c),d
-				ld b,e
-				outi				; 7*40=280
-			edup
-
-			ret						
-			// total: 289+5+47+280+10=631
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
