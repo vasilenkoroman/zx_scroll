@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 817t (-272t)
+//Max time reduced from 1089t to 803t
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -112,15 +112,6 @@ pl11		ld a, (hl)
 			ret								; 11+7+4+17+16+10=65t
 			// total: 32+30+36+65=163t + pl0x time(640t) = 803t(max)
 
-pl10
-			ld (pl_track+1), hl		
-			set 6, b
-			add hl, bc
-
-			ld a, (hl)
-			add a		            
-			jp pl0x							; 16+11+7+4+10=58t
-			// total: 32+30+36+65=143t + pl0x time(654t) = 797t(max)
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				
@@ -154,7 +145,16 @@ pl00		sub 120
 			out (c),a
 			ld b, e
 			outi
-			ret						; 7+7+10+7+7+7+16+4+16+7+6+4+12+4+16+10=140t
+			ret							; 7+7+10+7+7+7+16+4+16+7+6+4+12+4+16+10=140t
+
+pl10
+			ld (pl_track+1), hl		
+			set 6, b
+			add hl, bc
+
+			ld a, (hl)
+			add a		            	; 16+8+11+7+4=46t
+			// total: 32+30+36+46=144t + pl0x time(654t) = 798t(max)
 
 pl0x		ld bc, #fffd				
 			add a					
@@ -214,7 +214,6 @@ play_all_0_6
 psg2_continue
 			ld a, (hl)
 			inc hl					
-
 			add a
 			jr nz,play_by_mask2		; 7+6+4+7=24
 
