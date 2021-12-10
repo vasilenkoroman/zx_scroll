@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 813t (-276t)
+//Max time reduced from 1089t to 817t (-272t)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -29,11 +29,11 @@ init		EQU mus_init
 play		EQU trb_play
 stop		ld c,#fd
 			ld hl,#ffbf
-			ld d,#0d
+			ld de,#0d00
 1			ld b,h
 			out (c),d
 			ld b,l
-			out (c),0
+			out (c),e
 			dec d
 			jr nz,1b
 			ret
@@ -110,7 +110,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(650t) = 813t(max)
+			// total: 32+30+36+65=163t + pl0x time(654t) = 817t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -162,15 +162,15 @@ pl0x		ld bc, #fffd
 
 pl01	// player PSG2
 			inc hl
-			ld de, #01bf
+			ld de, #00bf
 			jr z, play_all_0_6		; 10+4+7+6+10+7=44t
 play_by_mask
 			add a				
 			jr c,1f
-			out (c), 0
+			out (c), d
 			ld b,e
 			outi				
-1									; 4+7+12+4+16=43
+1			inc d					; 4+7+12+4+16+4=47
 			dup 4
 				add a
 				jr c,1f
@@ -188,29 +188,24 @@ play_by_mask
 			ld b,e
 			outi					; 4+7+7+12+4+16=50
 			jp psg2_continue
-			// total:  regular = 44+43+138+50+10=285
+			// total:  regular = 44+47+138+50+10=289
 
 play_all_0_6
 			cpl						; 0->ff
 
-			ld b, a
-			out (c), 0
-			ld b,e
-			outi					; 4+4+12+4+16=40
-
-			dup 4
+			dup 5
 				ld b, a
 				out (c),d
 				ld b,e
 				outi				
 				inc d				
-			edup					; 40
+			edup					; 40*5=200
 
 			ld b, a
 			out (c),d
 			ld b,e
-			outi				; 5*40+36  = 236
-			// total:  play_all_0_6 = 44+5+236=285
+			outi				; 4+5*40+36  = 240
+			// total:  play_all_0_6 = 44+5+240=289
 
 psg2_continue
 			ld a, (hl)
@@ -231,7 +226,7 @@ play_all_12_6
 1				
 			edup
 			ret						
-			// total: 285+24+11+320+10=650
+			// total: 289+24+11+320+10=654
 
 play_by_mask2			
 			ld	d, 13
@@ -260,7 +255,7 @@ play_by_mask2
 			ld b,e
 			outi					
 			ret						; 4+5+4+7+12+4+16+10=62
-			// total: 285+24+5+53+207+62=636
+			// total: 289+24+5+53+207+62=640
 
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
