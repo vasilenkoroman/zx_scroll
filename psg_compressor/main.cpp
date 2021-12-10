@@ -88,7 +88,7 @@ private:
 
     void writeRegs()
     {
-        if (flags & flags)
+        if (flags & avoidFullMinus1)
         {
             decltype(ayRegs) firstReg, secondReg;
             for(const auto& reg: ayRegs)
