@@ -110,7 +110,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(654t) = 817t(max)
+			// total: 32+30+36+65=163t + pl0x time(640t) = 803t(max)
 
 pl10
 			ld (pl_track+1), hl		
@@ -120,7 +120,7 @@ pl10
 			ld a, (hl)
 			add a		            
 			jp pl0x							; 16+11+7+4+10=58t
-			// total: 72+8+5+58=143t
+			// total: 32+30+36+65=143t + pl0x time(654t) = 797t(max)
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				
@@ -192,20 +192,24 @@ play_by_mask
 
 play_all_0_6
 			cpl						; 0->ff
+			out (c),d
+			ld b,e
+			outi				
+			inc d					; 40
 
-			dup 5
+			dup 4
 				ld b, a
 				out (c),d
 				ld b,e
 				outi				
 				inc d				
-			edup					; 40*5=200
+			edup					; 40*4
 
 			ld b, a
 			out (c),d
 			ld b,e
-			outi				; 4+5*40+36  = 240
-			// total:  play_all_0_6 = 44+5+240=289
+			outi					; 5*40+36  = 236
+			// total:  play_all_0_6 = 44+5+236=285
 
 psg2_continue
 			ld a, (hl)

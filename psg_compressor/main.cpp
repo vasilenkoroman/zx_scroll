@@ -324,6 +324,16 @@ private:
             }
         }
 
+        if (flags & avoidAlmostFull)
+        {
+            if (maxChainLen == 1)
+            {
+                const auto regs = symbolToRegs[ayFrames[chainPos]];
+                if (regs.size() == 14)
+                    return std::tuple<int, int, int> { -1, -1, -1 };
+            }
+        }
+
         return std::tuple<int, int, int> { chainPos, maxChainLen, maxReducedLen };
     }
 
