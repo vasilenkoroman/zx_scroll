@@ -28,11 +28,11 @@ init		EQU mus_init
 play		EQU trb_play
 stop		ld c,#fd
 			ld hl,#ffbf
-			ld de,#0d00
+			ld d,#0d
 1			ld b,h
 			out (c),d
 			ld b,l
-			out (c),e
+			out (c),0
 			dec d
 			jr nz,1b
 			ret
@@ -267,4 +267,4 @@ play_all_12_6
 			ret						
 			// total: 289+5+47+280+10=631
 
-			DISPLAY	"player code occupies ", /D, $-init, " bytes"
+			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
