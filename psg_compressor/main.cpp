@@ -11,11 +11,12 @@
 
 static const uint8_t kEndTrackMarker = 0x3f;
 static const int kMaxDelay = 33;
+static const int kMaxRefOffset = 16384;
 
 enum Flags
 {
     none = 0,
-    avoidFullMinus1 = 1
+    avoidAlmostFull = 1
 };
 
 class PgsPacker
@@ -53,7 +54,8 @@ public:
     std::vector<uint8_t> data;
     std::vector<uint8_t> compressedData;
     std::vector<int> refCount;
-    Flags flags = avoidFullMinus1;
+    std::vector<int> frameOffsets;
+    Flags flags = avoidAlmostFull;
 
 private:
 
@@ -88,7 +90,7 @@ private:
 
     void writeRegs()
     {
-        if (flags & avoidFullMinus1)
+        if (flags & avoidAlmostFull)
         {
             decltype(ayRegs) firstReg, secondReg;
             for(const auto& reg: ayRegs)
@@ -158,7 +160,7 @@ private:
         return b;
     }
 
-    void serializeRef(const std::vector<int>& frameOffsets, uint16_t pos, uint8_t size)
+    void serializeRef(uint16_t pos, uint8_t size)
     {
         int offset = frameOffsets[pos];
         int recordSize = size == 1 ? 2 : 3;
@@ -271,6 +273,9 @@ private:
 
         for (int i = 0; i < pos; ++i)
         {
+            if (frameOffsets[pos] - frameOffsets[i] + 3 > kMaxRefOffset)
+                continue;
+
             if (ayFrames[i] == ayFrames[pos] && refCount[i] == 0)
             {
                 int chainLen = 0;
@@ -400,8 +405,6 @@ public:
         // compressData
         refCount.resize(ayFrames.size());
 
-        std::vector<int> frameOffsets;
-
         for (int i = 0; i < ayFrames.size();)
         {
             while (frameOffsets.size() <= i)
@@ -422,7 +425,7 @@ public:
                 const auto [pos, len, reducedLen] = findRef(i);
                 if (len > 0)
                 {
-                    serializeRef(frameOffsets, pos, reducedLen);
+                    serializeRef(pos, reducedLen);
 
                     for (int j = i; j < i + len; ++j)
                         refCount[j] = len;

@@ -183,7 +183,6 @@ play_by_mask
 
 			add a
 			jr c, psg2_continue
-
 			ld b,#ff
 			out (c),d
 			ld b,e
