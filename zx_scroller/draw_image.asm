@@ -993,7 +993,7 @@ t4                      EQU t3
 
         INCLUDE "draw_off_rastr.asm"
         INCLUDE "zx0_standard.asm"
-        INCLUDE "include/physic_player.asm"
+        INCLUDE "include/fast_psg_player.asm"
 
         ASSERT $ < generated_code
 
