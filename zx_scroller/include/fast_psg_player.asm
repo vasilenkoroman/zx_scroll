@@ -185,12 +185,8 @@ play_by_mask
 			add a
 			jr c, psg2_continue
 			ld b,#ff
-			jp reg_5
-			//out (c),d
-			//ld b,e
-			//outi					; 4+7+7+12+4+16=50
-			//jp psg2_continue
-			// total:  regular = 44+47+138+50+10=289
+			jp reg_5				; 4+7+7+10=28
+			// total:  44+47+138+28+12+4+16=289	(till psg2_continue)
 
 play_all_0_5
 			cpl						; 0->ff
