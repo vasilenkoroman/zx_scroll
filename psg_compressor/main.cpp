@@ -16,7 +16,8 @@ static const int kMaxRefOffset = 16384;
 enum Flags
 {
     none = 0,
-    avoidAlmostFull = 1
+    fastDepack = 1, //< Reduce compression level, but make packet PSG more fast to play
+    cleanRegs  = 2
 };
 
 class PgsPacker
@@ -25,6 +26,7 @@ public:
 
     struct Stats
     {
+        int psgFrames = 0;
         int emptyCnt = 0;
         int emptyFrames = 0;
 
@@ -55,24 +57,14 @@ public:
     std::vector<uint8_t> compressedData;
     std::vector<int> refCount;
     std::vector<int> frameOffsets;
-    Flags flags = avoidAlmostFull;
+    int flags = fastDepack;
+    bool firstFrame = true;
 
 private:
 
     bool isPsg2(const AYRegs& regs) const
     {
         bool usePsg2 = regs.size() > 2;
-#if 0
-        // TODO: support PSG1 for 2 regs (it give 100+ bytes extra compression for machined.psg)
-        if (regs.size() == 2)
-        {
-            for (const auto& reg : regs)
-            {
-                if ((reg.first & ~3) == 4)
-                    usePgs2 = false;
-            }
-        }
-#endif
         return usePsg2;
     }
 
@@ -90,7 +82,7 @@ private:
 
     void writeRegs()
     {
-        if (flags & avoidAlmostFull)
+        if (flags & fastDepack)
         {
             decltype(ayRegs) firstReg, secondReg;
             for(const auto& reg: ayRegs)
@@ -124,6 +116,13 @@ private:
 
         if (!ayRegs.empty())
         {
+            if (firstFrame)
+            {
+                firstFrame = false;
+                for (int i = 0; i < 13; ++i)
+                    ayRegs.emplace(i, 0);
+            }
+
             uint16_t symbol = toSymbol(ayRegs);
             ayFrames.push_back(symbol); //< Flush previous frame.
             ayRegs.clear();
@@ -324,7 +323,7 @@ private:
             }
         }
 
-        if (flags & avoidAlmostFull)
+        if (flags & fastDepack)
         {
             if (maxChainLen == 1)
             {
@@ -378,6 +377,7 @@ public:
             uint8_t value = *pos;
             if (value >= 0xfe)
             {
+                ++stats.psgFrames;
                 writeRegs();
 
                 if (value == 0xff)
@@ -483,30 +483,81 @@ public:
 
 };
 
+bool hasShortOpt(const std::string& s, char option)
+{
+    if (s.size() >= 2 && s[0] == '-' && s[1] == '-')
+        return false;
+    if (s.empty() || s[0] != '-')
+        return false;
+    return s.find(option) != std::string::npos;
+}
 
 int main(int argc, char** argv)
 {
     PgsPacker packer;
 
-    if (argc != 3)
+    std::cout << "Fast PSG packer v.0.5a" << std::endl;
+    if (argc < 3)
     {
-        std::cout << "Usage: psg_pack <input_file> <output_file>" << std::endl;
+        std::cout << "Usage: psg_pack [OPTION] input_file output_file" << std::endl;
+        std::cout << "Example: psg_pack -n file1.psg packetd.mus" << std::endl;
+        std::cout << "" << std::endl;
+        std::cout << "Options:" << std::endl;
+        std::cout << "-f, --fast\t Optimize archive for unpacking (max 799t). Option is turned on by default." << std::endl;
+        std::cout << "-n, --normal\t Better compression but more slow unpacking (~920t)." << std::endl;
+        std::cout << "-c, --clean\t Clean AY registers before packing. Improve compression level but incompatible with some tracks." << std::endl;
+        std::cout << "-i, --info\t Print timings info for each compresed frame." << std::endl;
         return -1;
+    }
+
+    for (int i = 1; i < argc - 2; ++i)
+    {
+        const std::string s = argv[i];
+        if (hasShortOpt(s,'f') || s == "--fast")
+        {
+            packer.flags |= fastDepack;
+        }
+        else if (hasShortOpt(s, 'n') || s == "--normal")
+        {
+            packer.flags &= ~fastDepack;
+        }
+        else if (hasShortOpt(s, 'c') || s == "--clean")
+        {
+            std::cerr << "Option is not implemented yet. Coming soon..." << std::endl;
+            return -1;
+        }
+        else if (hasShortOpt(s, 'i') || s == "--info")
+        {
+            std::cerr << "Option is not implemented yet. Coming soon..." << std::endl;
+            return -1;
+        }
+        else
+        {
+            std::cerr << "Unknown parameter " << s << std::endl;
+            return -1;
+        }
     }
 
     using namespace std::chrono;
 
     std::cout << "Starting compression..." << std::endl;
     auto timeBegin = std::chrono::steady_clock::now();
-    auto result = packer.parsePsg(argv[1]);
+    auto result = packer.parsePsg(argv[argc-2]);
     if (result == 0)
-        result = packer.packPsg(argv[2]); 
+        result = packer.packPsg(argv[argc - 1]);
     if (result != 0)
         return result;
     auto timeEnd = steady_clock::now();
 
-    std::cout << "Compression done in " << duration_cast<milliseconds>(timeEnd - timeBegin).count() / 1000.0 << " seconds" << std::endl;
-    std::cout << "Input size: " << packer.data.size() << ".Packed size: " << packer.compressedData.size() <<  std::endl;
+    std::cout << "Compression done in " << duration_cast<milliseconds>(timeEnd - timeBegin).count() / 1000.0 << " second(s)" << std::endl;
+    std::cout << "Input size:\t" << packer.data.size() << std::endl;
+    std::cout << "Packed size:\t" << packer.compressedData.size() << std::endl;
+    std::cout << "1-byte refs:\t" << packer.stats.singleRepeat << std::endl;
+    std::cout << "Total refs:\t" << packer.stats.allRepeat << std::endl;
+    std::cout << "Total frames:\t" << packer.ayFrames.size() << std::endl;
+    std::cout << "Ref frames:\t" << packer.stats.allRepeatFrames << std::endl;
+    std::cout << "Empty frames:\t" << packer.stats.emptyCnt << std::endl;
+    std::cout << "PSG frames:\t" << packer.stats.psgFrames << std::endl;
 
     return 0;
 }
