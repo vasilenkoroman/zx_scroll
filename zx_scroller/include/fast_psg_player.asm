@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time reduced from 1089t to 803t
+//Max time reduced from 1089t to 799t
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -110,7 +110,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(640t) = 803t(max)
+			// total: 32+30+36+65=163t + pl0x time(636t) = 799t(max)
 
 
 pl_frame	call pl0x
@@ -164,7 +164,7 @@ pl01	// player PSG2
 			inc hl
 			ld de, #00bf
 			jr z, play_all_0_5		; 10+4+7+6+10+7=44t
-play_by_mask
+play_by_mask_0_5
 			add a				
 			jr c,1f
 			out (c), d
@@ -183,10 +183,19 @@ play_by_mask
 			edup					;54*2 + 15*2=138
 
 			add a
-			jr c, psg2_continue
+			jr c,1f
 			ld b,#ff
-			jp reg_5				; 4+7+7+10=28
-			// total:  44+47+138+28+12+4+16=289	(till psg2_continue)
+			out (c),d
+			ld b,e
+			outi					; 4+7+7+12+4+16=50
+1
+			ld a, (hl)
+			inc hl					
+			add a
+			jr nz,play_by_mask_6_13	; 7+6+4+7=24
+			// total: 44+47+138+50+24+5=308  (till play_by_mask_6_13)
+			jp play_all_13_6		; 4+7+7+10=28
+			//  total: 44+47+138+50+24+10=313 (till play_all_13_6)
 
 play_all_0_5
 			cpl						; 0->ff
@@ -204,18 +213,18 @@ play_all_0_5
 			edup					; 40*4
 
 			ld b, a
-reg_5		out (c),d
+			out (c),d
 			ld b,e
 			outi					; 5*40+36  = 236
 			// total:  play_all_0_5 = 44+5+236=285
 
-psg2_continue
 			ld a, (hl)
 			inc hl					
 			add a
-			jr nz,play_by_mask2		; 7+6+4+7=24
-
-play_all_12_6
+			jr nz,play_by_mask_6_13	; 7+6+4+7=24
+			//  total: 285+24=309 (till play_all_13_6)
+			//  total: 285+24+5=314 (till play_by_mask_6_13)
+play_all_13_6
 			cpl						; 0->ff, keep flag c
 			jr	 c, 1f				; 4+7=11
 			dup 8
@@ -227,9 +236,9 @@ play_all_12_6
 1				
 			edup
 			ret						
-			// total: 289+24+11+320+10=654
+			// total: 313+4+7+320+10=654
 
-play_by_mask2			
+play_by_mask_6_13
 			ld	d, 13
 			jr c,1f
 			ld b,#ff
@@ -256,6 +265,6 @@ play_by_mask2
 			ld b,e
 			outi					
 			ret						; 4+5+4+7+12+4+16+10=62
-			// total: 289+24+5+53+207+62=640
+			// total: 314+53+207+62=636
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
