@@ -1053,7 +1053,7 @@ page4_end
         ORG 0xc000
         PAGE 7
 music
-        INCBIN "c:/zx/my_packer.ayp"
+        INCBIN "c:/zx/packed.mus"
 
         ORG 0xc000
         PAGE 6

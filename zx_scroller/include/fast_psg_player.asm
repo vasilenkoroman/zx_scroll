@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time is reduced from 1089t to 799t (-290t)
+//Max time is reduced from 1089t to 823t (-266t)
 //Player size is increased from 348 to 442 bytes (+94 bytes)
 
 /*
@@ -51,8 +51,8 @@ mus_init	ld hl, music
 			ret							; 10+16+4+13+7+13+10=73
 			// total for looping: 171+73=244
 
-pause_rep   db 0
-trb_pause   ld hl, pause_rep
+pause_rep	db 0
+trb_pause	ld hl, pause_rep
 			dec	 (hl)
 			ret nz						; 10+11+5=26t
 
@@ -114,11 +114,11 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(636t) = 799t(max)
+			// total: 32+30+36+65=163t + pl0x time(660t) = 823t(max)
 
 
 pl_frame	call pl0x
-			ld (pl_track+1), hl				
+			ld (pl_track+1), hl				;17+16=33t
 			
 trb_rep		ld a, 0						
 			sub 1
@@ -129,8 +129,8 @@ trb_rep		ld a, 0
 trb_rest	ld hl, 0
 			inc hl
 			ld (pl_track+1), hl
-			ret								; 10+16+10=36t
-			// total: 36+5+37+36=114t
+			ret								; 10+6+16+10=42t
+			// total: 32+33+37+36=144t + pl0x time(660t) = 804t(max)			
 
 pl00		sub 120
 			jr nc, pl_pause
@@ -139,7 +139,7 @@ pl00		sub 120
 			// 2 registr - maximum, second without check
 			ld a, (hl)
 			sub #10
-			jr nc, 7f
+			jr nc, 7f					; 7+7+10+7+7+7=45
 			outi
 			ld b, e
 			outi
@@ -149,7 +149,7 @@ pl00		sub 120
 			out (c),a
 			ld b, e
 			outi
-			ret							; 7+7+10+7+7+7+16+4+16+7+6+4+12+4+16+10=140t
+			ret							; 45+16+4+16+7+6+4+12+4+16+10=140t
 
 pl10
 			ld (pl_track+1), hl		
@@ -158,16 +158,16 @@ pl10
 
 			ld a, (hl)
 			add a		            	; 16+8+11+7+4=46t
-			// total: 32+30+36+46=144t + pl0x time(654t) = 798t(max)
+			// total: 32+30+36+46=144t + pl0x time(660t) = 804t(max)
 
 pl0x		ld bc, #fffd				
 			add a					
-			jr nc, pl00
+			jr nc, pl00				; 10+4+7=21t
 
 pl01	// player PSG2
 			inc hl
 			ld de, #00bf
-			jr z, play_all_0_5		; 10+4+7+6+10+7=44t
+			jr z, play_all_0_5		; 21+6+10+7=44t
 play_by_mask_0_5
 			add a				
 			jr c,1f
@@ -184,7 +184,7 @@ play_by_mask_0_5
 				ld b,e
 				outi				
 1				inc d
-			edup					;54*2 + 15*2=138
+			edup					;54*2 + 20*2=148
 
 			add a
 			jr c,1f
@@ -196,10 +196,10 @@ play_by_mask_0_5
 			ld a, (hl)
 			inc hl					
 			add a
-			jr nz,play_by_mask_6_13	; 7+6+4+7=24
-			// total: 44+47+138+50+24+5=308  (till play_by_mask_6_13)
-			jp play_all_13_6		; 4+7+7+10=28
-			//  total: 44+47+138+50+24+10=313 (till play_all_13_6)
+			jr z,play_all_13_6		; 7+6+4+7=24
+			// total: 44+47+148+50+24+5=318  (till till play_all_13_6)
+			jp play_by_mask_6_13		
+			//  total: 318-5+10=323 (play_by_mask_6_13)
 
 play_all_0_5
 			cpl						; 0->ff
@@ -226,8 +226,8 @@ play_all_0_5
 			inc hl					
 			add a
 			jr nz,play_by_mask_6_13	; 7+6+4+7=24
-			//  total: 285+24=309 (till play_all_13_6)
 			//  total: 285+24+5=314 (till play_by_mask_6_13)
+			//  total: 285+24=309 (till play_all_13_6)
 play_all_13_6
 			cpl						; 0->ff, keep flag c
 			jr	 c, 1f				; 4+7=11
@@ -239,8 +239,9 @@ play_all_13_6
 				outi				; 8*40=320
 1				
 			edup
-			ret						
-			// total: 313+4+7+320+10=654
+			ret						; 11+320+10=341
+			// total: 309 + 341 = 650 (all_0_5 + all_6_13)
+			// total: 318 + 341 = 659 (mask_0_5 + all_6_13)
 
 play_by_mask_6_13
 			ld	d, 13
@@ -258,7 +259,7 @@ play_by_mask_6_13
 				out (c),d
 				ld b,e
 				outi				
-1									; 54*3 + 15*3=207
+1									; 54*3 + 20*3=222
 			edup
 
  			add a
@@ -268,7 +269,8 @@ play_by_mask_6_13
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+4+7+12+4+16+10=62
-			// total: 314+53+207+62=636
+			ret						; 4+5+4+7+12+4+16+10=62, 53+222+62 = 337
+			// total: 314 + 337 = 651 (all_0_5 + mask_6_13)
+			// total: 323 + 337 = 660 (mask_0_5 + mask_6_13)
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
