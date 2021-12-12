@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time is reduced from 1089t to 810t (-279t)
+//Max time is reduced from 1089t to 802t (-287t)
 //Player size is increased from 348 to 442 bytes (+94 bytes)
 
 /*
@@ -63,7 +63,7 @@ saved_track
 			// total: 34+38=72t
 		
 // pause or end track
-pl_pause								; 103t on enter
+pl_pause								; 58+7+12=77 on enter
 			inc hl
 			ld (pl_track+1), hl
 			ret z
@@ -78,9 +78,9 @@ pl_pause								; 103t on enter
 			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
 			ld (trb_play), hl
 			
-			pop	 hl						; 10
+			pop	 hl						
 			ret							; 4+4+13+4+13+10+16+10+10=84
-			// total for pause: 103+41+84=228t
+			// total for pause: 77+41+84=202t
 
 endtrack	//end of track
 			pop	 hl
@@ -94,9 +94,24 @@ pl_track	ld hl, 0
 			ld a, (hl)
 			ld b, a
 			add a
-			jr nc, pl_frame				; 10+7+4+4+7=32t
+			jr c, pl1x					    ; 10+7+4+4+7=32t
 
-			// Process ref
+pl_frame	call pl0x
+			ld (pl_track+1), hl				;17+16=33t
+			
+trb_rep		ld a, 0						
+			dec	 a
+			ret m
+			ld (trb_rep+1), a
+			ret nz							; 7+4+5+13+5=34t
+			// end of repeat, restore position in track
+trb_rest	ld hl, 0
+			inc hl
+			ld (pl_track+1), hl
+			ret								; 10+6+16+10=42t
+			// total: 32+33+34+42=141t + pl0x time(661t) = 802t(max)
+
+pl1x		// Process ref	
 			inc hl
 			ld c, (hl)
 			add a
@@ -114,24 +129,9 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time (661-30)=794t (max pl0x time is blocked here by packer)
+			// total: 32+5+30+36+65=168t + pl0x time (661-30)=799t (max pl0x time is blocked here by packer)
 
-pl_frame	call pl0x
-			ld (pl_track+1), hl				;17+16=33t
-			
-trb_rep		ld a, 0						
-			sub 1
-			ret c
-			ld (trb_rep+1), a
-			ret nz							; 7+7+5+13+5=37t
-			// end of repeat, restore position in track
-trb_rest	ld hl, 0
-			inc hl
-			ld (pl_track+1), hl
-			ret								; 10+6+16+10=42t
-			// total: 32+5+33+37+42=149t + pl0x time(661t) = 810t(max)			
-
-pl00		sub 120
+pl00		sub 120						; 32+21+5=58 on enter
 			jr nc, pl_pause
 			ld de, #ffbf
 		//psg1
@@ -157,7 +157,7 @@ pl10
 
 			ld a, (hl)
 			add a		            	; 16+8+11+7+4=46t
-			// total: 32+30+5+46=113t + pl0x time(661t) = 774t(max)
+			// total: 32+5+30+5+46=118t + pl0x time(661t) = 779t(max)
 
 pl0x		ld bc, #fffd				
 			add a					
@@ -188,11 +188,11 @@ play_by_mask_0_5
 			ld a, (hl)
 			inc hl					
 			add a
-			jr z,play_all_13_6		; 7+6+4+7=24
-			// total: 44+202+43+24+5=318  (till till play_all_13_6)
+			jr z,play_all_6_13		; 7+6+4+7=24
+			// total: 44+202+43+24+5=318  (till play_all_6_13)
 			ld b,#ff
-			jp play_by_mask_6_13		
-			//  total: 318-5+7+10=330 (play_by_mask_6_13)
+			jp play_by_mask_13_6
+			//  total: 318-5+7+10=330 (play_by_mask_13_6)
 
 play_all_0_5
 			cpl						; 0->ff
@@ -220,10 +220,10 @@ play_all_0_5_end
 			ld a, (hl)
 			inc hl					
 			add a
-			jr nz,play_by_mask_6_13	; 7+6+4+7=24
-			//  total: 296+24+5=325 (till play_by_mask_6_13)
-			//  total: 296+24=320 (till play_all_13_6)
-play_all_13_6
+			jr nz,play_by_mask_13_6	; 7+6+4+7=24
+			//  total: 296+24+5=325 (till play_by_mask_13_6)
+			//  total: 296+24=320 (till play_all_6_13)
+play_all_6_13
 			cpl						; 0->ff, keep flag c
 			jr	 c, 1f				; 4+7=11
 			dup 8
@@ -238,7 +238,7 @@ play_all_13_6
 			// total: 320 + 341 = 661 (all_0_5 + all_6_13)
 			// total: 318 + 341 = 659 (mask_0_5 + all_6_13)
 
-play_by_mask_6_13
+play_by_mask_13_6
 			ld	d, 13
 			jr c,1f
 			out (c),d
