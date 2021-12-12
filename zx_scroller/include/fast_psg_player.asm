@@ -2,7 +2,7 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time is reduced from 1089t to 823t (-266t)
+//Max time is reduced from 1089t to 810t (-279t)
 //Player size is increased from 348 to 442 bytes (+94 bytes)
 
 /*
@@ -20,7 +20,7 @@
 Также эта версия частично поддерживает короткие вложенные ссылки уровня 2 (доп. ограничение - они не могут стоять в конце длинной ссылки уровня 1).
 По-умолчанию пакер избегает пакованных фреймов, когда заполнены 5/6 регистров [0..5] или 5/7, 6/7 регистров [6..12]. В этом случае записывается "лишний" регистр(ы).
 Т.о. проигрывание идет по ветке play_all_xx, что быстрее.
-Дополнительно, эта же опция пакера избегает сочетания "заполнены все регистры(в том числе после заливки доп. регистров) + ссылка длиной 1 байт".
+Дополнительно, эта же опция пакера избегает сочетания "заполнены все регистры(в том числе после заливки доп. регистров) + ссылка длиной более 1 байт".
 Все это несколько ухудшает сжатие, но за счет частичной поддержки вложенных ссылок, оно остается на уровне оригинального плейера.
 Максимальные тайминги расчитаны при включенной опции пакера 'fast'. Если ее отключить, то сжатие улучшится, но максимальные тайминги поднимутся примерно на 120t (пока точно не считал).
 Лупинг также не выходит за пределы макс. расчитанных таймингов, но формирует отдельную запись проигрывания, т.е. есть задержка между последним и 1-м фреймом трека в 1 frame.
@@ -114,8 +114,7 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+30+36+65=163t + pl0x time(660t) = 823t(max)
-
+			// total: 32+30+36+65=163t + pl0x time (661-30)=794t (max pl0x time is blocked here by packer)
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				;17+16=33t
@@ -130,7 +129,7 @@ trb_rest	ld hl, 0
 			inc hl
 			ld (pl_track+1), hl
 			ret								; 10+6+16+10=42t
-			// total: 32+33+37+36=144t + pl0x time(660t) = 804t(max)			
+			// total: 32+5+33+37+42=149t + pl0x time(661t) = 810t(max)			
 
 pl00		sub 120
 			jr nc, pl_pause
@@ -158,7 +157,7 @@ pl10
 
 			ld a, (hl)
 			add a		            	; 16+8+11+7+4=46t
-			// total: 32+30+36+46=144t + pl0x time(660t) = 804t(max)
+			// total: 32+30+5+46=113t + pl0x time(661t) = 774t(max)
 
 pl0x		ld bc, #fffd				
 			add a					
@@ -169,37 +168,31 @@ pl01	// player PSG2
 			ld de, #00bf
 			jr z, play_all_0_5		; 21+6+10+7=44t
 play_by_mask_0_5
-			add a				
-			jr c,1f
-			out (c), d
-			ld b,e
-			outi				
-1			inc d					; 4+7+12+4+16+4=47
 
-			dup 4
+			dup 5
 				add a
 				jr c,1f
-				ld b,#ff
 				out (c),d
 				ld b,e
 				outi				
+				ld b,#ff
 1				inc d
-			edup					;54*2 + 20*2=148
+			edup					;54*3 + 20*2=202
 
 			add a
-			jr c,1f
-			ld b,#ff
+			jr c, play_all_0_5_end	; 44+54*4+20+ 4 + 12=296 (timing at play_all_0_5_end)
 			out (c),d
 			ld b,e
-			outi					; 4+7+7+12+4+16=50
-1
+			outi					; 4+7+12+4+16=43
+
 			ld a, (hl)
 			inc hl					
 			add a
 			jr z,play_all_13_6		; 7+6+4+7=24
-			// total: 44+47+148+50+24+5=318  (till till play_all_13_6)
+			// total: 44+202+43+24+5=318  (till till play_all_13_6)
+			ld b,#ff
 			jp play_by_mask_6_13		
-			//  total: 318-5+10=323 (play_by_mask_6_13)
+			//  total: 318-5+7+10=330 (play_by_mask_6_13)
 
 play_all_0_5
 			cpl						; 0->ff
@@ -219,15 +212,17 @@ play_all_0_5
 			ld b, a
 			out (c),d
 			ld b,e
-			outi					; 5*40+36  = 236
-			// total:  play_all_0_5 = 44+5+236=285
+			outi					
+			ld	 b,a				; 5*40+40  = 240
+			// total:  play_all_0_5 = 44+5+240=289
 
+play_all_0_5_end
 			ld a, (hl)
 			inc hl					
 			add a
 			jr nz,play_by_mask_6_13	; 7+6+4+7=24
-			//  total: 285+24+5=314 (till play_by_mask_6_13)
-			//  total: 285+24=309 (till play_all_13_6)
+			//  total: 296+24+5=325 (till play_by_mask_6_13)
+			//  total: 296+24=320 (till play_all_13_6)
 play_all_13_6
 			cpl						; 0->ff, keep flag c
 			jr	 c, 1f				; 4+7=11
@@ -240,37 +235,36 @@ play_all_13_6
 1				
 			edup
 			ret						; 11+320+10=341
-			// total: 309 + 341 = 650 (all_0_5 + all_6_13)
+			// total: 320 + 341 = 661 (all_0_5 + all_6_13)
 			// total: 318 + 341 = 659 (mask_0_5 + all_6_13)
 
 play_by_mask_6_13
 			ld	d, 13
 			jr c,1f
-			ld b,#ff
 			out (c),d
 			ld b,e
-			outi					;  7+7+7+12+4+16=53
+			outi					
+			ld b,#ff				;  7+7+12+4+16+7=53
 1			
 			dup 6
 				dec d
 				add a
 				jr c,1f
-				ld b,#ff
 				out (c),d
 				ld b,e
 				outi				
+				ld b,#ff
 1									; 54*3 + 20*3=222
 			edup
 
  			add a
 			ret c
 			dec d
-			ld b,#ff
 			out (c),d
 			ld b,e
 			outi					
-			ret						; 4+5+4+7+12+4+16+10=62, 53+222+62 = 337
-			// total: 314 + 337 = 651 (all_0_5 + mask_6_13)
-			// total: 323 + 337 = 660 (mask_0_5 + mask_6_13)
+			ret						; 4+5+4+12+4+16+10=55, 53+222+55 = 330
+			// total: 325 + 330 = 655 (all_0_5 + mask_6_13)
+			// total: 330 + 330 = 660 (mask_0_5 + mask_6_13)
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
