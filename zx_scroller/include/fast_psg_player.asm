@@ -63,7 +63,7 @@ saved_track
 			// total: 34+38=72t
 		
 // pause or end track
-pl_pause								; 58+7+12=77 on enter
+pl_pause								; 94 on enter
 			inc hl
 			ld (pl_track+1), hl
 			ret z
@@ -80,7 +80,7 @@ pl_pause								; 58+7+12=77 on enter
 			
 			pop	 hl						
 			ret							; 4+4+13+4+13+10+16+10+10=84
-			// total for pause: 77+41+84=202t
+			// total for pause: 94+41+84=219t
 
 endtrack	//end of track
 			pop	 hl
@@ -221,10 +221,11 @@ play_all_0_5_end
 			inc hl					
 			add a
 			jr nz,play_by_mask_13_6	; 7+6+4+7=24
-			//  total: 296+24+5=325 (till play_by_mask_13_6)
-			//  total: 296+24=320 (till play_all_6_13)
+			//  total: 296+24+5=325/318 (till play_by_mask_13_6)
+			//  total: 296+24=320/313 (till play_all_6_13)
 play_all_6_13
 			cpl						; 0->ff, keep flag c
+			// write regs [6..12] or [6..13] depend on flag
 			jr	 c, 1f				; 4+7=11
 			dup 8
 				inc d				
@@ -235,8 +236,8 @@ play_all_6_13
 1				
 			edup
 			ret						; 11+320+10=341
-			// total: 320 + 341 = 661 (all_0_5 + all_6_13)
-			// total: 318 + 341 = 659 (mask_0_5 + all_6_13)
+			// total: 313 + 341 = 654 (all_0_5 + all_6_13)
+			// total: 320 + 341 = 661 (mask_0_5 + all_6_13)
 
 play_by_mask_13_6
 			ld	d, 13
@@ -264,7 +265,7 @@ play_by_mask_13_6
 			ld b,e
 			outi					
 			ret						; 4+5+4+12+4+16+10=55, 53+222+55 = 330
-			// total: 325 + 330 = 655 (all_0_5 + mask_6_13)
-			// total: 330 + 330 = 660 (mask_0_5 + mask_6_13)
+			// total: 318 + 330 = 648 (all_0_5 + mask_6_13)
+			// total: 325 + 330 = 655 (mask_0_5 + mask_6_13)
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"

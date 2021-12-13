@@ -35,6 +35,7 @@ static const int kSetPageTicks = 0;
 static const int kPageNumPrefix = 0x50;
 static const int kMinOffscreenBytes = 8; // < It contains at least 8 writted bytes to the screen
 static const int kThirdSpPartSize = 4;
+static const int kCallPlayerDelay = 10 + 18 + 10;
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -3413,7 +3414,8 @@ void serializeAsmFile(
     const CompressedData& multicolorData,
     int rastrFlags,
     int firstLineDelay,
-    const Labels& labels)
+    const Labels& labels,
+    bool hasPlayer)
 {
     using namespace std;
 
@@ -3435,6 +3437,7 @@ void serializeAsmFile(
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
     phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
+    phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
 }
 
 int serializeMultiColorData(
@@ -3842,7 +3845,8 @@ int serializeTimingData(
     const CompressedData& color,
     const CompressedData& multicolor,
     const std::string& inputFileName,
-    int flags)
+    int flags,
+    std::vector<int> musicTimings)
 {
     using namespace std;
 
@@ -3858,6 +3862,7 @@ int serializeTimingData(
         std::cerr << "Can not write timing file" << std::endl;
         return -1;
     }
+
     int worseLineTicks = std::numeric_limits<int>::max();
     int firstLineDelay = 0;
     for (int line = 0; line < imageHeight; ++line)
@@ -3915,6 +3920,14 @@ int serializeTimingData(
         }
 
         int kZ80CodeDelay = 2488 + 10;
+
+        if (!musicTimings.empty())
+        {
+            kZ80CodeDelay += kCallPlayerDelay;
+            if (musicTimings.size() > line)
+                kZ80CodeDelay += musicTimings[line];
+        }
+
         if (line % 8 == 0)
         {
             kZ80CodeDelay += 6321 - 9 + 600 + 230;
@@ -4134,18 +4147,64 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    int fileCount = argc - 3;
-
-    std::string sldFileName = argv[argc - 1];
-    std::string outputFileName = argv[argc - 2];
-
-    if (!ends_with(sldFileName, ".sld"))
+    std::string sldFileName;
+    std::string musTimingsFileName;
+    int argCount = argc;
+    for (int i = argc - 1; i > 0; --i)
     {
-        // Doesn't have .sld file. Take default value for code offset
-        ++fileCount;
-        outputFileName = sldFileName;
-        sldFileName.clear();
+        std::string specialFileName = argv[i];
+        if (ends_with(specialFileName, ".sld"))
+        {
+            sldFileName = specialFileName;
+            --argCount;
+        }
+        else if (ends_with(specialFileName, ".csv"))
+        {
+            musTimingsFileName = specialFileName;
+            --argCount;
+        }
+        else
+        {
+            break;
+        }
     }
+
+    std::vector<int> musicTimings;
+    if (!musTimingsFileName.empty())
+    {
+        ifstream musFile;
+        if (!musTimingsFileName.empty())
+        {
+            musFile.open(musTimingsFileName);
+            if (!musFile.is_open())
+            {
+                std::cerr << "Can not open csv file '" << musTimingsFileName << "'with music timings" << std::endl;
+                return -1;
+            }
+            std::string line;
+            std::getline(musFile, line); //< skip CSV header
+            while (1)
+            {
+                std::getline(musFile, line);
+                if (line.empty())
+                    break;
+                auto pos = line.find(';');
+                if (pos == std::string::npos)
+                    continue;
+                ++pos;
+                auto pos2 = line.find(';', pos);
+                if (pos2 == std::string::npos)
+                    pos2 = line.size();
+                std::string timingStr = line.substr(pos, pos2 - pos);
+                musicTimings.push_back(std::stoi(timingStr));
+            }
+        }
+    }
+
+
+    std::string outputFileName = argv[argCount - 1];
+    int fileCount = argCount - 2;
+
     if (!ends_with(outputFileName, "\\") && !ends_with(outputFileName, "/"))
         outputFileName += "/";
 
@@ -4271,8 +4330,8 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags);
-    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay, labels);
+    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName,  flags, musicTimings);
+    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay, labels, !musicTimings.empty());
 
     runCompressor(outputFileName);
 

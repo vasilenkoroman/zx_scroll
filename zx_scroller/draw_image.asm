@@ -421,6 +421,9 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
+        ld hl, after_player
+        ld (stack_top), hl
+
 max_scroll_offset equ imageHeight - 1
 
         ld a, 3                         ; 7 ticks
@@ -770,10 +773,12 @@ bank_drawing_common2:
         ; delay
         DO_DELAY
 
-        ld sp, stack_top
-        SET_PAGE 7
-        call play
-
+        IF (HAS_PLAYER == 1)
+                ld sp, stack_top
+                SET_PAGE 7
+                jp play
+        ENDIF                                
+after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
