@@ -401,7 +401,9 @@ ram2_size       EQU page2_end - 32768
         ld iy, 0x5453
 
         //ld  hl, packed_music
-        call  init // player init
+        IF (HAS_PLAYER == 1)
+                call  init // player init
+        ENDIF                
 
         call prepare_interruption_table
         ; Pentagon timings
@@ -415,7 +417,7 @@ ticks_per_line                  equ  224
         call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31830 - 10  + 6
+fixed_startup_delay     equ 31846 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -778,6 +780,7 @@ bank_drawing_common2:
                 SET_PAGE 7
                 jp play
         ENDIF                                
+
 after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625

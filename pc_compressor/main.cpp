@@ -3921,13 +3921,6 @@ int serializeTimingData(
 
         int kZ80CodeDelay = 2488 + 10;
 
-        if (!musicTimings.empty())
-        {
-            kZ80CodeDelay += kCallPlayerDelay;
-            if (musicTimings.size() > line)
-                kZ80CodeDelay += musicTimings[line];
-        }
-
         if (line % 8 == 0)
         {
             kZ80CodeDelay += 6321 - 9 + 600 + 230;
@@ -3971,6 +3964,15 @@ int serializeTimingData(
         ticks += kZ80CodeDelay;
         if (flags & optimizeLineEdge)
             ticks += 10 * 23; // LD SP, XX in each line
+
+        if (!musicTimings.empty())
+        {
+            int playerDelay = kCallPlayerDelay;
+            int inversedLine = (imageHeight - line) % imageHeight;
+            if (musicTimings.size() > inversedLine)
+                playerDelay += musicTimings[inversedLine];
+            ticks += playerDelay;
+        }
 
         int freeTicks = totalTicksPerFrame - ticks;
         if (freeTicks < kMinDelay)
