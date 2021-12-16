@@ -2,8 +2,8 @@
 //psndcj//tbk - 11.02.2012,01.12.2013
 //source for sjasm cross-assembler
 //modified by physic 8.12.2021
-//Max time is reduced from 1089t to 802t (-287t)
-//Player size is increased from 348 to 442 bytes (+94 bytes)
+//Max time is reduced from 1089t to 799t (-290t)
+//Player size is increased from 348 to 470 bytes (+122 bytes)
 
 /*
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
@@ -14,8 +14,12 @@
 00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
 00111111					1	маркер окончания трека
 
-0001hhhh vvvvvvvv			2	PSG1 проигрывание, 1 register, 0000hhhh - номер регистра, vvvvvvvv - значение
-0000hhhh vvvvvvvv			4	PSG1 проигрывание, 2 registers, 0000hhhh - номер регистра, vvvvvvvv - значение
+000hhhh0 vvvvvvvv			1	PSG1 проигрывание, 1 register, 0000hhhh - номер регистра, vvvvvvvv - значение
+000hhhh1 vvvvvvvv			1	PSG1 проигрывание, 2 registers, 0000hhhh - номер регистра, vvvvvvvv - значение
+
+00111101					1   Not used.
+00111110					1   Not used.
+
 
 Также эта версия частично поддерживает короткие вложенные ссылки уровня 2 (доп. ограничение - они не могут стоять в конце длинной ссылки уровня 1).
 По-умолчанию пакер избегает пакованных фреймов, когда заполнены 5/6 регистров [0..5] или 5/7, 6/7 регистров [6..12]. В этом случае записывается "лишний" регистр(ы).
@@ -43,6 +47,12 @@ stop		ld c,#fd
 			ret
 		
 mus_init	ld hl, music
+			ld	 a, l
+			ld	 (mus_low+1), a
+			ld	 a, h
+			ld	 (mus_high+1), a
+			ld	de, 16*4
+			add	 hl, de
 			ld (pl_track+1), hl
 			xor a
 			ld (trb_rep+1), a
@@ -63,7 +73,7 @@ saved_track
 			// total: 34+38=72t
 		
 // pause or end track
-pl_pause								; 94 on enter
+pl_pause								; 90 on enter
 			inc hl
 			ld (pl_track+1), hl
 			ret z
@@ -92,9 +102,8 @@ trb_play
 pl_track	ld hl, 0				
 
 			ld a, (hl)
-			ld b, a
 			add a
-			jr c, pl1x					    ; 10+7+4+4+7=32t
+			jr c, pl1x					    ; 10+7+4+7=28t
 
 pl_frame	call pl0x
 			ld (pl_track+1), hl				;17+16=33t
@@ -109,14 +118,14 @@ trb_rest	ld hl, 0
 			inc hl
 			ld (pl_track+1), hl
 			ret								; 10+6+16+10=42t
-			// total: 32+33+34+42=141t + pl0x time(661t) = 802t(max)
+			// total: 28+33+34+42=137t + pl0x time(661t) = 798t(max)
 
 pl1x		// Process ref	
+			ld b, (hl)
 			inc hl
 			ld c, (hl)
-			add a
 			inc hl
-			jr nc, pl10					; 6+7+4+6+7=30t
+			jp p, pl10					; 7+6+7+6+10=36t
 
 pl11		ld a, (hl)						
 			ld (trb_rep+1), a		
@@ -129,26 +138,40 @@ pl11		ld a, (hl)
 			call pl0x
 			ld (pl_track+1), hl		
 			ret								; 11+7+4+17+16+10=65t
-			// total: 32+5+30+36+65=168t + pl0x time (661-30)=799t (max pl0x time is blocked here by packer)
+			// total: 28+5+36+36+65=170t + pl0x time (661-32)=799t (max pl0x time is blocked here by packer for level 1)
 
-pl00		sub 120						; 32+21+5=58 on enter
+pl00		sub 120						; 28+17+21+5=71 on enter
 			jr nc, pl_pause
-			ld de, #ffbf
 		//psg1
 			// 2 registr - maximum, second without check
 			ld a, (hl)
-			sub #10
-			jr nc, 7f					; 7+7+10+7+7+7=45
+			inc hl
+			rrca
+			jr nc, 7f					; 7+7+7+6+4+7=38
+			ex de, hl
+			add	 a
+			add	 a
+mus_low		add	 0
+			ld	 l, a
+mus_high	adc	 0
+			sub	 l
+			ld	 h, a					; 4+4+4+7+4+7+4+4=38
+
 			outi
-			ld b, e
+			ld b, #bf
 			outi
-			ld a, (hl)
-7			inc hl
-			ld b, d
-			out (c),a
-			ld b, e
+			ld b, #ff
 			outi
-			ret							; 45+16+4+16+7+6+4+12+4+16+10=140t
+			ld b, #bf
+			outi
+			ex	 de, hl
+			ret							; 16+(7+16)*3+4+10=99
+			; total: 38+38+99=175
+7			out (c),a
+			ld b, #bf
+			outi
+			ret							; 12+7+16+10=45
+			; total: 38+5+45=88
 
 pl10
 			ld (pl_track+1), hl		
@@ -157,7 +180,7 @@ pl10
 
 			ld a, (hl)
 			add a		            	; 16+8+11+7+4=46t
-			// total: 32+5+30+5+46=118t + pl0x time(661t) = 779t(max)
+			// total: 28+5+36+46=115t + pl0x time(661t) = 776t(max)
 
 pl0x		ld bc, #fffd				
 			add a					
