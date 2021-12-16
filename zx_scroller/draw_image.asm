@@ -1026,6 +1026,8 @@ page2_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
+        DISPLAY	"Page 2 free ", /D, (0xc000 - imageHeight / 2) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
         //INCBIN "generated_code/update_jpix_helper.dat"   ; TODO: can be generated at startup
 
@@ -1036,6 +1038,8 @@ update_jpix_helper   EQU 0xc000 - imageHeight / 2
         INCBIN "generated_code/main0.z80"
         INCBIN "generated_code/reach_descriptor0.z80"
 page0_end
+        DISPLAY	"Page 0 free ", /D, 65536 - $, " bytes"
+
 
         ORG 0xc000
         PAGE 1
@@ -1043,6 +1047,7 @@ page0_end
         INCBIN "generated_code/main1.z80"
         INCBIN "generated_code/reach_descriptor1.z80"
 page1_end
+        DISPLAY	"Page 1 free ", /D, 65536 - $, " bytes"
 
         ORG 0xc000
         PAGE 3
@@ -1050,6 +1055,7 @@ page1_end
         INCBIN "generated_code/main2.z80"
         INCBIN "generated_code/reach_descriptor2.z80"
 page3_end        
+        DISPLAY	"Page 3 free ", /D, 65536 - $, " bytes"
 
         ORG 0xc000
         PAGE 4
@@ -1057,6 +1063,7 @@ page3_end
         INCBIN "generated_code/main3.z80"
         INCBIN "generated_code/reach_descriptor3.z80"
 page4_end        
+        DISPLAY	"Page 4 free ", /D, 65536 - $, " bytes"
 
         ORG 0xc000
         PAGE 7
@@ -1087,6 +1094,7 @@ timings_data
 timings_data_end
 
 page6_end
+        DISPLAY	"Page 6 free ", /D, 65536 - $, " bytes"
 
 imageHeight             equ (timings_data_end - timings_data) / 2
 
