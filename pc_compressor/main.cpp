@@ -2999,9 +2999,15 @@ int jpixTableSize(int imageHeight)
     return (imageHeight / 64 + 2) * 64 * 12;
 }
 
+int getTimingsStartAddress(int imageHeight)
+{
+    int result = rastrCodeStartAddrBase + jpixTableSize(imageHeight) / kPagesForData;
+    return result;
+}
+
 int getRastrCodeStartAddr(int imageHeight)
 {
-    return rastrCodeStartAddrBase + jpixTableSize(imageHeight) / kPagesForData;
+    return getTimingsStartAddress(imageHeight) + imageHeight*2;
 }
 
 int serializeMainData(
@@ -3413,7 +3419,6 @@ void serializeAsmFile(
     const CompressedData& rastrData,
     const CompressedData& multicolorData,
     int rastrFlags,
-    int firstLineDelay,
     const Labels& labels,
     bool hasPlayer)
 {
@@ -3429,6 +3434,7 @@ void serializeAsmFile(
     }
 
     int colorHeight = multicolorData.data.size();
+    int imageHeight = colorHeight * 8;
 
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
     phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
@@ -3438,6 +3444,8 @@ void serializeAsmFile(
         << std::endl;
     phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
+    phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
+    phaseFile << "timings_data   EQU    " << getTimingsStartAddress(imageHeight) << std::endl;
 }
 
 int serializeMultiColorData(
@@ -3838,7 +3846,7 @@ int prev_frame_line_23_overrun(
     return dt;
 }
 
-int serializeTimingData(
+int serializeTimingDataForPage(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data,
@@ -3846,7 +3854,8 @@ int serializeTimingData(
     const CompressedData& multicolor,
     const std::string& inputFileName,
     int flags,
-    std::vector<int> musicTimings)
+    std::vector<int> musicTimings,
+    int page)
 {
     using namespace std;
 
@@ -3855,11 +3864,11 @@ int serializeTimingData(
 
 
     ofstream timingDataFile;
-    std::string timingDataFileName = inputFileName + "timings.dat";
+    std::string timingDataFileName = inputFileName + std::string("timings") + std::to_string(page)  + ".dat";
     timingDataFile.open(timingDataFileName, std::ios::binary);
     if (!timingDataFile.is_open())
     {
-        std::cerr << "Can not write timing file" << std::endl;
+        std::cerr << "Can not write timing file " << timingDataFileName << std::endl;
         return -1;
     }
 
@@ -3920,6 +3929,9 @@ int serializeTimingData(
         }
 
         int kZ80CodeDelay = 2488 + 10;
+
+        // Temporary. Addition setPage before call DO_DELAY. Can be removed.
+        kZ80CodeDelay += 18;
 
         if (line % 8 == 0)
         {
@@ -4005,6 +4017,45 @@ int serializeTimingData(
     std::cout << std::endl;
 
     return firstLineDelay;
+}
+
+int serializeTimingData(
+    const std::vector<LineDescriptor>& descriptors,
+    const std::vector<ColorDescriptor>& colorDescriptors,
+    const CompressedData& data,
+    const CompressedData& color,
+    const CompressedData& multicolor,
+    const std::string& inputFileName,
+    int flags,
+    std::vector<int> musicTimings)
+{
+    const int imageHeight = data.data.size();
+
+
+    int i = 0;
+    int page = 0;
+    do
+    {
+        int musStartIndex = i;
+        int musEndIndex = musStartIndex + imageHeight;
+
+        std::vector<int> musicPage;
+        if (musEndIndex <= musicTimings.size())
+            musicPage = std::vector<int>(musicTimings.begin() + musStartIndex, musicTimings.begin() + musEndIndex);
+
+        serializeTimingDataForPage(
+            descriptors,
+            colorDescriptors,
+            data,
+            color,
+            multicolor,
+            inputFileName,
+            flags,
+            musicPage,
+            page++);
+        i += imageHeight;
+    } while (i < musicTimings.size());
+    return 0;
 }
 
 int serializeJpIxDescriptors(
@@ -4332,8 +4383,8 @@ int main(int argc, char** argv)
     serializeRastrDescriptors(descriptors, outputFileName);
     serializeJpIxDescriptors(descriptors, outputFileName);
 
-    int firstLineDelay = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName,  flags, musicTimings);
-    serializeAsmFile(outputFileName, data, multicolorData, flags, firstLineDelay, labels, !musicTimings.empty());
+    serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName,  flags, musicTimings);
+    serializeAsmFile(outputFileName, data, multicolorData, flags, labels, !musicTimings.empty());
 
     runCompressor(outputFileName);
 

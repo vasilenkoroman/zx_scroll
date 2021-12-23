@@ -184,11 +184,6 @@ it1_end:        ex de,hl
                 pop hl: ld (RASTR_23+1), hl
                 pop hl: ld (L3?+1), hl
 
-                // Loading timings data while stay on PAGE 6
-                ld hl, timings_data
-                add hl, bc
-                ld sp, hl
-                pop bc
         ENDM
 
 draw_off_rastr_7

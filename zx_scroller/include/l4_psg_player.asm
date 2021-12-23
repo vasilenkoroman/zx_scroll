@@ -1,48 +1,38 @@
-//player for TBK PSG Packer
-//psndcj//tbk - 11.02.2012,01.12.2013
-//source for sjasm cross-assembler
-//modified by physic 8.12.2021
-//Max time is reduced from 1089t to 799t (-290t)
-//Player size is increased from 348 to 470 bytes (+122 bytes)
-
 /*
+Player for Fast PSG Packer for compression levels [4..5]
+Source for sjasm cross-assembler.
+Source code is based on psndcj/tbk player and bfox/tmk player.
+Modified by physic 8.12.2021.
+Max time is 930t for compression level 4 (recomended), 1032t for compression level 5
+Player size is increased from 348 to 543 bytes.
+
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
 10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
 01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров.
 							во 2-м байте также инвертирован порядок следования регистров (13..6)
 
-00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
-00111111					1	маркер окончания трека
-
-000hhhh1 vvvvvvvv			1	PSG1 проигрывание, 1 register, 	hhhh - номер регистра, vvvvvvvv - значение
-000hhhh0 					1	PSG1i проигрывание, 2 registers, hhhh - номер индексной записи в начале файла
-
-00111101					1   Not used.
-00111110					1   Not used.
+001iiiii 					1	PSG2i проигрывание, где iiiii номер индексированной маски (0..31), далее следуют значения регистров
+0001pppp					1	PAUSE16 - пауза pppp+1 (1..16)
+0000hhhh vvvvvvvv			2	PSG1 проигрывание, 0000hhhh - номер регистра + 1, vvvvvvvv - значение
+00001111					1	маркер оцончания трека
+00000000 nnnnnnnn			2	PAUSE_N - пауза nnnnnnnn+1 фреймов (ничего не выводим в регистры)
 
 
-Также эта версия частично поддерживает короткие вложенные ссылки уровня 2 (доп. ограничение - они не могут стоять в конце длинной ссылки уровня 1).
-По-умолчанию пакер избегает пакованных фреймов, когда заполнены 5/6 регистров [0..5] или 5/7, 6/7 регистров [6..12]. В этом случае записывается "лишний" регистр(ы).
-Т.о. проигрывание идет по ветке play_all_xx, что быстрее.
-Дополнительно, эта же опция пакера избегает сочетания "заполнены все регистры(в том числе после заливки доп. регистров) + ссылка длиной более 1 байт".
-Все это несколько ухудшает сжатие, но за счет частичной поддержки вложенных ссылок, оно остается на уровне оригинального плейера.
-Максимальные тайминги расчитаны при уровне компрессии 1 (по-умолчанию).
-Лупинг также не выходит за пределы макс. расчитанных таймингов, но формирует отдельную запись проигрывания, т.е. есть задержка между последним и 1-м фреймом трека в 1 frame.
+Nested loops are fully supported at this version. Please make sure there is enough room for nested levels.
+Packer shows max nested level. It need to increase MAX_NESTED_LEVEL variable if it not enough.
 */
+
+MAX_NESTED_LEVEL EQU 4
 
 LD_HL_CODE	EQU 0x2A
 JR_CODE		EQU 0x18
 
-			MACRO SAVE_POS keepFlags
+			MACRO SAVE_POS
 				ex	de,hl
 				ld	hl, (pl_track+1)
 				ld	(hl),e
-				IF (keepFlags == 1)
-					inc	hl
-				ELSE
-					inc	l
-				ENDIF					
-				ld	(hl),d						; 4+16+7+4+7=38/40t
+				inc	l
+				ld	(hl),d						; 4+16+7+4+7=38t
 			ENDM
 							
 init		EQU mus_init
@@ -66,14 +56,17 @@ mus_init	ld hl, music
 			ld	de, 16*4
 			add	 hl, de
 			ld (stack_pos+1), hl
-			xor a
-			ld (stack_pos), a
 			ld a, LD_HL_CODE
 			ld (trb_play), a
-			ld hl, stack_pos+1
+
+			xor a
+			ld hl, stack_pos
+			ld (hl), a
+			inc hl
+
 			ld (pl_track+1), hl
-			ret							; 10+16+4+13+7+13+10=73
-			// total for looping: 171+73=244
+			ret							; 10+4+13+4+13+10+11+16+10+13+4+10+7+6=302
+			// total for looping: 171+131=244
 
 pause_rep	db 0
 trb_pause	ld hl, pause_rep
@@ -86,144 +79,168 @@ saved_track
 			ld	hl, (trb_play+1)
 			jr trb_rep					; 10+16+12=38t
 			// total: 34+38=72t
-		
-// pause or end track
-pl_pause								; 90 on enter
-			inc hl
-			ret z
-			SAVE_POS 0					; 40
-			cp 4 * 63 - 120
-			jr z, endtrack				; 6+16+5+7+7=41
-			//set pause
-			rrca
-			rrca
-			ld (pause_rep), a	
-			
-			dec	 l
-			ld  a, l
-			ld (saved_track+2), a
-
-			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
-			ld (trb_play), hl
-			
-			pop	 hl						
-			ret							; 4+4+13+4+13+10+16+10+10=84
-			// total for pause: 94+41+84=219t
 
 endtrack	//end of track
 			pop	 hl
 			jr mus_init
 			// total: 103+41+5+10+12=171t
 
-			//play note
-trb_play	
-pl_track	ld hl, (stack_pos+1)
-
-			ld a, (hl)
-			add a
-			jr c, pl1x					    ; 10+7+4+7=28t
-
-pl_frame	call pl0x
-
-
-			SAVE_POS 0						; 38
-			dec	 l
+pl_frame	call pl0x						; 17
+after_play_frame
+			xor	 a
+			ld	 (stack_pos), a				
+			SAVE_POS 						
+			dec	 l							; 4+13+38+4=59
 trb_rep		dec	 l
-			dec	 (hl)
-			jp	 m, rest_value
-			ret nz							
-			// end of repeat, restore position in track
-trb_rest	dec	 l
+			dec (hl)
+			ret	 nz							; 4+11+5=20
+trb_rest	
+			dec	 l
 			dec	 l
 			ld	 (pl_track+1), hl
-			ret								; 4+11+5+4+7+13+10=54
-			// total: 28+17+38+54=137t + pl0x time(661t) = 798t(max)
-rest_value			
-			inc (hl)
-			ret
+			ret								; 4+4+16+10=34
+			// total: 28+5+17+59+20+34=163  + pl0x time(661t) = 824t(max)
 
-
+trb_play	
+pl_track	ld hl, (stack_pos+1)
+			ld a, (hl)
+			add a
+			jr nc, pl_frame				    ; 16+7+4+7=34t
 pl1x		// Process ref	
 			ld b, (hl)
 			inc hl
 			ld c, (hl)
 			inc hl
-			jp p, pl10					; 7+6+7+6+10=36t
+			jp p, pl10						; 7+6+7+6+10=36t
 
 pl11		
 			ld a, (hl)			
-			inc hl			
-			SAVE_POS 0					; 7+6+38=51
-
-			// update nested level
-			inc  l						
+			inc hl	
+			ex	de,hl
+			ld  hl, (pl_track+1)
+			dec	 l
+			dec (hl)
+			jr	 z, same_level_ref			; 7+6+4+16+4+11+7=55
+nested_ref
+			// Save pos for the current nested level
+			inc	 l
+			ld	(hl),e
+			inc	l
+			ld	(hl),d
+			inc  l							; 4+7+4+7+4+=26
+same_level_ref
 			ld	 (hl),a
 			inc	 l
-			ld	 (pl_track+1),hl		; 4+7+4+16=31
-			
-			// update pos at new nested level
+			// update nested level
+			ld	 (pl_track+1),hl			; 7+4+16=27
+
 			ex	de,hl					
 			add hl, bc	
-			dec	 hl	//< Temporary. To be compatble with levels 0..3 for this player
 			ld a, (hl)
-			add a		            	; 4+11+7+4=26
+			add a		            		; 4+11+7+4=26
+			call pl0x						; 17
+			// Save pos for the new nested level
+			SAVE_POS 						; 38
+			ret							 
+			// total: 34+36+55+26+27+26+17+38+10=269t + pl0x time (661)=930t
 
-			call pl0x
-			SAVE_POS 0					
-			ret							; 17+38+10=65
-			// total: 28+5+36+51+31+26+65=242t + pl0x time (661)=903t
-
-pl00		sub 120						; 28+17+21+5=71 on enter
-			jr nc, pl_pause
-		//psg1
-			// 2 registr - maximum, second without check
-			ld a, (hl)
+single_pause
+			pop	 de
+			jp	 after_play_frame
+long_pause
+			inc	 hl
+			ld	 a, (hl)
 			inc hl
-			rrca
-			jr nc, 7f					; 7+7+7+6+4+7=38
-			ex de, hl
-			add	 a
-			add	 a
-mus_low		add	 0
-			ld	 l, a
-mus_high	adc	 0
-			sub	 l
-			ld	 h, a					; 4+4+4+7+4+7+4+4=38
+			jr	 pause_cont
+pl_pause	and	 #0f
+			inc hl
+			jr z, single_pause
+pause_cont	
+			//set pause
+			ld (pause_rep), a	
+			//SAVE_POS
+			ex	de,hl
+			ld	hl, (pl_track+1)
+			ld  a, l
+			ld (saved_track+2), a			;13+4+16+4+13=50
 
-			outi
+			ld	(hl),e
+			inc	l
+			ld	(hl),d						
+			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
+			ld (trb_play), hl				; 7+4+7+10+16=44
+			
+			pop	 hl						
+			ret								; 50+44+10+10=114
+
+pause_or_psg1
+			add	 a
+			ld a, (hl)
+			jr c, pl_pause
+			jr z, long_pause
+		//psg1 or end of track
+			cp #0f
+			jr z, endtrack
+			dec a	 
+			inc hl
+
+			out (c),a
 			ld b, #bf
 			outi
-			ld b, #ff
-			outi
-			ld b, #bf
-			outi
-			ex	 de, hl
-			ret							; 16+(7+16)*3+4+10=99
-			; total: 38+38+99=175
-7			out (c),a
-			ld b, #bf
-			outi
-			ret							; 12+7+16+10=45
-			; total: 38+5+45=88
+			ret								; 12+7+16+10=45
+
+pl00		add	 a
+			jr	 nc, pause_or_psg1
+			ld de, #05bf
+		// psg2i
+			rrca:rrca						; 4+5+10+4=23
+
+			exx
+mus_low		add	 0
+			ld	 e, a
+mus_high	adc	 0
+			sub	 e
+			ld	 d, a					
+			ld	 a,(de)
+			inc	 de
+			exx							
+			inc	 hl							; 4+7+4+7+4+4+7+6+4+6=53
+			call reg_left_6
+
+			exx
+			ld	 a, (de)
+			exx
+			add a
+			ld b,#ff
+			jp play_by_mask_13_6
+
+			; total: 5+23+47+27+25 - 6-10-7-6-7-7-10 = 74 (longer that PSG2)
 
 pl10
-			SAVE_POS 0
+			SAVE_POS 						; 38
+
 			ex	de,hl
 			set 6, b
 			add hl, bc
 
 			ld a, (hl)
-			add a		            	; 16+8+11+7+4=46t
-			// total: 28+5+36+46=115t + pl0x time(661t) = 776t(max)
+			add a		            		; 4+8+11+7+4=34
+			
+			call pl0x
+			ld	hl, (pl_track+1)
+			jp trb_rep						; 17+16+10=43
+											; trb_rep=54
+			// total:  142+43+54=239t  + pl0x time(661t) = 900t(max)
+
 
 pl0x		ld bc, #fffd				
 			add a					
-			jr nc, pl00				; 10+4+7=21t
+			jr nc, pl00						; 10+4+7=21t
 
 pl01	// player PSG2
 			inc hl
 			ld de, #00bf
-			jr z, play_all_0_5		; 21+6+10+7=44t
+			jr z, play_all_0_5				; 21+6+10+7=44t
 play_by_mask_0_5
 
 			dup 5
@@ -234,18 +251,18 @@ play_by_mask_0_5
 				outi				
 				ld b,#ff
 1				inc d
-			edup					;54*3 + 20*2=202
+			edup							; 54*3 + 20*2=202
 
 			add a
-			jr c, play_all_0_5_end	; 44+54*4+20+ 4 + 12=296 (timing at play_all_0_5_end)
+			jr c, play_all_0_5_end			; 44+54*4+20+ 4 + 12=296 (timing at play_all_0_5_end)
 			out (c),d
 			ld b,e
-			outi					; 4+7+12+4+16=43
+			outi							; 4+7+12+4+16=43
 
-			ld a, (hl)
+second_mask	ld a, (hl)
 			inc hl					
-			add a
-			jr z,play_all_6_13		; 7+6+4+7=24
+before_6    add a
+			jr z,play_all_6_13				; 7+6+4+7=24
 			// total: 44+202+43+24+5=318  (till play_all_6_13)
 			ld b,#ff
 			jp play_by_mask_13_6
@@ -304,7 +321,25 @@ play_by_mask_13_6
 			outi					
 			ld b,#ff				;  7+7+12+4+16+7=53
 1			
-			dup 6
+
+			dec d
+			add a
+			jr c,1f
+			out (c),d
+			ld b,e
+			outi				
+			ld b,#ff
+1			
+
+			dec d
+reg_left_6	add a
+			jr c,1f
+			out (c),d
+			ld b,e
+			outi				
+			ld b,#ff
+1			
+			dup 4
 				dec d
 				add a
 				jr c,1f
@@ -325,8 +360,11 @@ play_by_mask_13_6
 			// total: 318 + 330 = 648 (all_0_5 + mask_6_13)
 			// total: 325 + 330 = 655 (mask_0_5 + mask_6_13)
 
-stack_pos	DB 0,0,0, 0,0,0, 0,0,0, 0,0,0		//< Up to 4 nested levels
+stack_pos	
+			dup MAX_NESTED_LEVEL		// Make sure packed file has enough nested level here
+				DB 0	// counter
+				DW 0	// HL value (position)
+			edup
 stack_pos_end
-
-
+			ASSERT high(stack_pos) == high(stack_pos_end), Please move player code in memory for several bytes.
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"

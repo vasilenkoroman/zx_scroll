@@ -318,13 +318,13 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 //d1      equ     17 + 15+21+11+15+14
 d1      equ     15+21+11+15+14 + 7 - 5
 d2      equ     16
-d3      equ     20+10+11+12+8
+d3      equ     20+10+11+12
 
 base
 delay   xor     a               ; 4
-        or      b               ; 4
+        or      h               ; 4
         jr      nz,wait1        ; 12/7  20/15
-        ld      a,c             ; 4
+        ld      a,l             ; 4
         sub     d1              ; 7
         ld      hl,high(base)*256 + d2      ; 10    21
 wait2   sub     l               ; 4
@@ -342,9 +342,8 @@ table
         db      low(t25), low(t26), low(t27)
 table_end
 
-wait1   ld      hl,-d3          ; 10
-        add     hl,bc           ; 11
-        ld      bc, hl
+wait1   ld      de,-d3          ; 10
+        add     hl,de           ; 11
         jr      delay           ; 12    33
 
 t24     nop
@@ -642,11 +641,6 @@ start_draw_colors0:
         ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
 
-        ld hl, timings_data
-        add hl, bc
-        ld sp, hl
-        pop bc
-
         ld de, finish_off_drawing_0
         ld h, high(it0_start)
         jp it0_start
@@ -773,6 +767,15 @@ bank_drawing_common:
         ld (next_step_first_bank + 1), a
 bank_drawing_common2:
         ; delay
+
+timings_page
+        ld a, #50
+        OUT (#fd), A
+        ld hl, timings_data
+        add hl, bc
+        ld sp, hl
+        pop hl
+
         DO_DELAY
 
         IF (HAS_PLAYER == 1)
@@ -1001,6 +1004,7 @@ t4                      EQU t3
 
         INCLUDE "draw_off_rastr.asm"
         INCLUDE "zx0_standard.asm"
+        //INCLUDE "include/l4_psg_player.asm"
         INCLUDE "include/fast_psg_player.asm"
 
         ASSERT $ < generated_code
@@ -1029,41 +1033,45 @@ page2_end
         DISPLAY	"Page 2 free ", /D, (0xc000 - imageHeight / 2) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
 
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
-        //INCBIN "generated_code/update_jpix_helper.dat"   ; TODO: can be generated at startup
 
         ASSERT $ < 0xc000
         ORG 0xc000
         PAGE 0
         INCBIN "generated_code/jpix0.dat"
+        INCBIN "generated_code/timings0.dat"
         INCBIN "generated_code/main0.z80"
         INCBIN "generated_code/reach_descriptor0.z80"
 page0_end
-        DISPLAY	"Page 0 free ", /D, 65536 - $, " bytes"
+        DISPLAY	"Page 0 free ", /D, 65536 - page0_end, " bytes"
 
 
         ORG 0xc000
         PAGE 1
         INCBIN "generated_code/jpix1.dat"
+        INCBIN "generated_code/timings1.dat"
         INCBIN "generated_code/main1.z80"
         INCBIN "generated_code/reach_descriptor1.z80"
 page1_end
-        DISPLAY	"Page 1 free ", /D, 65536 - $, " bytes"
+        DISPLAY	"Page 1 free ", /D, 65536 - page1_end, " bytes"
+
 
         ORG 0xc000
         PAGE 3
         INCBIN "generated_code/jpix2.dat"
+        INCBIN "generated_code/timings2.dat"
         INCBIN "generated_code/main2.z80"
         INCBIN "generated_code/reach_descriptor2.z80"
 page3_end        
-        DISPLAY	"Page 3 free ", /D, 65536 - $, " bytes"
+        DISPLAY	"Page 3 free ", /D, 65536 - page3_end, " bytes"
 
         ORG 0xc000
         PAGE 4
         INCBIN "generated_code/jpix3.dat"
+        INCBIN "generated_code/timings3.dat"
         INCBIN "generated_code/main3.z80"
         INCBIN "generated_code/reach_descriptor3.z80"
 page4_end        
-        DISPLAY	"Page 4 free ", /D, 65536 - $, " bytes"
+        DISPLAY	"Page 4 free ", /D, 65536 - page4_end, " bytes"
 
         ORG 0xc000
         PAGE 7
@@ -1089,14 +1097,8 @@ mc_rastr_descriptors_next
 mc_descriptors
         INCBIN "generated_code/mc_descriptors.dat"
 
-timings_data
-        INCBIN "generated_code/timings.dat"
-timings_data_end
-
 page6_end
         DISPLAY	"Page 6 free ", /D, 65536 - $, " bytes"
-
-imageHeight             equ (timings_data_end - timings_data) / 2
 
 /*************** Ennd image data. ******************/
 

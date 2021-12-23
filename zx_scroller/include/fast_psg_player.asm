@@ -1,24 +1,21 @@
-//player for TBK PSG Packer
-//psndcj//tbk - 11.02.2012,01.12.2013
-//source for sjasm cross-assembler
-//modified by physic 8.12.2021
-//Max time is reduced from 1089t to 799t (-290t)
-//Player size is increased from 348 to 470 bytes (+122 bytes)
-
 /*
+Player for Fast PSG Packer for compression levels [0..3]
+Source for sjasm cross-assembler.
+Source code is based on psndcj/tbk player and bfox/tmk player.
+Modified by physic 8.12.2021.
+Max time is reduced from 1089t to 799t (-290t) for compression level 1.
+Player size is increased from 348 to 485 bytes.
+
 11hhhhhh llllllll nnnnnnnn	3	CALL_N - вызов с возвратом для проигрывания (nnnnnnnn + 1) значений по адресу 11hhhhhh llllllll
 10hhhhhh llllllll			2	CALL_1 - вызов с возвратом для проигрывания одного значения по адресу 11hhhhhh llllllll
 01MMMMMM mmmmmmmm			2+N	PSG2 проигрывание, где MMMMMM mmmmmmmm - инвертированная битовая маска регистров, далее следуют значения регистров.
 							во 2-м байте также инвертирован порядок следования регистров (13..6)
 
-00111100..00011110          1	PAUSE32 - пауза pppp+1 (1..32, N + 120)
-00111111					1	маркер окончания трека
-
-000hhhh1 vvvvvvvv			1	PSG1 проигрывание, 1 register, 	hhhh - номер регистра, vvvvvvvv - значение
-000hhhh0 					1	PSG1i проигрывание, 2 registers, hhhh - номер индексной записи в начале файла
-
-00111101					1   Not used.
-00111110					1   Not used.
+001iiiii 					1	PSG2i проигрывание, где iiiii номер индексированной маски (0..31), далее следуют значения регистров
+0001pppp					1	PAUSE16 - пауза pppp+1 (1..16)
+0000hhhh vvvvvvvv			2	PSG1 проигрывание, 0000hhhh - номер регистра + 1, vvvvvvvv - значение
+00001111					1	маркер оцончания трека
+00000000 nnnnnnnn			2	PAUSE_N - пауза nnnnnnnn+1 фреймов (ничего не выводим в регистры)
 
 
 Также эта версия частично поддерживает короткие вложенные ссылки уровня 2 (доп. ограничение - они не могут стоять в конце длинной ссылки уровня 1).
@@ -71,26 +68,6 @@ saved_track
 			ld (trb_play), hl
 			jr trb_rep					; 10+16+12=38t
 			// total: 34+38=72t
-		
-// pause or end track
-pl_pause								; 90 on enter
-			inc hl
-			ld (pl_track+1), hl
-			ret z
-			cp 4 * 63 - 120
-			jr z, endtrack				; 6+16+5+7+7=41
-			//set pause
-			rrca
-			rrca
-			ld (pause_rep), a	
-			ld  a, l
-			ld (saved_track+2), a
-			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
-			ld (trb_play), hl
-			
-			pop	 hl						
-			ret							; 4+4+13+4+13+10+16+10+10=84
-			// total for pause: 94+41+84=219t
 
 endtrack	//end of track
 			pop	 hl
@@ -106,6 +83,7 @@ pl_track	ld hl, 0
 			jr c, pl1x					    ; 10+7+4+7=28t
 
 pl_frame	call pl0x
+after_play_frame
 			ld (pl_track+1), hl				;17+16=33t
 			
 trb_rep		ld a, 0						
@@ -140,38 +118,69 @@ pl11		ld a, (hl)
 			ret								; 11+7+4+17+16+10=65t
 			// total: 28+5+36+36+65=170t + pl0x time (661-32)=799t (max pl0x time is blocked here by packer for level 1)
 
-pl00		sub 120						; 28+17+21+5=71 on enter
-			jr nc, pl_pause
-		//psg1
-			// 2 registr - maximum, second without check
-			ld a, (hl)
+single_pause
+			pop	 de
+			jp	 after_play_frame
+long_pause
+			inc	 hl
+			ld	 a, (hl)
 			inc hl
-			rrca
-			jr nc, 7f					; 7+7+7+6+4+7=38
-			ex de, hl
-			add	 a
-			add	 a
-mus_low		add	 0
-			ld	 l, a
-mus_high	adc	 0
-			sub	 l
-			ld	 h, a					; 4+4+4+7+4+7+4+4=38
+			jr	 pause_cont
+pl_pause	and	 #0f
+			inc hl
+			jr z, single_pause
+pause_cont	ld (pause_rep), a
+			ld (pl_track+1), hl
+			ld  a, l
+			ld (saved_track+2), a
 
-			outi
-			ld b, #bf
-			outi
-			ld b, #ff
-			outi
-			ld b, #bf
-			outi
-			ex	 de, hl
-			ret							; 16+(7+16)*3+4+10=99
-			; total: 38+38+99=175
-7			out (c),a
+			ld hl, JR_CODE + (trb_pause - trb_play - 2) * 256
+			ld (trb_play), hl
+			
+			pop	 hl						
+			ret							; 4+4+13+4+13+10+16+10+10=84
+			// total for pause: 94+41+84=219t
+
+pause_or_psg1
+			add	 a
+			ld a, (hl)
+			jr c, pl_pause
+			jr z, long_pause
+		//psg1 or end of track
+			cp #0f
+			jr z, endtrack
+			dec a	 
+			inc hl
+
+			out (c),a
 			ld b, #bf
 			outi
 			ret							; 12+7+16+10=45
-			; total: 38+5+45=88
+
+pl00		add	 a
+			jr	 nc, pause_or_psg1
+			ld de, #05bf
+		// psg2i
+			rrca:rrca						; 4+7+10+4+4=29
+
+			exx
+mus_low		add	 0
+			ld	 e, a
+mus_high	adc	 0
+			sub	 e
+			ld	 d, a					
+			ld	 a,(de)
+			inc	 de
+			exx							
+			inc	 hl						;  4+7+4+7+4+4+7+6+4+6=53
+			call reg_left_6
+
+			exx
+			ld	 a, (de)
+			exx
+			add a
+			ld b,#ff
+			jp play_by_mask_13_6		; 4+7+4+4+7+10=36
 
 pl10
 			ld (pl_track+1), hl		
@@ -270,7 +279,25 @@ play_by_mask_13_6
 			outi					
 			ld b,#ff				;  7+7+12+4+16+7=53
 1			
-			dup 6
+
+			dec d
+			add a
+			jr c,1f
+			out (c),d
+			ld b,e
+			outi				
+			ld b,#ff
+1			
+
+			dec d
+reg_left_6	add a
+			jr c,1f
+			out (c),d
+			ld b,e
+			outi				
+			ld b,#ff
+1			
+			dup 4
 				dec d
 				add a
 				jr c,1f
