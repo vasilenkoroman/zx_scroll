@@ -442,6 +442,15 @@ max_scroll_offset equ imageHeight - 1
         jp loop1
 lower_limit_reached:
         ld bc,  max_scroll_offset  ; 14 ticks
+        
+        ld hl, timings_page+1
+        ld a, (hl)
+        add 4
+        and #0f
+        or low(timings_data)
+        ld (hl), a
+         // total: 10+7+7+7+7+7=45
+        
         jp loop
 dec_and_loop:
         ld bc, (saved_bc_value)
@@ -674,8 +683,6 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 21
         DRAW_ONLY_RASTR_LINE 22
 
-        ld a, iyh
-        OUT (#fd), A    //< Page for timings data
 
         jp bank_drawing_common2
 
@@ -772,9 +779,8 @@ bank_drawing_common2:
         ; delay
 
 timings_page
-        //ld a, #50
-        //OUT (#fd), A
-        ld hl, timings_data
+        ASSERT (timings_data % 16 == 0)
+        ld hl, timings_data + 12
         add hl, bc
         ld sp, hl
         pop hl
@@ -1041,6 +1047,7 @@ update_jpix_helper   EQU 0xc000 - imageHeight / 2
         ORG 0xc000
         PAGE 0
         INCBIN "generated_code/jpix0.dat"
+        ASSERT(high($) == high($+12))
         INCBIN "generated_code/timings0.dat"
         INCBIN "generated_code/main0.z80"
         INCBIN "generated_code/reach_descriptor0.z80"

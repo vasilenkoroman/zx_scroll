@@ -3007,7 +3007,8 @@ int getTimingsStartAddress(int imageHeight)
 
 int getRastrCodeStartAddr(int imageHeight)
 {
-    return getTimingsStartAddress(imageHeight) + imageHeight*2;
+    static const int kTimingsAligner = 12;
+    return getTimingsStartAddress(imageHeight) + imageHeight*2 + kTimingsAligner;
 }
 
 int serializeMainData(
@@ -3846,16 +3847,16 @@ int prev_frame_line_23_overrun(
     return dt;
 }
 
-int serializeTimingDataForPage(
+int serializeTimingDataForRun(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data,
     const CompressedData& color,
     const CompressedData& multicolor,
-    const std::string& inputFileName,
     int flags,
-    std::vector<int> musicTimings,
-    int page)
+    const std::vector<int>& musicTimings,
+    int& worseLineTicks,
+    std::vector<uint16_t>& outputData)
 {
     using namespace std;
 
@@ -3863,16 +3864,6 @@ int serializeTimingDataForPage(
     const int colorHeight = imageHeight / 8;
 
 
-    ofstream timingDataFile;
-    std::string timingDataFileName = inputFileName + std::string("timings") + std::to_string(page)  + ".dat";
-    timingDataFile.open(timingDataFileName, std::ios::binary);
-    if (!timingDataFile.is_open())
-    {
-        std::cerr << "Can not write timing file " << timingDataFileName << std::endl;
-        return -1;
-    }
-
-    int worseLineTicks = std::numeric_limits<int>::max();
     int firstLineDelay = 0;
     for (int line = 0; line < imageHeight; ++line)
     {
@@ -3896,15 +3887,6 @@ int serializeTimingDataForPage(
             for (int i = 0; i < 3; ++i)
                 mcRastrTicks += getMcRastrTicksChainFor64Line(descriptors, line + i * 64, i == 2);
             mcRastrTicks += mcOverhead; //< Shift next frame drawing to the new MC virtual ticks phase.
-
-#if 0
-            int mcLineLen = multicolor.data[0].mcStats.virtualTicks;
-            int oldValue = mcTicks - mcLineLen * 24; //< Take into accout delay from the last MC line
-            if (oldValue != mcRastrTicks)
-            {
-                abort();
-            }
-#endif
 
             ticks += mcRastrTicks;
 
@@ -3931,13 +3913,13 @@ int serializeTimingDataForPage(
         int kZ80CodeDelay = 2488 + 10;
 
         if (line % 8 == 0)
-            kZ80CodeDelay += 19; //< Page for timings data
-
-        if (line % 8 == 0)
         {
             kZ80CodeDelay += 6321 - 9 + 600 + 230;
             if (line == 0)
-                kZ80CodeDelay += 10;
+            {
+                kZ80CodeDelay += 10; // jp loop
+                kZ80CodeDelay += 45; // next timings page
+            }
         }
         
         // offscreen drawing branches has different length
@@ -4008,13 +3990,9 @@ int serializeTimingDataForPage(
         }
         worseLineTicks = std::min(worseLineTicks, freeTicks);
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
-        timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
+        outputData.push_back(freeTicks16);
 
     }
-    std::cout << "worse line free ticks=" << worseLineTicks << ". ";
-    if (kMinDelay - worseLineTicks > 0)
-        std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
-    std::cout << std::endl;
 
     return firstLineDelay;
 }
@@ -4031,30 +4009,93 @@ int serializeTimingData(
 {
     const int imageHeight = data.data.size();
 
-
-    int i = 0;
-    int page = 0;
-    do
+    // Align music timings by imageHeight
+    int pages = 4;
+    if (!musicTimings.empty())
     {
-        int musStartIndex = i;
-        int musEndIndex = musStartIndex + imageHeight;
+        if (musicTimings.size() > imageHeight * 4)
+        {
+            musicTimings.resize(imageHeight * 4);
+        }
+        else
+        {
+            int index = 0;
+            while (musicTimings.size() < imageHeight * 4)
+                musicTimings.push_back(index++);
+            if (index == imageHeight * 4)
+                index = 0;
+        }
+    }
 
+
+    int worseLineTicks = std::numeric_limits<int>::max();
+    std::vector<uint16_t> delayTicks;
+    for (int runNumber = 0; runNumber < pages; ++runNumber)
+    {
         std::vector<int> musicPage;
-        if (musEndIndex <= musicTimings.size())
-            musicPage = std::vector<int>(musicTimings.begin() + musStartIndex, musicTimings.begin() + musEndIndex);
+        if (!musicTimings.empty())
+            musicPage = std::vector<int>(musicTimings.begin() + runNumber * imageHeight, musicTimings.begin() + (runNumber + 1) * imageHeight);
 
-        serializeTimingDataForPage(
+        serializeTimingDataForRun(
             descriptors,
             colorDescriptors,
             data,
             color,
             multicolor,
-            inputFileName,
             flags,
             musicPage,
-            page++);
-        i += imageHeight;
-    } while (i < musicTimings.size());
+            worseLineTicks,
+            delayTicks);
+    }
+
+    std::cout << "worse line free ticks=" << worseLineTicks << ". ";
+    if (kMinDelay - worseLineTicks > 0)
+        std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
+    std::cout << std::endl;
+
+
+    std::vector<std::vector<int>> musicPages;
+    musicPages.resize(4);
+    for (auto& pageData : musicPages)
+        pageData.resize(imageHeight + 6);
+
+    // Interleave timings data to 4 pages
+    int index = 0;
+    for (int run= 0; run < musicPages.size(); ++run)
+    {
+        for (int i = 0; i < imageHeight; ++i)
+        {
+            //int page = i == 0 ? 3 : ((i-1) % 8) / 2;
+            int page = (i % 8) / 2;
+            int index = i + run*2;
+            musicPages[page][index] = delayTicks[i + run*imageHeight];
+        }
+    }
+
+    uint16_t v = musicPages[0][0];
+    for (int i = 0; i < 3; ++i)
+        musicPages[0][i*2] = musicPages[0][(i+1)*2];
+    musicPages[0][3*2] = v;
+
+    using namespace std;
+    for (int page = 0; page < musicPages.size(); ++page)
+    {
+        ofstream timingDataFile;
+        std::string timingDataFileName = inputFileName + std::string("timings") + std::to_string(page) + ".dat";
+        timingDataFile.open(timingDataFileName, std::ios::binary);
+        if (!timingDataFile.is_open())
+        {
+            std::cerr << "Can not write timing file " << timingDataFileName << std::endl;
+            return -1;
+        }
+
+        for (int i = 0; i < musicPages[page].size(); ++i)
+        {
+            uint16_t freeTicks16 = musicPages[page][i];
+            timingDataFile.write((const char*)&freeTicks16, sizeof(freeTicks16));
+        }
+    }
+
     return 0;
 }
 
