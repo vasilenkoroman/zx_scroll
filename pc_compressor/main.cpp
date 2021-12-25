@@ -3930,8 +3930,8 @@ int serializeTimingDataForPage(
 
         int kZ80CodeDelay = 2488 + 10;
 
-        // Temporary. Addition setPage before call DO_DELAY. Can be removed.
-        kZ80CodeDelay += 18;
+        if (line % 8 == 0)
+            kZ80CodeDelay += 19; //< Page for timings data
 
         if (line % 8 == 0)
         {

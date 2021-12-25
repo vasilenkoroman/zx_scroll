@@ -674,6 +674,9 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 21
         DRAW_ONLY_RASTR_LINE 22
 
+        ld a, iyh
+        OUT (#fd), A    //< Page for timings data
+
         jp bank_drawing_common2
 
 //*************************************************************************************
@@ -769,8 +772,8 @@ bank_drawing_common2:
         ; delay
 
 timings_page
-        ld a, #50
-        OUT (#fd), A
+        //ld a, #50
+        //OUT (#fd), A
         ld hl, timings_data
         add hl, bc
         ld sp, hl
