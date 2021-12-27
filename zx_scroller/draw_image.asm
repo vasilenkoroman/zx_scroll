@@ -383,16 +383,11 @@ BEGIN   DISP runtime_var_end
 /*************** Main. ******************/
         ld sp, stack_top
         // move main data block
-ram2_size       EQU page2_end - 32768        
-        LD HL, page2_end-1
+ram2_size       EQU ram2_end - 32768        
+        LD HL, ram2_end-1
         LD DE, update_jpix_helper-1
         LD BC, ram2_size
         LDDR
-
-        // unpack main data block (page2)
-        LD HL, update_jpix_helper - ram2_size
-        LD DE, generated_code
-        CALL  dzx0_standard
 
         call create_jpix_helper
        
@@ -407,7 +402,20 @@ ram2_size       EQU page2_end - 32768
         call create_write_off_rastr_helper
         call write_initial_jp_ix_table
         call prepare_interruption_table
+
+        // Play initial screen here
+        ld hl, finish_initial_screen
+        ld   (65525), hl
+        ei
+        halt
+finish_initial_screen
+
         di 
+        // unpack main data block (page2)
+        LD HL, update_jpix_helper - ram2_size
+        LD DE, generated_code
+        CALL  dzx0_standard
+
 
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
@@ -910,7 +918,6 @@ IM2Entry:
 after_align_int:
         ; remove interrupt data from stack
         //pop af                          ; 10 ticks
-
         ret
 
 JP_VIA_HL_CODE          equ #e9d9
@@ -1016,6 +1023,7 @@ t4                      EQU t3
         INCLUDE "zx0_standard.asm"
         //INCLUDE "include/l4_psg_player.asm"
         INCLUDE "include/fast_psg_player.asm"
+        INCLUDE "simple_scroller.asm"
 
         ASSERT $ < generated_code
 
@@ -1036,6 +1044,8 @@ main_code_end
         //INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
+ram2_end        
+        INCBIN "c:\zx\test.scr"
 page2_end
 
         ASSERT $ < 0xc000 - imageHeight / 2
