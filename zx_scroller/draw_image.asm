@@ -404,7 +404,11 @@ ram2_size       EQU page2_end - 32768
                 call  init // player init
         ENDIF                
 
+        call create_write_off_rastr_helper
+        call write_initial_jp_ix_table
         call prepare_interruption_table
+        di 
+
         ; Pentagon timings
 first_timing_in_interrupt       equ 19 + 22 + 47
 screen_ticks                    equ 71680
@@ -412,11 +416,9 @@ first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
 ticks_per_line                  equ  224
 
-        call create_write_off_rastr_helper
-        call write_initial_jp_ix_table
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 31846 + 6
+fixed_startup_delay     equ 28222 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -906,7 +908,6 @@ prepare_interruption_table:
         halt
 IM2Entry:        
 after_align_int:
-        di                              ; 4 ticks
         ; remove interrupt data from stack
         //pop af                          ; 10 ticks
 
