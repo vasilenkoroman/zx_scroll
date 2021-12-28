@@ -26,16 +26,16 @@ draw_offrastr_off_end   equ screen_end + 16
 color_data_to_restore   equ draw_offrastr_off_end          ; [16..17]
 saved_bc_value          equ color_data_to_restore + 2      ; [18..19]
 
-STACK_SIZE:             equ 4  ; in words
+STACK_SIZE:             equ 12  ; in words
 stack_bottom            equ saved_bc_value + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
 
-runtime_var_end         equ stack_top + 28                 ; [56]
+runtime_var_end         equ stack_top + 12                 ; [56]
 
         INCLUDE "generated_code/labels.asm"
 
         org 16384
-        INCBIN "generated_code/first_screen.scr", 0, 6144+768
+        //INCBIN "generated_code/first_screen.scr", 0, 6144+768
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -382,15 +382,7 @@ BEGIN   DISP runtime_var_end
 
 /*************** Main. ******************/
         ld sp, stack_top
-        // move main data block
-ram2_size       EQU ram2_end - 32768        
-        LD HL, ram2_end-1
-        LD DE, update_jpix_helper-1
-        LD BC, ram2_size
-        LDDR
 
-        call create_jpix_helper
-       
         ld ix, 0x5051
         ld iy, 0x5453
 
@@ -404,11 +396,20 @@ ram2_size       EQU ram2_end - 32768
         call prepare_interruption_table
 
         // Play initial screen here
-        ld hl, finish_initial_screen
-        ld   (65525), hl
-        ei
-        halt
+        call draw_init_screen
+        //jp finish_initial_screen        
+tmp1    jp tmp1
+
 finish_initial_screen
+
+        // move main data block
+ram2_size       EQU ram2_end - 32768        
+        LD HL, ram2_end-1
+        LD DE, update_jpix_helper-1
+        LD BC, ram2_size
+        LDDR
+
+        call create_jpix_helper
 
         di 
         // unpack main data block (page2)
@@ -1044,13 +1045,15 @@ main_code_end
         //INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
-ram2_end        
-        INCBIN "c:\zx\test.scr"
+ram2_end
+init_screen        
+        INCBIN "c:/zx/images/hands7.scr.deinterlaced", 0, 6144
 page2_end
+        ASSERT $ < 0xc000
 
-        ASSERT $ < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
-        DISPLAY	"Page 2 free ", /D, (0xc000 - imageHeight / 2) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        DISPLAY	"Uncompressed Page 2 free ", /D, (0xc000 - imageHeight / 2) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        DISPLAY	"Compressed Page 2 free ", /D, 0xc000 - $
 
 update_jpix_helper   EQU 0xc000 - imageHeight / 2
 
@@ -1058,7 +1061,6 @@ update_jpix_helper   EQU 0xc000 - imageHeight / 2
         ORG 0xc000
         PAGE 0
         INCBIN "generated_code/jpix0.dat"
-        ASSERT(high($) == high($+12))
         INCBIN "generated_code/timings0.dat"
         INCBIN "generated_code/main0.z80"
         INCBIN "generated_code/reach_descriptor0.z80"
