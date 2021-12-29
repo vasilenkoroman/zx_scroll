@@ -52,7 +52,7 @@ next        ; 27/56
 int_counter DB 0
 draw_init_screen
             ld hl, play_init_screen
-            ld   (65525), hl
+            ld   (#BFBF+1), hl
             ei
             ld bc, 192*256
 screen_loop 
@@ -76,9 +76,14 @@ play_init_screen
         push af
         push de
         exx
+
+        SET_PAGE 6
         call play
         ld hl, int_counter
         inc (hl)
+restore_page
+        SET_PAGE 7
+
         exx
         pop de
         pop af

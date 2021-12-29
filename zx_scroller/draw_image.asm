@@ -383,24 +383,18 @@ BEGIN   DISP runtime_var_end
 /*************** Main. ******************/
         ld sp, stack_top
 
-        ld ix, 0x5051
-        ld iy, 0x5453
-
         //ld  hl, packed_music
         IF (HAS_PLAYER == 1)
+                ld hl, mus_intro
                 call  init // player init
         ENDIF                
 
-        call create_write_off_rastr_helper
-        call write_initial_jp_ix_table
         call prepare_interruption_table
 
         // Play initial screen here
+        SET_PAGE 7
+        ld (restore_page+1),a
         call draw_init_screen
-        //jp finish_initial_screen        
-tmp1    jp tmp1
-
-finish_initial_screen
 
         // move main data block
 ram2_size       EQU ram2_end - 32768        
@@ -409,13 +403,48 @@ ram2_size       EQU ram2_end - 32768
         LD BC, ram2_size
         LDDR
 
-        call create_jpix_helper
-
-        di 
         // unpack main data block (page2)
         LD HL, update_jpix_helper - ram2_size
         LD DE, generated_code
         CALL  dzx0_standard
+
+        // unpack initial screen to video memory
+        halt
+        SET_PAGE 0
+        ld (restore_page+1),a
+        LD HL, ram0_end
+        LD DE, 16384
+        CALL  dzx0_standard
+
+        // unpack page0 (lose packed first screen)
+ram0_size       EQU ram0_end - #c000        
+        LD HL, ram0_end-1
+        LD DE, 65535
+        LD BC, ram0_size
+        LDDR
+
+        ex hl, de
+        inc hl
+        LD DE, #c000
+        CALL  dzx0_standard
+
+        call create_write_off_rastr_helper
+
+        ld hl, #142
+1       halt
+        dec hl
+        ld a, h
+        inc a
+        jr nz,1b
+        di 
+
+        ld hl, music_main
+        call  init // player init
+
+        call write_initial_jp_ix_table
+        call create_jpix_helper
+        ld ix, 0x5051
+        ld iy, 0x5453
 
 
         ; Pentagon timings
@@ -427,7 +456,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222 + 6
+fixed_startup_delay     equ 28222-398 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
         assert (sync_tick <= 65535 && sync_tick >= 4)
@@ -890,21 +919,17 @@ create_write_off_rastr_helper
         ret
 
 prepare_interruption_table:
-        SET_PAGE 7
-
         // make interrupt table
-        ld A, 18h       ; JR instruction code
-        ld  (65535), a
 
         ld   a, 0c3h    ; JP instruction code
-        ld   (65524), a
+        ld   (#BFBF), a
         ld hl, AlignInt.IntEntry
-        ld   (65525), hl
+        ld   (#BFBF+1), hl
 
-        LD   hl, #FE00
-        LD   de, #FE01
+        LD   hl, #BE00
+        LD   de, #BE01
         LD   bc, #0100
-        LD   (hl), #FF
+        LD   (hl), #BF
         LD   a, h
         LDIR
         ld i, a
@@ -917,8 +942,6 @@ prepare_interruption_table:
         halt
 IM2Entry:        
 after_align_int:
-        ; remove interrupt data from stack
-        //pop af                          ; 10 ticks
         ret
 
 JP_VIA_HL_CODE          equ #e9d9
@@ -1049,23 +1072,28 @@ ram2_end
 init_screen        
         INCBIN "c:/zx/images/hands7.scr.deinterlaced", 0, 6144
 page2_end
-        ASSERT $ < 0xc000
+        ASSERT $ < 0xc000 - 512
 
-        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
-        DISPLAY	"Uncompressed Page 2 free ", /D, (0xc000 - imageHeight / 2) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        //ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
+        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - 512
+        DISPLAY	"Uncompressed Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
         DISPLAY	"Compressed Page 2 free ", /D, 0xc000 - $
 
-update_jpix_helper   EQU 0xc000 - imageHeight / 2
+//update_jpix_helper   EQU 0xc000 - imageHeight / 2
+update_jpix_helper   EQU 0xc000 - 512
 
         ASSERT $ < 0xc000
         ORG 0xc000
         PAGE 0
-        INCBIN "generated_code/jpix0.dat"
-        INCBIN "generated_code/timings0.dat"
-        INCBIN "generated_code/main0.z80"
-        INCBIN "generated_code/reach_descriptor0.z80"
+        //INCBIN "generated_code/jpix0.dat"
+        //INCBIN "generated_code/timings0.dat"
+        //INCBIN "generated_code/main0.z80"
+        //INCBIN "generated_code/reach_descriptor0.z80"
+        INCBIN "generated_code/ram0.zx0"
+ram0_end
+        INCBIN "generated_code/first_screen.zx0"
 page0_end
-        DISPLAY	"Page 0 free ", /D, 65536 - page0_end, " bytes"
+        DISPLAY	"Packed page 0 free ", /D, 65536 - page0_end, " bytes"
 
 
         ORG 0xc000
@@ -1098,8 +1126,9 @@ page4_end
 
         ORG 0xc000
         PAGE 7
-music
-        INCBIN "c:/zx/packed.mus"
+        org #DB00
+music_main
+        INCBIN "resources/main.mus"
 
         ORG 0xc000
         PAGE 6
@@ -1119,6 +1148,8 @@ mc_rastr_descriptors_next
         INCBIN "generated_code/mc_rastr_next_descriptors.dat"
 mc_descriptors
         INCBIN "generated_code/mc_descriptors.dat"
+mus_intro
+        INCBIN "resources/intro.mus"
 
 page6_end
         DISPLAY	"Page 6 free ", /D, 65536 - $, " bytes"

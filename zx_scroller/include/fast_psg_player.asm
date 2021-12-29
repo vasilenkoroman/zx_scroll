@@ -43,8 +43,7 @@ stop		ld c,#fd
 			jr nz,1b
 			ret
 		
-mus_init	ld hl, music
-			ld	 a, l
+mus_init	ld	 a, l
 			ld	 (mus_low+1), a
 			ld	 a, h
 			ld	 (mus_high+1), a
