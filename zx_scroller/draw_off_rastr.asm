@@ -65,7 +65,7 @@ OFF_Iteration?_Step?_JP
                                   ld (r0? + 2), a
         ENDM
 
-                ALIGN 32
+                //ALIGN 32
 
 it0_start:      ld a, iyh
                 out (0xfd), a

@@ -23,17 +23,28 @@ generated_code          equ 28700
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
 
+code_after_moving       equ draw_offrastr_off_end
+
+color_data_to_restore   equ #bfc2
+saved_bc_value          equ #bfc4
+
+STACK_SIZE:             equ 12  ; in words
+stack_bottom            equ saved_bc_value + 2
+stack_top               equ stack_bottom + STACK_SIZE * 2
+
+                        ASSERT(stack_top < #c000)
+
+/*
 color_data_to_restore   equ draw_offrastr_off_end          ; [16..17]
 saved_bc_value          equ color_data_to_restore + 2      ; [18..19]
 
 STACK_SIZE:             equ 12  ; in words
 stack_bottom            equ saved_bc_value + 2
 stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
-
 runtime_var_end         equ stack_top + 12                 ; [56]
+*/
 
         INCLUDE "generated_code/labels.asm"
-
         org 16384
         //INCBIN "generated_code/first_screen.scr", 0, 6144+768
 
@@ -378,7 +389,10 @@ delay_end
 
         JP move_code
 
-BEGIN   DISP runtime_var_end
+BEGIN   DISP code_after_moving
+
+        INCLUDE "draw_off_rastr.asm"
+main_entry_point
 
 /*************** Main. ******************/
         ld sp, stack_top
@@ -1047,7 +1061,6 @@ t4                      EQU t3
                 ENDIF
         ret
 
-        INCLUDE "draw_off_rastr.asm"
         INCLUDE "zx0_standard.asm"
         //INCLUDE "include/l4_psg_player.asm"
         INCLUDE "include/fast_psg_player.asm"
@@ -1059,10 +1072,10 @@ t4                      EQU t3
 move_code
         di
         LD HL, BEGIN
-        LD DE, runtime_var_end
+        LD DE, code_after_moving
         LD BC, move_code - BEGIN
         LDIR 
-        JP runtime_var_end
+        JP main_entry_point
 
 main_code_end
 
@@ -1130,7 +1143,7 @@ page4_end
 
         ORG 0xc000
         PAGE 7
-        org #DB00
+        //org #DB00
 music_main
         INCBIN "resources/main.mus"
 

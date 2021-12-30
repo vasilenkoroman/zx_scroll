@@ -3939,7 +3939,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay += 13;
                 break;
             case 4:
-                kZ80CodeDelay += -8 + 20 -3;
+                kZ80CodeDelay += -8 + 20;
                 break;
             case 5:
                 kZ80CodeDelay -= 12;
@@ -3951,6 +3951,7 @@ int serializeTimingDataForRun(
             case 7:
                 kZ80CodeDelay -= 16;
                 kZ80CodeDelay += 13;
+                kZ80CodeDelay -= 3;
                 break;
         }
 
