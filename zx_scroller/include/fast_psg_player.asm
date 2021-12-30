@@ -69,10 +69,7 @@ saved_track
 			// total: 34+38=72t
 
 endtrack	//end of track
-			pop	 hl
-			jr mus_init
-			// total: 103+41+5+10+12=171t
-
+			jp 00
 			//play note
 trb_play	
 pl_track	ld hl, 0				

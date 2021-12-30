@@ -4367,6 +4367,7 @@ int main(int argc, char** argv)
     auto colorBufferCopy = colorBuffer;
     mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
     firstScreenFile.write((const char*)colorBufferCopy.data() + colorBufferCopy.size() - 768, 768);
+    firstScreenFile.close();
 
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 

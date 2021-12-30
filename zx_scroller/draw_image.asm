@@ -391,6 +391,9 @@ BEGIN   DISP runtime_var_end
 
         call prepare_interruption_table
 
+        ld hl, after_play_intro
+        ld(endtrack+1), hl
+
         // Play initial screen here
         SET_PAGE 7
         ld (restore_page+1),a
@@ -429,15 +432,12 @@ ram0_size       EQU ram0_end - #c000
         CALL  dzx0_standard
 
         call create_write_off_rastr_helper
-
-        ld hl, #142
 1       halt
-        dec hl
-        ld a, h
-        inc a
-        jr nz,1b
+        jr 1b
+after_play_intro
         di 
-
+        ld sp, stack_top
+        SET_PAGE 7
         ld hl, music_main
         call  init // player init
 
@@ -456,9 +456,12 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 6
+fixed_startup_delay     equ 28222-398 + 17017 - 145 + 18 + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
+
+        DISPLAY	"sync_tick ", /D, sync_tick
+
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
@@ -835,7 +838,8 @@ timings_page
 
 after_player
 start_mc_drawing:
-        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
+        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
+        ; timing here on first frame: 162625 - (202-12) = 162435
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
