@@ -319,12 +319,16 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
-        MACRO set_page_by_bank
+        MACRO set_page_by_bank shadowBit
                 ; a - bank number
                 rra
                 cp 2
                 ccf
-                adc 0x50
+                if (shadowBit)
+                        adc 0x58
+                else
+                        adc 0x50
+                endif                        
                 out (0xfd), a
         ENDM
 
@@ -428,9 +432,9 @@ ram2_size       EQU ram2_end - 32768
         LD DE, generated_code
         CALL  dzx0_standard
 
-        // unpack initial screen to video memory
+        // unpack initial screen to video memory (show shadow screen)
         halt
-        LONG_SET_PAGE 0
+        LONG_SET_PAGE 0+8
         ld (restore_page+1),a
         LD HL, ram0_end
         LD DE, 16384
@@ -454,7 +458,7 @@ ram0_size       EQU ram0_end - #c000
 after_play_intro
         di 
         ld sp, stack_top
-        SET_PAGE 7
+        SET_PAGE 7+8
         ld hl, music_main
         call  init // player init
 
@@ -983,7 +987,7 @@ continue_page:
 
         ld c, a
         and a
-        set_page_by_bank
+        set_page_by_bank 1
         ld a, c
 
         ld de, JP_VIA_HL_CODE
@@ -1001,7 +1005,7 @@ continue_page:
         jr nz, page_loop
 
         // write initial color data to restore
-        SET_PAGE 6
+        SET_PAGE 6+8
 
         ld hl, color_descriptor + 4                     ; 10
         ld sp, hl                                       ; 6

@@ -6,7 +6,7 @@ copy_image
             // calculate screen address
             ld a,b
             and 7
-            or #40
+            or #c0
             ld d,a
             ld a,b
             rra: rra: rra
@@ -42,7 +42,7 @@ line_loop
             sbc a
             and #f8
             add d
-            cp #58
+            cp #58 + #80
             ret z
             ld d,a
 next        ; 27/56            
@@ -53,12 +53,41 @@ int_counter DB 0
 draw_init_screen
             ld hl, play_init_screen
             ld   (#BFBF+1), hl
+   
+
+            LONG_SET_PAGE 7
+            ld (restore_page+1),a
+            ei
+
+                ld bc,6144
+                ld hl,#4000
+                ld de,#c001
+                ld (hl),0
+                ldir
+
+                ld bc,768
+                ld hl,#4000+6144
+                ld de,#4001+6144
+                ld (hl),#7
+                ldir
+
+                ld bc,6912
+                ld hl,#4000
+                ld de,#c000
+                ldir
 
             ld bc, 192*256
-            ei
 screen_loop 
+            ld a, 5+8
+            bit 0,b
+            jr z,common
+shadow_screen
+            ld a, 7
+common
+
             exx
-            LONG_SET_PAGE 7
+            ld bc, #7ffd
+            out (c),a
             ld (restore_page+1),a
             exx
 
@@ -75,6 +104,11 @@ screen_loop
 1
             dec b
             jr nz, screen_loop
+
+            ld bc, #7ffd
+            ld a, 5+8
+            out (c),a
+            ld (restore_page+1),a
 
             ret
                          
