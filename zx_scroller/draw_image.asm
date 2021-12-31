@@ -308,6 +308,11 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
+        MACRO LONG_SET_PAGE page_number
+                ld bc, #7ffd
+                ld a, page_number
+                out (c),a
+        ENDM
 
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
@@ -409,8 +414,6 @@ main_entry_point
         ld(endtrack+1), hl
 
         // Play initial screen here
-        SET_PAGE 7
-        ld (restore_page+1),a
         call draw_init_screen
 
         // move main data block
@@ -427,7 +430,7 @@ ram2_size       EQU ram2_end - 32768
 
         // unpack initial screen to video memory
         halt
-        SET_PAGE 0
+        LONG_SET_PAGE 0
         ld (restore_page+1),a
         LD HL, ram0_end
         LD DE, 16384
@@ -470,7 +473,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 17017 - 145 + 18 + 6
+fixed_startup_delay     equ 28222-398 + 17017 - 145 + 18 +11  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
 
@@ -853,7 +856,7 @@ timings_page
 after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
-        ; timing here on first frame: 162625 - (202-12) = 162435
+        ; timing here on first frame: 162625 - (213-12) = 162424
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
@@ -1143,7 +1146,7 @@ page4_end
 
         ORG 0xc000
         PAGE 7
-        //org #DB00
+        org #DB00
 music_main
         INCBIN "resources/main.mus"
 

@@ -53,9 +53,15 @@ int_counter DB 0
 draw_init_screen
             ld hl, play_init_screen
             ld   (#BFBF+1), hl
-            ei
+
             ld bc, 192*256
+            ei
 screen_loop 
+            exx
+            LONG_SET_PAGE 7
+            ld (restore_page+1),a
+            exx
+
             ld hl, init_screen
             push bc
             dec b
@@ -77,12 +83,17 @@ play_init_screen
         push de
         exx
 
-        SET_PAGE 6
+        ld bc, #7ffd
+        ld a,6
+        out (c),a
         call play
         ld hl, int_counter
         inc (hl)
+
+        ld bc, #7ffd
 restore_page
-        SET_PAGE 7
+        ld a, 7
+        out (c),a
 
         exx
         pop de
