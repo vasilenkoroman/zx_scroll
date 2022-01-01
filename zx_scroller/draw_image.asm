@@ -46,7 +46,7 @@ runtime_var_end         equ stack_top + 12                 ; [56]
 
         INCLUDE "generated_code/labels.asm"
         org 16384
-        //INCBIN "generated_code/first_screen.scr", 0, 6144+768
+        INCBIN "c:/zx/images/test1.scr"
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
