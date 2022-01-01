@@ -454,9 +454,7 @@ ram0_size       EQU ram0_end - #c000
 1       halt
         jr 1b
 after_play_intro
-        di 
         ld sp, stack_top
-        SET_PAGE 7+8
         ld hl, music_main
         call  init // player init
 
@@ -475,7 +473,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 17017 - 145 + 18 +11  + 6
+fixed_startup_delay     equ 28222-398 + 17017 - 145  +11 - 4  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
 

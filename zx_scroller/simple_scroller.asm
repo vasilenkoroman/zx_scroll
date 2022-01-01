@@ -25,8 +25,8 @@ upd_de          set 7,d
                 ld h,a
                 and #7f
                 cp #58
-                ret z
-next            jr next_line
+                jr nz, next_line
+                ret
 
 draw_init_screen
                 ld hl, play_init_screen
