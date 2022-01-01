@@ -50,15 +50,10 @@ draw_init_screen
                 ld (hl),#7
                 ldir
 
-                ld bc,6912
-                ld hl,#4000
-                ld de,#c000
-                ldir
-
                 ld bc, 192*256
 screen_loop 
                 bit 0,b
-                jr z,draw_to_page7
+                jr nz,draw_to_page7
 draw_to_page5
                 ld a, #ba       ; res 7,d
                 ld (upd_de+1),a
@@ -86,18 +81,7 @@ draw_common
             djnz screen_loop
 
             ld bc, #7ffd
-            ld a, 7
-            out (c),a
-            ld (restore_page+1),a
-
-                ld de,#c000
-                ld hl,#4000
-                ld bc,6144
-                ldir                                
-                halt
-
-            ld bc, #7ffd
-            ld a, 5+8
+            ld a,8
             out (c),a
             ld (restore_page+1),a
 

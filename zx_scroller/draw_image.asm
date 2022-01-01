@@ -45,8 +45,6 @@ runtime_var_end         equ stack_top + 12                 ; [56]
 */
 
         INCLUDE "generated_code/labels.asm"
-        org 16384
-        INCBIN "c:/zx/images/test1.scr"
 
 EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
@@ -1150,6 +1148,8 @@ page4_end
 
         ORG 0xc000
         PAGE 7
+        INCBIN "c:/zx/images/test1.scr", 0, 6144
+        BLOCK 768, #7
         org #DB00
 music_main
         INCBIN "resources/main.mus"
