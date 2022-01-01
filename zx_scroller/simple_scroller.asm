@@ -33,7 +33,7 @@ draw_init_screen
                 ld   (#BFBF+1), hl
    
 
-                LONG_SET_PAGE 7
+                LONG_SET_PAGE 7+8
                 ld (restore_page+1),a
                 ei
 
@@ -41,6 +41,10 @@ draw_init_screen
                 ld hl,#c000+6144
                 ld de,#4000+6144
                 ldir
+
+                ld b,192
+1               halt
+                djnz 1b
 
                 ld bc, 192*256
 screen_loop 
@@ -52,20 +56,16 @@ draw_to_page5
                 ld a, #ba       ; res 7,d
                 ld (upd_de+1),a
                 set 7,h
-                ld a, 7+8
+                ld a, 7
                 jr draw_common
 draw_to_page7
                 ld a, #fa       ; set 7,d
                 ld (upd_de+1),a
                 set 7,d
-                ld a, 7
+                ld a, 7+8
 draw_common
-
+                exa
                 push bc
-                ld bc, #7ffd
-                out (c),a
-                ld (restore_page+1),a
-
                 call move_screen
 copy_last_line
                 ld hl, init_screen
@@ -73,14 +73,13 @@ copy_last_line
                 ldir
                 ld (copy_last_line+1),hl
 
-                pop bc
                 halt
-                djnz screen_loop
-
+                exa
                 ld bc, #7ffd
-                ld a,8
                 out (c),a
                 ld (restore_page+1),a
+                pop bc
+                djnz screen_loop
 
                 ret
                          
@@ -96,7 +95,7 @@ play_init_screen
 
                 ld bc, #7ffd
 restore_page
-                ld a, 7
+                ld a, 7+8
                 out (c),a
 
                 exx
