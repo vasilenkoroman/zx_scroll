@@ -1147,14 +1147,6 @@ page4_end
         DISPLAY	"Page 4 free ", /D, 65536 - page4_end, " bytes"
 
         ORG 0xc000
-        PAGE 7
-        INCBIN "c:/zx/images/test1.scr", 0, 6144
-        BLOCK 768, #7
-        org #DB00
-music_main
-        INCBIN "resources/main.mus"
-
-        ORG 0xc000
         PAGE 6
 color_code
         INCBIN "generated_code/color.z80"
@@ -1178,6 +1170,15 @@ mus_intro
 page6_end
         DISPLAY	"Page 6 free ", /D, 65536 - $, " bytes"
 
+        ORG 0xc000
+        PAGE 7
+        INCBIN "c:/zx/images/test1.scr", 0, 6144
+        BLOCK 768, #7
+music_main
+        INCBIN "resources/main.mus"
+page7_end
+        DISPLAY	"Page 7 free ", /D, 65536 - $, " bytes"
+
 /*************** Ennd image data. ******************/
 
 
@@ -1188,8 +1189,6 @@ page6_end
 
         EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
-        SAVETRD "build/scroller.trd","screen.C", 16384, 6144+768 
-        
         SAVETRD "build/scroller.trd","main.C", start, main_code_end - start
 
         SAVETRD "build/scroller.trd","ram2.C", $8000, page2_end - $8000
@@ -1204,6 +1203,8 @@ page6_end
         SAVETRD "build/scroller.trd","ram4.C",$C000, page4_end - $C000
         PAGE 6
         SAVETRD "build/scroller.trd","ram6.C", $C000, page6_end - $C000
+        PAGE 7
+        SAVETRD "build/scroller.trd","ram7.C", $C000, page7_end - $C000
 
         // Just a fake address to load files into TRD
         ORG 0x8000
