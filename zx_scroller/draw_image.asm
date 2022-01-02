@@ -419,14 +419,14 @@ main_entry_point
         call draw_init_screen
 
         // move main data block
-ram2_size       EQU ram2_end - 32768        
-        LD HL, ram2_end-1
+main_compressed_size       EQU main_data_end - main_code_end
+        LD HL, main_data_end-1
         LD DE, update_jpix_helper-1
-        LD BC, ram2_size
+        LD BC, main_compressed_size
         LDDR
 
-        // unpack main data block (page2)
-        LD HL, update_jpix_helper - ram2_size
+        // unpack main data block
+        LD HL, update_jpix_helper - main_compressed_size
         LD DE, generated_code
         CALL  dzx0_standard
 
@@ -1079,16 +1079,13 @@ move_code
         LD BC, move_code - BEGIN
         LDIR 
         JP main_entry_point
-
 main_code_end
+        DISPLAY	"Main code end ", /D, $
 
-        ASSERT $ < 0x8000
-        ORG 0x8000
-        PAGE 2
         //INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
-ram2_end
+main_data_end
 init_screen        
         INCBIN "c:/zx/images/hands7.scr.deinterlaced", 0, 6144
 page2_end
@@ -1187,9 +1184,7 @@ page7_end
 
         EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
-        SAVETRD "build/scroller.trd","main.C", start, main_code_end - start
-
-        SAVETRD "build/scroller.trd","ram2.C", $8000, page2_end - $8000
+        SAVETRD "build/scroller.trd","main.C", start, page2_end - start
 
         PAGE 0
         SAVETRD "build/scroller.trd","ram0.C", $C000, page0_end - $C000
