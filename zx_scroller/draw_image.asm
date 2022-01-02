@@ -1091,8 +1091,8 @@ page2_end
 
         //ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - 512
-        DISPLAY	"Uncompressed Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
-        DISPLAY	"Compressed Page 2 free ", /D, 0xc000 - $
+        DISPLAY	"Packed Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        DISPLAY	"Unpacked Page 2 free ", /D, 0xc000 - $
 
 //update_jpix_helper   EQU 0xc000 - imageHeight / 2
 update_jpix_helper   EQU 0xc000 - 512
@@ -1108,7 +1108,8 @@ update_jpix_helper   EQU 0xc000 - 512
 ram0_end
         INCBIN "generated_code/first_screen.zx0"
 page0_end
-        DISPLAY	"Packed page 0 free ", /D, 65536 - page0_end, " bytes"
+        DISPLAY	"Packed Page 0 free ", /D, 65536 - page0_end, " bytes"
+        DISPLAY	"Unpacked Page 0 free ", /D, 16384 - RAM0_UNCOMPRESSED_SIZE, " bytes"
 
 
         ORG 0xc000

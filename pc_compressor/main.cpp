@@ -3415,6 +3415,29 @@ int serializeColorData(
     return serializedData.size() + serializedDescriptors.size();
 }
 
+template <typename... Values>
+int fileSizeSum(const std::string& inputFileName, Values&&... values)
+{
+    int result = 0;
+    const std::string data[]{ values... };
+    for (const auto& name: data)
+    {
+        std::string fileName = inputFileName + name;
+        std::ifstream fileIn;
+        fileIn.open(fileName, std::ios::binary);
+        if (!fileIn.is_open())
+        {
+            std::cerr << "Can not open source file " << fileName << std::endl;
+            return -1;
+        }
+
+        fileIn.seekg(0, std::ios::end);
+        int fileSize = fileIn.tellg();
+        result += fileSize;
+    }
+    return result;
+}
+
 void serializeAsmFile(
     const std::string& inputFileName,
     const CompressedData& rastrData,
@@ -3444,6 +3467,8 @@ void serializeAsmFile(
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
     phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
+    phaseFile << "RAM0_UNCOMPRESSED_SIZE   EQU    " << 
+        fileSizeSum(inputFileName, "jpix0.dat", "timings0.dat", "main0.z80", "reach_descriptor0.z80") << std::endl;
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
     phaseFile << "timings_data   EQU    " << getTimingsStartAddress(imageHeight) << std::endl;
