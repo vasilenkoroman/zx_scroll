@@ -83,20 +83,27 @@ copy_last_line
 
                 ret
 
-unpack_main
-                // move main data block
-main_compressed_size       EQU main_data_end - main_code_end
-                LD HL, main_data_end-1
-                LD DE, update_jpix_helper-1
-                LD BC, main_compressed_size
-                LDDR
+unpack_page
+        halt
+        ld bc, #7ffd
+        out (c),a
+        ld (restore_page+1),a
 
-                // unpack main data block
-                LD HL, update_jpix_helper - main_compressed_size
-                LD DE, generated_code
-                CALL  dzx0_standard
-                
-                ret
+        //LD HL, page1_end-1
+        LD DE, 65535
+        LD C,L
+        LD A,H
+        and #3f
+        LD B,A
+        INC BC
+        LDDR
+
+        ex hl, de
+        inc hl
+        LD DE, #c000
+        CALL  dzx0_standard
+        ret
+
                          
 play_init_screen
                 push af
@@ -106,9 +113,9 @@ play_init_screen
                 ld bc, #7ffd
                 ld a,6
                 out (c),a
+                push bc
                 call play
-
-                ld bc, #7ffd
+                pop bc
 restore_page
                 ld a, 7+8
                 out (c),a
@@ -118,5 +125,5 @@ restore_page
                 pop af
                 ei
                 ret
-                ASSERT $ < #BFBF
+                ASSERT $ <= #BFBF
             DISPLAY	"Draw init screen in bf01 mem size= ", /D, $ - move_screen

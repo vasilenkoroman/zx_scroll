@@ -418,7 +418,17 @@ main_entry_point
         // Play initial screen here
         call draw_init_screen
 
-        call unpack_main
+        // move main data block
+main_compressed_size       EQU main_data_end - main_code_end
+        LD HL, main_data_end-1
+        LD DE, update_jpix_helper-1
+        LD BC, main_compressed_size
+        LDDR
+
+        // unpack main data block
+        LD HL, update_jpix_helper - main_compressed_size
+        LD DE, generated_code
+        CALL  dzx0_standard
 
         // unpack initial screen to video memory (show shadow screen)
         halt
@@ -430,30 +440,13 @@ main_entry_point
 
         // unpack page0 (lose packed first screen)
         LD HL, ram0_end-1
-        LD DE, 65535
-        LD BC, ram0_end - #c000
-        LDDR
-
-        ex hl, de
-        inc hl
-        LD DE, #c000
-        CALL  dzx0_standard
+        LD A,8
+        CALL unpack_page
 
         // unpack page1
-        halt
-        LONG_SET_PAGE 1+8
-        ld (restore_page+1),a
-
         LD HL, page1_end-1
-        LD DE, 65535
-        
-        LD BC, page1_end - #c000
-        LDDR
-
-        ex hl, de
-        inc hl
-        LD DE, #c000
-        CALL  dzx0_standard
+        LD A,1+8
+        CALL unpack_page
 
         call create_write_off_rastr_helper
 1       halt
@@ -478,7 +471,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 17017 - 145  +11 - 4  + 6
+fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11 - 4  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
 
@@ -861,7 +854,7 @@ timings_page
 after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
-        ; timing here on first frame: 162625 - (213-12) = 162424
+        ; timing here on first frame: 162625 - (224-12) = 162413
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
