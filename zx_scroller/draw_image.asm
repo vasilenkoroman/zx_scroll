@@ -413,18 +413,6 @@ main_entry_point
         call prepare_interruption_table
         call unpack_and_play_init_screen
 
-        // move main data block
-main_compressed_size       EQU main_data_end - main_code_end
-        LD HL, main_data_end-1
-        LD DE, update_jpix_helper-1
-        LD BC, main_compressed_size
-        LDDR
-        // unpack main data block
-        LD HL, update_jpix_helper - main_compressed_size
-        LD DE, generated_code
-        CALL  dzx0_standard
-
-        call create_write_off_rastr_helper
 1       halt
         jr 1b
 after_play_intro
@@ -449,7 +437,9 @@ ticks_per_line                  equ  224
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11 - 4  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY
+INTERRUPT_PHASE         EQU 2   ; The value in range [0..3]. TODO: it need to property calculate it!
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
+interrupt_phase EQU 2        
 
         DISPLAY	"sync_tick ", /D, sync_tick
 
@@ -866,7 +856,6 @@ first_mc_line: JP 00
  *      All routines are called once before drawing. They can be moved to another page to free memory.
  */
 
-        INCLUDE "alignint.asm"
 
 create_jpix_helper
         ASSERT(imageHeight / 4 < 256)
@@ -891,25 +880,6 @@ create_jpix_helper
         add iy, bc
         dec ixl
         jr nz, .loop2
-
-        ret
-
-create_write_off_rastr_helper
-        //ld (draw_offrastr_offset), hl ; value 0 is not used not used
-        ld hl, draw_off_rastr_1
-        ld (draw_offrastr_offset + 2), hl
-        ld hl, draw_off_rastr_2
-        ld (draw_offrastr_offset + 4), hl
-        ld hl, draw_off_rastr_3
-        ld (draw_offrastr_offset + 6), hl
-        ld hl, draw_off_rastr_4
-        ld (draw_offrastr_offset + 8), hl
-        ld hl, draw_off_rastr_5
-        ld (draw_offrastr_offset + 10), hl
-        ld hl, draw_off_rastr_6
-        ld (draw_offrastr_offset + 12), hl
-        ld hl, draw_off_rastr_7
-        ld (draw_offrastr_offset + 14), hl
 
         ret
 
@@ -1059,6 +1029,7 @@ main_code_end
 main_data_end
 init_screen_i1        
         INCBIN "resources/screen2.scr.i1", 0, 6144/2
+        INCLUDE "alignint.asm"
         INCLUDE "simple_scroller.asm"
 page2_end
 

@@ -139,8 +139,25 @@ unpack_and_play_init_screen
             LD HL, ram1_end-1
             LD A,1+8
             CALL unpack_page
-            ret
 
+            //create_write_off_rastr_helper
+            //ld (draw_offrastr_offset), hl ; The value 0 is not used.
+            ld hl, draw_off_rastr_1
+            ld (draw_offrastr_offset + 2), hl
+            ld hl, draw_off_rastr_2
+            ld (draw_offrastr_offset + 4), hl
+            ld hl, draw_off_rastr_3
+            ld (draw_offrastr_offset + 6), hl
+            ld hl, draw_off_rastr_4
+            ld (draw_offrastr_offset + 8), hl
+            ld hl, draw_off_rastr_5
+            ld (draw_offrastr_offset + 10), hl
+            ld hl, draw_off_rastr_6
+            ld (draw_offrastr_offset + 12), hl
+            ld hl, draw_off_rastr_7
+            ld (draw_offrastr_offset + 14), hl
+        
+            jp unpack_main_page
 
 simple_scroller_end
 
@@ -164,6 +181,17 @@ play_init_screen
                 pop af
                 ei
                 ret
-            ASSERT $ <= #BFBF
 
-            DISPLAY	"Draw init screen in bf01 mem size= ", /D, $ - move_screen
+unpack_main_page
+                // move main data block
+main_compressed_size       EQU main_data_end - main_code_end
+                LD HL, main_data_end-1
+                LD DE, update_jpix_helper-1
+                LD BC, main_compressed_size
+                LDDR
+                // unpack main data block
+                LD HL, update_jpix_helper - main_compressed_size
+                LD DE, generated_code
+                jp  dzx0_standard
+
+            ASSERT $ <= #BFBF
