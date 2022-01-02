@@ -1080,14 +1080,12 @@ move_code
         LDIR 
         JP main_entry_point
 main_code_end
-        DISPLAY	"Main code end ", /D, $
-
         //INCBIN "generated_code/mt_and_rt_reach_descriptor.z80"
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
 main_data_end
 init_screen        
-        INCBIN "c:/zx/images/hands7.scr.deinterlaced", 0, 6144
+        INCBIN "resources/screen2.scr.deinterlaced", 0, 6144
 page2_end
         ASSERT $ < 0xc000 - 512
 
@@ -1167,7 +1165,7 @@ page6_end
 
         ORG 0xc000
         PAGE 7
-        INCBIN "c:/zx/images/test1.scr", 0, 6144
+        INCBIN "resources/screen1.scr", 0, 6144
         BLOCK 768, #7
 music_main
         INCBIN "resources/main.mus"
