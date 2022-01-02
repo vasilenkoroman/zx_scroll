@@ -26,6 +26,31 @@ std::vector<uint8_t> deinterlaceBuffer(const std::vector<uint8_t>& buffer)
     return result;
 }
 
+int writeFile(const std::string& outputFileName, const std::vector<uint8_t>& buffer,
+    bool eventLines, bool oddLines)
+{
+    const int height = buffer.size() / 32;
+
+    std::ofstream fileOut;
+    fileOut.open(outputFileName, std::ios::binary);
+    if (!fileOut.is_open())
+    {
+        std::cerr << "Can not write destination file " << outputFileName << std::endl;
+        return -1;
+    }
+
+    for (int i = 0; i < height; ++i)
+    {
+        if ((i % 2 == 0) && !eventLines)
+            continue;
+        if ((i % 2 == 1) && !oddLines)
+            continue;
+        fileOut.write((const char*)buffer.data() + i*32, 32);
+    }
+    fileOut.close();
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -65,16 +90,12 @@ int main(int argc, char** argv)
 
     buffer = deinterlaceBuffer(buffer);
 
-    std::string outputFileName = inputFileName + ".deinterlaced";
-    std::ofstream fileOut;
-    fileOut.open(outputFileName, std::ios::binary);
-    if (!fileOut.is_open())
-    {
-        std::cerr << "Can not write destination file " << outputFileName << std::endl;
-        return -1;
-    }
-    fileOut.write((const char*)buffer.data(), buffer.size());
-    fileOut.close();
-
-    return 0;
+    int result = writeFile(inputFileName + ".deinterlaced", buffer, true, true);
+    if (result != 0)
+        return result;
+    result = writeFile(inputFileName + ".i0", buffer, true, false);
+    if (result != 0)
+        return result;
+    result = writeFile(inputFileName + ".i1", buffer, false, true);
+    return result;
 }
