@@ -56,13 +56,14 @@ int main(int argc, char** argv)
     using namespace std;
 
     std::cout << "SCR deinterlacer v.1.0" << std::endl;
-    if (argc < 2)
+    if (argc < 3)
     {
-        std::cout << "Usage: SCR deinterlacer  input_file" << std::endl;
+        std::cout << "Usage: SCR deinterlacer  input_file output_file" << std::endl;
         return -1;
     }
     
     std::string inputFileName = argv[1];
+    std::string outputFileName = argv[2];
     std::ifstream fileIn;
     fileIn.open(inputFileName, std::ios::binary);
     if (!fileIn.is_open())
@@ -90,12 +91,12 @@ int main(int argc, char** argv)
 
     buffer = deinterlaceBuffer(buffer);
 
-    int result = writeFile(inputFileName + ".deinterlaced", buffer, true, true);
+    int result = writeFile(outputFileName + ".deinterlaced", buffer, true, true);
     if (result != 0)
         return result;
-    result = writeFile(inputFileName + ".i0", buffer, true, false);
+    result = writeFile(outputFileName + ".i0", buffer, true, false);
     if (result != 0)
         return result;
-    result = writeFile(inputFileName + ".i1", buffer, false, true);
+    result = writeFile(outputFileName + ".i1", buffer, false, true);
     return result;
 }

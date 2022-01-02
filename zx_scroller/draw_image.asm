@@ -411,12 +411,7 @@ main_entry_point
         ENDIF                
 
         call prepare_interruption_table
-
-        ld hl, after_play_intro
-        ld(endtrack+1), hl
-
-        // Play initial screen here
-        call draw_init_screen
+        call unpack_and_play_init_screen
 
         // move main data block
 main_compressed_size       EQU main_data_end - main_code_end
@@ -424,29 +419,10 @@ main_compressed_size       EQU main_data_end - main_code_end
         LD DE, update_jpix_helper-1
         LD BC, main_compressed_size
         LDDR
-
         // unpack main data block
         LD HL, update_jpix_helper - main_compressed_size
         LD DE, generated_code
         CALL  dzx0_standard
-
-        // unpack initial screen to video memory (show shadow screen)
-        halt
-        LONG_SET_PAGE 0+8
-        ld (restore_page+1),a
-        LD HL, ram0_end
-        LD DE, 16384
-        CALL  dzx0_standard
-
-        // unpack page0 (lose packed first screen)
-        LD HL, ram0_end-1
-        LD A,8
-        CALL unpack_page
-
-        // unpack page1
-        LD HL, page1_end-1
-        LD A,1+8
-        CALL unpack_page
 
         call create_write_off_rastr_helper
 1       halt
@@ -1081,19 +1057,17 @@ main_code_end
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
 main_data_end
-init_screen        
-        INCBIN "resources/screen2.scr.deinterlaced"
-update_jpix_helper   EQU 0xc000 - 512
-        ASSERT $ < update_jpix_helper
-
-        //ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
-        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - 512
-        DISPLAY	"Packed Page 2 free ", /D, #bf01 - $
-        DISPLAY	"Unpacked Page 2 free ", /D, update_jpix_helper - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
-
-        ORG #bf01
+init_screen_i1        
+        INCBIN "resources/screen2.scr.i1", 0, 6144/2
         INCLUDE "simple_scroller.asm"
 page2_end
+
+update_jpix_helper   EQU 0xc000 - 512
+        ASSERT simple_scroller_end < update_jpix_helper
+        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < update_jpix_helper
+        DISPLAY	"Packed Page 2 free ", /D, update_jpix_helper - simple_scroller_end
+        DISPLAY	"Unpacked Page 2 free ", /D, update_jpix_helper - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+
 
         ORG 0xc000
         PAGE 0
@@ -1116,6 +1090,9 @@ page0_end
         //INCBIN "generated_code/main1.z80"
         //INCBIN "generated_code/reach_descriptor1.z80"
         INCBIN "generated_code/ram1.zx0"
+ram1_end
+init_screen_i0
+        INCBIN "resources/screen2.scr.i0"
 page1_end
         DISPLAY	"Packed Page 1 free ", /D, 65536 - page1_end, " bytes"
         DISPLAY	"Unpacked Page 1 free ", /D, 16384 - RAM1_UNCOMPRESSED_SIZE, " bytes"

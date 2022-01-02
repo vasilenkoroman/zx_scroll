@@ -5,7 +5,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>c:\zx\images\hands7.scr</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>c:\zx\images\hands7.scr c:\zx\scroll\zx_scroller\resources\screen2.scr</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
 </Project>

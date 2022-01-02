@@ -34,7 +34,7 @@ draw_init_screen
    
 
                 LONG_SET_PAGE 7+8
-                ld (restore_page+1),a
+                ld ixl,a
                 ei
 
                 ld bc,768
@@ -46,8 +46,9 @@ draw_init_screen
 1               halt
                 djnz 1b
 
-                ld bc, 192*256
+                ld b, 192
 screen_loop 
+                push bc
                 ld de,#4000
                 ld hl,#4100
                 bit 0,b
@@ -56,55 +57,94 @@ draw_to_page5
                 ld a, #ba       ; res 7,d
                 ld (upd_de+1),a
                 set 7,h
+
+                call move_screen
+
+                // copy_last_line to page 5
+                ld bc, #7ffd
+                ld a,1+8
+                out (c),a
+i1              ld hl, init_screen_i0
+                ld bc,32
+                ldir
+                ld (i1+1),hl
+
                 ld a, 7
                 jr draw_common
 draw_to_page7
                 ld a, #fa       ; set 7,d
                 ld (upd_de+1),a
                 set 7,d
-                ld a, 7+8
-draw_common
-                exa
-                push bc
                 call move_screen
-copy_last_line
-                ld hl, init_screen
+
+                // copy_last_line to page 7
+i0              ld hl, init_screen_i1
                 ld bc,32
                 ldir
-                ld (copy_last_line+1),hl
+                ld (i0+1),hl
+                ld a, 7+8
 
+draw_common
                 halt
-                exa
                 ld bc, #7ffd
+                ld ixl,a
                 out (c),a
-                ld (restore_page+1),a
                 pop bc
                 djnz screen_loop
 
                 ret
 
 unpack_page
-        halt
-        ld bc, #7ffd
-        out (c),a
-        ld (restore_page+1),a
+            halt
+            ld bc, #7ffd
+            out (c),a
+            ld ixl,a
 
-        //LD HL, page1_end-1
-        LD DE, 65535
-        LD C,L
-        LD A,H
-        and #3f
-        LD B,A
-        INC BC
-        LDDR
+            //LD HL, page1_end-1
+            LD DE, 65535
+            LD C,L
+            LD A,H
+            and #3f
+            LD B,A
+            INC BC
+            LDDR
 
-        ex hl, de
-        inc hl
-        LD DE, #c000
-        CALL  dzx0_standard
-        ret
+            ex hl, de
+            inc hl
+            LD DE, #c000
+            CALL  dzx0_standard
+            ret
 
-                         
+unpack_and_play_init_screen
+            ld hl, after_play_intro
+            ld(endtrack+1), hl
+
+            // Play initial screen here
+            call draw_init_screen
+
+            // unpack initial screen to video memory (show shadow screen)
+            halt
+            LONG_SET_PAGE 0+8
+            ld ixl,a
+            LD HL, ram0_end
+            LD DE, 16384
+            CALL  dzx0_standard
+
+            // unpack page0 (lose packed first screen)
+            LD HL, ram0_end-1
+            LD A,8
+            CALL unpack_page
+
+            // unpack page1
+            LD HL, ram1_end-1
+            LD A,1+8
+            CALL unpack_page
+            ret
+
+
+simple_scroller_end
+
+            ORG #BF01
 play_init_screen
                 push af
                 push de
@@ -116,8 +156,7 @@ play_init_screen
                 push bc
                 call play
                 pop bc
-restore_page
-                ld a, 7+8
+                ld a, ixl
                 out (c),a
 
                 exx
@@ -125,5 +164,6 @@ restore_page
                 pop af
                 ei
                 ret
-                ASSERT $ <= #BFBF
+            ASSERT $ <= #BFBF
+
             DISPLAY	"Draw init screen in bf01 mem size= ", /D, $ - move_screen
