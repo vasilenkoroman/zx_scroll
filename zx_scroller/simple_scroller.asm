@@ -82,6 +82,21 @@ copy_last_line
                 djnz screen_loop
 
                 ret
+
+unpack_main
+                // move main data block
+main_compressed_size       EQU main_data_end - main_code_end
+                LD HL, main_data_end-1
+                LD DE, update_jpix_helper-1
+                LD BC, main_compressed_size
+                LDDR
+
+                // unpack main data block
+                LD HL, update_jpix_helper - main_compressed_size
+                LD DE, generated_code
+                CALL  dzx0_standard
+                
+                ret
                          
 play_init_screen
                 push af
@@ -103,3 +118,5 @@ restore_page
                 pop af
                 ei
                 ret
+                ASSERT $ < #BFBF
+            DISPLAY	"Draw init screen in bf01 mem size= ", /D, $ - move_screen

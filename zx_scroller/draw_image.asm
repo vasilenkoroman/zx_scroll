@@ -418,17 +418,7 @@ main_entry_point
         // Play initial screen here
         call draw_init_screen
 
-        // move main data block
-main_compressed_size       EQU main_data_end - main_code_end
-        LD HL, main_data_end-1
-        LD DE, update_jpix_helper-1
-        LD BC, main_compressed_size
-        LDDR
-
-        // unpack main data block
-        LD HL, update_jpix_helper - main_compressed_size
-        LD DE, generated_code
-        CALL  dzx0_standard
+        call unpack_main
 
         // unpack initial screen to video memory (show shadow screen)
         halt
@@ -464,7 +454,6 @@ main_compressed_size       EQU main_data_end - main_code_end
         inc hl
         LD DE, #c000
         CALL  dzx0_standard
-
 
         call create_write_off_rastr_helper
 1       halt
@@ -1083,7 +1072,6 @@ t4                      EQU t3
         INCLUDE "zx0_standard.asm"
         //INCLUDE "include/l4_psg_player.asm"
         INCLUDE "include/fast_psg_player.asm"
-        INCLUDE "simple_scroller.asm"
 
         ASSERT $ < generated_code
 
@@ -1102,18 +1090,18 @@ main_code_end
 main_data_end
 init_screen        
         INCBIN "resources/screen2.scr.deinterlaced"
-page2_end
-        ASSERT $ < 0xc000 - 512
+update_jpix_helper   EQU 0xc000 - 512
+        ASSERT $ < update_jpix_helper
 
         //ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - 512
-        DISPLAY	"Packed Page 2 free ", /D, 0xc000 - $
-        DISPLAY	"Unpacked Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        DISPLAY	"Packed Page 2 free ", /D, #bf01 - $
+        DISPLAY	"Unpacked Page 2 free ", /D, update_jpix_helper - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
 
-//update_jpix_helper   EQU 0xc000 - imageHeight / 2
-update_jpix_helper   EQU 0xc000 - 512
+        ORG #bf01
+        INCLUDE "simple_scroller.asm"
+page2_end
 
-        ASSERT $ < 0xc000
         ORG 0xc000
         PAGE 0
         //INCBIN "generated_code/jpix0.dat"
