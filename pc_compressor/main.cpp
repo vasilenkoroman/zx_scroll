@@ -3467,8 +3467,12 @@ void serializeAsmFile(
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
         << std::endl;
     phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
+
     phaseFile << "RAM0_UNCOMPRESSED_SIZE   EQU    " << 
         fileSizeSum(inputFileName, "jpix0.dat", "timings0.dat", "main0.z80", "reach_descriptor0.z80") << std::endl;
+    phaseFile << "RAM1_UNCOMPRESSED_SIZE   EQU    " <<
+        fileSizeSum(inputFileName, "jpix1.dat", "timings1.dat", "main1.z80", "reach_descriptor1.z80") << std::endl;
+
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
     phaseFile << "timings_data   EQU    " << getTimingsStartAddress(imageHeight) << std::endl;

@@ -11,5 +11,11 @@ copy /B jpix0.dat+timings0.dat+main0.z80+reach_descriptor0.z80 ram0
 call zx0.exe ram0
 del ram0
 
+del ram1
+del ram1.zx0
+copy /B jpix1.dat+timings1.dat+main1.z80+reach_descriptor1.z80 ram1
+call zx0.exe ram1
+del ram1
+
 del first_screen.zx0
 call zx0.exe first_screen.scr first_screen.zx0

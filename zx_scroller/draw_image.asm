@@ -439,16 +439,32 @@ main_compressed_size       EQU main_data_end - main_code_end
         CALL  dzx0_standard
 
         // unpack page0 (lose packed first screen)
-ram0_size       EQU ram0_end - #c000        
         LD HL, ram0_end-1
         LD DE, 65535
-        LD BC, ram0_size
+        LD BC, ram0_end - #c000
         LDDR
 
         ex hl, de
         inc hl
         LD DE, #c000
         CALL  dzx0_standard
+
+        // unpack page1
+        halt
+        LONG_SET_PAGE 1+8
+        ld (restore_page+1),a
+
+        LD HL, page1_end-1
+        LD DE, 65535
+        
+        LD BC, page1_end - #c000
+        LDDR
+
+        ex hl, de
+        inc hl
+        LD DE, #c000
+        CALL  dzx0_standard
+
 
         call create_write_off_rastr_helper
 1       halt
@@ -1085,14 +1101,14 @@ main_code_end
         INCBIN "generated_code/ram2.zx0"
 main_data_end
 init_screen        
-        INCBIN "resources/screen2.scr.deinterlaced", 0, 6144
+        INCBIN "resources/screen2.scr.deinterlaced"
 page2_end
         ASSERT $ < 0xc000 - 512
 
         //ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - imageHeight / 2
         ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < 0xc000 - 512
-        DISPLAY	"Packed Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
-        DISPLAY	"Unpacked Page 2 free ", /D, 0xc000 - $
+        DISPLAY	"Packed Page 2 free ", /D, 0xc000 - $
+        DISPLAY	"Unpacked Page 2 free ", /D, (0xc000 - 512) - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
 
 //update_jpix_helper   EQU 0xc000 - imageHeight / 2
 update_jpix_helper   EQU 0xc000 - 512
@@ -1114,13 +1130,14 @@ page0_end
 
         ORG 0xc000
         PAGE 1
-        INCBIN "generated_code/jpix1.dat"
-        INCBIN "generated_code/timings1.dat"
-        INCBIN "generated_code/main1.z80"
-        INCBIN "generated_code/reach_descriptor1.z80"
+        //INCBIN "generated_code/jpix1.dat"
+        //INCBIN "generated_code/timings1.dat"
+        //INCBIN "generated_code/main1.z80"
+        //INCBIN "generated_code/reach_descriptor1.z80"
+        INCBIN "generated_code/ram1.zx0"
 page1_end
-        DISPLAY	"Page 1 free ", /D, 65536 - page1_end, " bytes"
-
+        DISPLAY	"Packed Page 1 free ", /D, 65536 - page1_end, " bytes"
+        DISPLAY	"Unpacked Page 1 free ", /D, 16384 - RAM1_UNCOMPRESSED_SIZE, " bytes"
 
         ORG 0xc000
         PAGE 3
