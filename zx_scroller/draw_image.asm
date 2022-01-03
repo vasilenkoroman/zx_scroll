@@ -416,6 +416,8 @@ main_entry_point
 1       halt
         jr 1b
 after_play_intro
+        // 224-47 = 177t longer than final ret in align int.
+        // Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-177) % 71680
         ld sp, stack_top
         ld hl, music_main
         call  init // player init
@@ -437,7 +439,7 @@ ticks_per_line                  equ  224
 mc_preambula_delay      equ 46
 fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11-3 - 4  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
-INTERRUPT_PHASE         EQU 2   ; The value in range [0..3]. TODO: it need to property calculate it!
+INTERRUPT_PHASE         EQU 1   ; The value in range [0..3]. TODO: it need to property calculate it!
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 interrupt_phase EQU 2        
 
@@ -820,7 +822,7 @@ timings_page
 after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
-        ; timing here on first frame: 162625 - (224-12) = 162413
+        ; timing here on first frame: 162625+12 - 224 = 162413
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
