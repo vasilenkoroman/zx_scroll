@@ -3947,7 +3947,7 @@ int serializeTimingDataForRun(
             if (line == 0)
             {
                 kZ80CodeDelay += 10; // jp loop
-                kZ80CodeDelay += 45; // next timings page
+                kZ80CodeDelay += 38; // next timings page
             }
         }
         

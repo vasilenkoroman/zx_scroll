@@ -469,13 +469,12 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset  ; 14 ticks
         
-        ld hl, timings_page+1
+        ld hl, load_timings_data+1
         ld a, (hl)
         add 4
-        and #0f
-        or low(timings_data)
+        and #ef
         ld (hl), a
-         // total: 10+7+7+7+7+7=45
+         // total: 10+7+7+7+7=38
         
         jp loop
 dec_and_loop:
@@ -804,8 +803,8 @@ bank_drawing_common:
 bank_drawing_common2:
         ; delay
 
-timings_page
-        ASSERT (timings_data % 16 == 0)
+        ASSERT (timings_data % 32 == 0)
+load_timings_data        
         ld hl, timings_data + 12
         add hl, bc
         ld sp, hl
