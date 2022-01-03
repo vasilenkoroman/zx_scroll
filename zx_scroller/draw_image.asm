@@ -435,7 +435,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11 - 4  + 6
+fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11-3 - 4  + 6
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3]. TODO: it need to property calculate it!
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
@@ -883,32 +883,6 @@ create_jpix_helper
 
         ret
 
-prepare_interruption_table:
-        // make interrupt table
-
-        ld   a, 0c3h    ; JP instruction code
-        ld   (#BFBF), a
-        ld hl, AlignInt.IntEntry
-        ld   (#BFBF+1), hl
-
-        LD   hl, #BE00
-        LD   de, #BE01
-        LD   bc, #0100
-        LD   (hl), #BF
-        LD   a, h
-        LDIR
-        ld i, a
-        im 2
-        
-        ld hl, after_align_int
-        push hl
-        ld hl, AlignInt.MeasuringLoop
-        ei
-        halt
-IM2Entry:        
-after_align_int:
-        ret
-
 JP_VIA_HL_CODE          equ #e9d9
 jpix_table              EQU 0xc000
 jp_ix_record_size       equ 12
@@ -917,7 +891,7 @@ data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
 write_initial_jp_ix_table
-        ld a, 0
+        xor a
 page_loop:
         bit 0, a
         jr nz, continue_page        

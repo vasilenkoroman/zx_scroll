@@ -25,15 +25,6 @@
 
 			MODULE	AlignInt
 
-@OldAlignInt:		;ld	hl, (IM2Entry+1)
-			;ld	(PrevHandler+1), hl
-			ld	hl, IntEntry
-			ld	(IM2Entry+1), hl
-			dec	hl
-			dec	hl
-			ld	b, #00
-			ld	d, 12
-
 DoItAgain:	ei				; 4t
 			xor	a			; 4t
 
@@ -88,7 +79,6 @@ NormalAligned:		; мы на машине без задержек и выполн
 			; команда RET имеет продолжительность 10 тактов, поэтому иногда м.б. удобно добавить ещё 2 такта для компенсации.
 			;inc	hl
 PrevHandler:		;ld	hl, 0
-			;ld	(IM2Entry+1), hl
 			ret
 
 ; в принципе, можно посмотреть на младший бит регистра B и получить результат в C

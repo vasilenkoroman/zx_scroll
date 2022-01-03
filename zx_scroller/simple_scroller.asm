@@ -91,8 +91,28 @@ draw_common
                 out (c),a
                 pop bc
                 djnz screen_loop
-
                 ret
+
+prepare_interruption_table:
+        // make interrupt table
+
+        ld   a, 0c3h    ; JP instruction code
+        ld   (#BFBF), a
+        ld hl, AlignInt.IntEntry
+        ld   (#BFBF+1), hl
+
+        LD   hl, #BE00
+        LD   de, #BE01
+        LD   bc, #0100
+        LD   (hl), #BF
+        LD   a, h
+        LDIR
+        ld i, a
+        im 2
+        
+        ld hl, AlignInt.MeasuringLoop
+        ei
+        halt
 
 unpack_page
             halt
