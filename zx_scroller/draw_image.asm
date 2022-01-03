@@ -28,21 +28,15 @@ code_after_moving       equ draw_offrastr_off_end
 color_data_to_restore   equ #bfc2
 saved_bc_value          equ #bfc4
 
+effects_by_run          equ #bfc6
+effects_by_run_end      equ effects_by_run + 8
+
 STACK_SIZE:             equ 12  ; in words
-stack_bottom            equ saved_bc_value + 2
+stack_bottom            equ effects_by_run_end
 stack_top               equ stack_bottom + STACK_SIZE * 2
 
                         ASSERT(stack_top < #c000)
 
-/*
-color_data_to_restore   equ draw_offrastr_off_end          ; [16..17]
-saved_bc_value          equ color_data_to_restore + 2      ; [18..19]
-
-STACK_SIZE:             equ 12  ; in words
-stack_bottom            equ saved_bc_value + 2
-stack_top               equ stack_bottom + STACK_SIZE * 2  ; [20..27]
-runtime_var_end         equ stack_top + 12                 ; [56]
-*/
 
         INCLUDE "generated_code/labels.asm"
 
@@ -399,6 +393,7 @@ delay_end
 BEGIN   DISP code_after_moving
 
         INCLUDE "draw_off_rastr.asm"
+        INCLUDE "effects_by_run.asm"
 main_entry_point
 
 /*************** Main. ******************/
@@ -469,14 +464,26 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset  ; 14 ticks
         
+        // Go to next timings page
         ld hl, load_timings_data+1
         ld a, (hl)
         add 4
         and #ef
         ld (hl), a
          // total: 10+7+7+7+7=38
-        
-        jp loop
+
+         // Prepare next effect for next scroll run
+        and #0f
+        rra
+        add low(effects_by_run)
+        ld l,a
+        ld h,high(effects_by_run)
+        ld sp, hl
+        pop hl
+        jp hl
+        // total: 7+4+7+4+7+6+10+4=49
+
+
 dec_and_loop:
         ld bc, (saved_bc_value)
         dec bc

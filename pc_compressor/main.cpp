@@ -3876,6 +3876,11 @@ int prev_frame_line_23_overrun(
     return dt;
 }
 
+int initEffectDelay(int runNumber)
+{
+    return 10;
+}
+
 int serializeTimingDataForRun(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
@@ -3885,7 +3890,8 @@ int serializeTimingDataForRun(
     int flags,
     const std::vector<int>& musicTimings,
     int& worseLineTicks,
-    std::vector<uint16_t>& outputData)
+    std::vector<uint16_t>& outputData,
+    int runNumber)
 {
     using namespace std;
 
@@ -3946,8 +3952,10 @@ int serializeTimingDataForRun(
             kZ80CodeDelay += 6321 - 9 + 600 + 230;
             if (line == 0)
             {
-                kZ80CodeDelay += 10; // jp loop
+                //kZ80CodeDelay += 10; // jp loop
                 kZ80CodeDelay += 38; // next timings page
+                kZ80CodeDelay += 49; // jump to next effect handler
+                kZ80CodeDelay += initEffectDelay(runNumber);
             }
         }
         
@@ -4075,7 +4083,8 @@ int serializeTimingData(
             flags,
             musicPage,
             worseLineTicks,
-            delayTicks);
+            delayTicks,
+            runNumber);
     }
 
     std::cout << "worse line free ticks=" << worseLineTicks << ". ";

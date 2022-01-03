@@ -161,22 +161,35 @@ unpack_and_play_init_screen
             CALL unpack_page
 
             //create_write_off_rastr_helper
-            //ld (draw_offrastr_offset), hl ; The value 0 is not used.
-            ld hl, draw_off_rastr_1
-            ld (draw_offrastr_offset + 2), hl
-            ld hl, draw_off_rastr_2
-            ld (draw_offrastr_offset + 4), hl
-            ld hl, draw_off_rastr_3
-            ld (draw_offrastr_offset + 6), hl
-            ld hl, draw_off_rastr_4
-            ld (draw_offrastr_offset + 8), hl
-            ld hl, draw_off_rastr_5
-            ld (draw_offrastr_offset + 10), hl
-            ld hl, draw_off_rastr_6
-            ld (draw_offrastr_offset + 12), hl
+            ld sp, draw_offrastr_offset+16
             ld hl, draw_off_rastr_7
-            ld (draw_offrastr_offset + 14), hl
-        
+            push hl
+            ld hl, draw_off_rastr_6
+            push hl
+            ld hl, draw_off_rastr_5
+            push hl
+            ld hl, draw_off_rastr_4
+            push hl
+            ld hl, draw_off_rastr_3
+            push hl
+            ld hl, draw_off_rastr_2
+            push hl
+            ld hl, draw_off_rastr_1
+            push hl
+            // The value 0 is not used.
+
+            // Create effects by run helper
+            ld sp, effects_by_run + 8
+            ld hl, effect3
+            push hl
+            ld hl, effect2
+            push hl
+            ld hl, effect1
+            push hl
+            ld hl, effect0
+            push hl
+       
+            ld sp, stack_top-2
             jp unpack_main_page
 
 simple_scroller_end
