@@ -394,6 +394,36 @@ BEGIN   DISP code_after_moving
 
         INCLUDE "draw_off_rastr.asm"
         INCLUDE "effects_by_run.asm"
+
+/** ----------- Routines -------------- */
+
+create_jpix_helper
+        ASSERT(imageHeight / 4 < 256)
+        ld hl, update_jpix_helper
+        ld iy, 0xc000
+        ld ixl, imageHeight / 64
+.loop2  ld a, 16
+        push iy
+        pop de
+        ld bc, jpix_bank_size
+.loop:  ld (hl), e
+        inc hl
+        ld (hl), d
+        inc hl
+        ex hl, de
+        add hl, bc
+        ex hl, de
+
+        dec a
+        jr nz, .loop
+        ld bc, jp_ix_record_size
+        add iy, bc
+        dec ixl
+        jr nz, .loop2
+        ret
+
+/** ----------- Routines end -------------- */
+
 main_entry_point
 
 /*************** Main. ******************/
@@ -724,14 +754,66 @@ finish_off_drawing_0
 
 //*************************************************************************************
 mc_step_drawing:
-
+        sla c : rl b    // bc*2
         rra
+        
 before_odd_step
         jr nc,even_step
 odd_ix  ld ix, 0x5051 + #0808
 odd_iy  ld iy, 0x5453 + #0808
-        jp after_draw_colors
-        // total: 4+7+14+14+10=49
+        // total: 4+7+14+14=39
+
+        // Prepare rastr only multicolor for mc step for page 7
+        // -------------------- MC rastr descriptors
+
+        ld hl, mc_rastr_descriptors_bottom
+        add hl,bc       // * 2
+        ld sp, hl
+        exx
+
+        // Draw bottom 3-th of rastr during middle 3-th of colors
+        pop hl: ld (RASTR0_15+1), hl
+        pop hl: ld (RASTR0_14+1), hl
+        pop hl: ld (RASTR0_13+1), hl
+        pop hl: ld (RASTR0_12+1), hl
+        pop hl: ld (RASTR0_11+1), hl
+        pop hl: ld (RASTR0_10+1), hl
+        pop hl: ld (RASTR0_9+1), hl
+        pop hl: ld (RASTR0_8+1), hl
+
+        // Draw middle 3-th of rastr during top 3-th of colors
+
+        ld hl, (64-8) * 2
+        add hl, sp
+        ld sp, hl
+
+        pop hl: ld (RASTR0_7+1), hl
+        pop hl: ld (RASTR0_6+1), hl
+        pop hl: ld (RASTR0_5+1), hl
+        pop hl: ld (RASTR0_4+1), hl
+        pop hl: ld (RASTR0_3+1), hl
+        pop hl: ld (RASTR0_2+1), hl
+        pop hl: ld (RASTR0_1+1), hl
+        pop hl: ld (RASTR0_0+1), hl
+
+        // Draw top 3-th of rastr during bottom 3-th of colors
+        ; shift to 63 for MC rastr instead of 64 to move on next frame
+        exx
+        inc h
+        ld sp, hl
+
+        //pop hl: ld (RASTR_23+1), hl
+        pop hl: ld (RASTR0_22+1), hl
+        pop hl: ld (RASTR0_21+1), hl
+        pop hl: ld (RASTR0_20+1), hl
+        pop hl: ld (RASTR0_19+1), hl
+        pop hl: ld (RASTR0_18+1), hl
+        pop hl: ld (RASTR0_17+1), hl
+        pop hl: ld (RASTR0_16+1), hl
+
+        jp after_draw_colors                            ; 10+11+6+4+26*8+10+11+6+26*8+4+4+6+26*7=670
+        // total: 39+670+10=719
+        
 even_step
         ld ix, 0x5051
         ld iy, 0x5453
@@ -743,9 +825,7 @@ odd_event_common
 start_draw_colors:
         jp 00                                           ; 10
 after_draw_colors
-
-        sla c : rl b    // bc*2
-        
+       
         // Exec off rastr
         ld de, bank_drawing_common  // next jump
         ld h, high(draw_offrastr_offset)
@@ -882,32 +962,6 @@ first_mc_line: JP 00
  *      All routines are called once before drawing. They can be moved to another page to free memory.
  */
 
-
-create_jpix_helper
-        ASSERT(imageHeight / 4 < 256)
-        ld hl, update_jpix_helper
-        ld iy, 0xc000
-        ld ixl, imageHeight / 64
-.loop2  ld a, 16
-        push iy
-        pop de
-        ld bc, jpix_bank_size
-.loop:  ld (hl), e
-        inc hl
-        ld (hl), d
-        inc hl
-        ex hl, de
-        add hl, bc
-        ex hl, de
-
-        dec a
-        jr nz, .loop
-        ld bc, jp_ix_record_size
-        add iy, bc
-        dec ixl
-        jr nz, .loop2
-
-        ret
 
 JP_VIA_HL_CODE          equ #e9d9
 jpix_table              EQU 0xc000

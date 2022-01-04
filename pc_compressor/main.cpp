@@ -3901,7 +3901,7 @@ int effectRegularStepDelay(
             // 7-th bank page here with logo
             int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
             int skipped = 10 + 10 + 4 + 10 + 8;
-            int result = 49 - skipped - colorTicks;
+            int result = 719 - skipped - colorTicks;
             return result;
         }
         case 2:
