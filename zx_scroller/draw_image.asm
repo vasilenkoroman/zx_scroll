@@ -534,7 +534,11 @@ loop1:
         SET_PAGE 6
         ld a, 7
         and c
+
         jp nz, mc_step_drawing
+
+        ld ix, 0x5051
+        ld iy, 0x5453
 
         /************************* no-mc step drawing *********************************************/
 
@@ -720,11 +724,25 @@ finish_off_drawing_0
 
 //*************************************************************************************
 mc_step_drawing:
-        ld sp, color_addr + 768                         ; 10
-        ld hl, $ + 7                                    ; 14
-        exx
+
+        rra
+before_odd_step
+        jr nc,even_step
+odd_ix  ld ix, 0x5051 + #0808
+odd_iy  ld iy, 0x5453 + #0808
+        jp after_draw_colors
+        // total: 4+7+14+14+10=49
+even_step
+        ld ix, 0x5051
+        ld iy, 0x5453
+        // total: 4+12+14+14=44
+odd_event_common        
+        ld sp, color_addr + 768                         
+        ld hl, after_draw_colors                        
+        exx                                             ; 10+10+4=24
 start_draw_colors:
-        jp 00                                           ; 8
+        jp 00                                           ; 10
+after_draw_colors
 
         sla c : rl b    // bc*2
         

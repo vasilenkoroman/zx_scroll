@@ -3878,7 +3878,37 @@ int prev_frame_line_23_overrun(
 
 int initEffectDelay(int runNumber)
 {
-    return 10;
+    return 7+13+10;
+}
+
+int effectRegularStepDelay(
+    const std::vector<ColorDescriptor>& colorDescriptors,
+    const CompressedData& color,
+    int runNumber, int line)
+{
+    switch (line % 8)
+    {
+        case 0:
+            return 28;
+        case 1:
+        case 3:
+        case 5:
+        case 7:
+        {
+            if (runNumber == 0 || runNumber == 3)
+                return 44;
+
+            // 7-th bank page here with logo
+            int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
+            int skipped = 10 + 10 + 4 + 10 + 8;
+            int result = 49 - skipped - colorTicks;
+            return result;
+        }
+        case 2:
+        case 4:
+        case 6:
+            return 44;
+    }
 }
 
 int serializeTimingDataForRun(
@@ -3991,6 +4021,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 3;
                 break;
         }
+        kZ80CodeDelay += effectRegularStepDelay(colorDescriptors, color, runNumber, line);
 
 
         ticks += kZ80CodeDelay;
