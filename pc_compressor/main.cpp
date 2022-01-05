@@ -3944,6 +3944,7 @@ int serializeTimingDataForRun(
     int flags,
     const std::vector<int>& musicTimings,
     int& worseLineTicks,
+    int& worseLineNum,
     std::vector<uint16_t>& outputData,
     int runNumber)
 {
@@ -4087,7 +4088,11 @@ int serializeTimingDataForRun(
                 << std::endl;
 #endif
         }
-        worseLineTicks = std::min(worseLineTicks, freeTicks);
+        if (freeTicks < worseLineTicks)
+        {
+            worseLineTicks = freeTicks;
+            worseLineNum = line + runNumber * imageHeight;
+        }
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
         outputData.push_back(freeTicks16);
 
@@ -4128,6 +4133,7 @@ int serializeTimingData(
 
 
     int worseLineTicks = std::numeric_limits<int>::max();
+    int worseLineNum = 0;
     std::vector<uint16_t> delayTicks;
     for (int runNumber = 0; runNumber < pages; ++runNumber)
     {
@@ -4144,11 +4150,12 @@ int serializeTimingData(
             flags,
             musicPage,
             worseLineTicks,
+            worseLineNum,
             delayTicks,
             runNumber);
     }
 
-    std::cout << "worse line free ticks=" << worseLineTicks << ". ";
+    std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";
     if (kMinDelay - worseLineTicks > 0)
         std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
     std::cout << std::endl;
