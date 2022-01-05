@@ -1,19 +1,19 @@
 effect0
-    ld a, #18                   ; JR xx
-    ld (before_odd_step),a
+    ld a, #3e                   ; make JR xx to LD A, XX
+    ld (check_for_page7_effect),a
     jp loop
 
 effect1
-    ld a, #30                   ; JR NC
-    ld (before_odd_step),a
+    ld a, #38                   ; JR C
+    ld (check_for_page7_effect),a
     jp loop
 
 effect2
-    ld a, #30                   ; JR NC
-    ld (before_odd_step),a
+    ld a, #38                   ; JR C
+    ld (check_for_page7_effect),a
     jp loop
 
 effect3
-    ld a, #18                   ; JR xx
-    ld (before_odd_step),a
+    ld a, #3e                   ; make JR xx to LD A, XX
+    ld (check_for_page7_effect),a
     jp loop

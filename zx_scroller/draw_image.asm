@@ -522,7 +522,7 @@ finish_page7_drawing_cont
         ld hl, pg7_0
         jp hl
 
-        jp dec_and_loop
+        jp page7_drawing_end
         nop
         // total: 10+16+10+10+4+10=60
 
@@ -549,6 +549,9 @@ finish_page7_drawing_cont
         add hl, bc: jp RASTRB_2
         add hl, bc: jp RASTRB_1
 pg7_0   add hl, bc: jp RASTRB_0
+page7_drawing_end
+        ld ix, 0x5051
+        ld iy, 0x5453
 
 dec_and_loop:
         ld bc, (saved_bc_value)
@@ -602,9 +605,6 @@ loop1:
         and c
 
         jp nz, mc_step_drawing
-
-        ld ix, 0x5051
-        ld iy, 0x5453
 
         /************************* no-mc step drawing *********************************************/
 
@@ -789,28 +789,19 @@ finish_mc_only_rastr_drawing
         jp bank_drawing_common2
 
 //*************************************************************************************
+page7_effect
+        ld ix, 0x5051 + #0808
+        ld iy, 0x5453 + #0808
+        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+        ld (start_mc_drawing), hl
+        jr after_draw_colors                            
 
 mc_step_drawing:
         sla c : rl b    // bc*2
-
         rra
-before_odd_step
-        jr nc,even_step
-        ld ix, 0x5051 + #0808
-        ld iy, 0x5453 + #0808
+check_for_page7_effect
+        jr c, page7_effect
 
-        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
-        ld (start_mc_drawing), hl
-
-        jr after_draw_colors                            
-        // total: 4+7+14+14+10+16+12=77
-        // skipped: 10+10+4+10+8=42
-
-even_step
-        ld ix, 0x5051
-        ld iy, 0x5453
-        // total: 4+12+14+14=44
-odd_event_common        
         ld sp, color_addr + 768                         
         ld hl, after_draw_colors                        
         exx                                             ; 10+10+4=24

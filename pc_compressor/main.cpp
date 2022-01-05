@@ -18,7 +18,7 @@
 #include "timings_helper.h"
 
 #define LOG_INFO
-//#define LOG_DEBUG
+#define LOG_DEBUG
 
 static const int kDefaultCodeOffset = 28700;
 static const int totalTicksPerFrame = 71680;
@@ -3908,14 +3908,14 @@ int effectRegularStepDelay(
     switch (line % 8)
     {
         case 0:
-            return 28;
+            return 0;
         case 1:
         case 3:
         case 5:
         case 7:
         {
             if (runNumber == 0 || runNumber == 3)
-                return 44;
+                return 11;
 
             // 7-th bank page here with logo
             int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
@@ -3924,14 +3924,14 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 134; // page 7 branch itself is longer
+            result += 167; // page 7 branch itself is longer
 
             return result;
         }
         case 2:
         case 4:
         case 6:
-            return 44;
+            return 11;
     }
 }
 
@@ -4458,7 +4458,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors; // | OptimizeMcTicks | updateColorData; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
