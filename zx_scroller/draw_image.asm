@@ -151,6 +151,7 @@ jpix_bank_size          EQU (imageHeight/64 + 2) * jp_ix_record_size
     ENDM                
 
     MACRO DRAW_RASTR_LINE N?:
+RASTRJ_N?       ld hl, 0                                           ; 10
 RASTRB_N?
                 IF (N? % 8 < 2)
                         ld a, iyh
@@ -164,7 +165,6 @@ RASTRB_N?
                 out (0xfd), a
 
 RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
-RASTRJ_N?       ld hl, $ + 7                                           ; 10
                 exx                                                    ; 4
 RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10        
     ENDM                
@@ -187,9 +187,9 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                         inc hl
                         ld (hl), high(dec_and_loop)
                 ELSE
-                        ld (hl), low(RASTRB_N?)
+                        ld (hl), low(RASTRJ_N?)
                         inc hl
-                        ld (hl), high(RASTRB_N?)
+                        ld (hl), high(RASTRJ_N?)
                 ENDIF
 
                 // Second stack moving, fixed at line + 32
@@ -513,6 +513,41 @@ lower_limit_reached:
         jp hl
         // total: 7+4+7+4+7+6+10+4=49
 
+finish_page7_drawing_cont
+        ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
+        ld (start_mc_drawing), hl
+
+        ld bc,-4
+        ld hl, pg7_0
+        jp hl
+
+        jp dec_and_loop
+        nop
+        // total: 10+16+10+10+4+10=60
+
+        add hl, bc: jp RASTRB_22
+        add hl, bc: jp RASTRB_21
+        add hl, bc: jp RASTRB_20
+        add hl, bc: jp RASTRB_19
+        add hl, bc: jp RASTRB_18
+        add hl, bc: jp RASTRB_17
+        add hl, bc: jp RASTRB_16
+        add hl, bc: jp RASTRB_15
+        add hl, bc: jp RASTRB_14
+        add hl, bc: jp RASTRB_13
+        add hl, bc: jp RASTRB_12
+        add hl, bc: jp RASTRB_11
+        add hl, bc: jp RASTRB_10
+        add hl, bc: jp RASTRB_9
+        add hl, bc: jp RASTRB_8
+        add hl, bc: jp RASTRB_7
+        add hl, bc: jp RASTRB_6
+        add hl, bc: jp RASTRB_5
+        add hl, bc: jp RASTRB_4
+        add hl, bc: jp RASTRB_3
+        add hl, bc: jp RASTRB_2
+        add hl, bc: jp RASTRB_1
+pg7_0   add hl, bc: jp RASTRB_0
 
 dec_and_loop:
         ld bc, (saved_bc_value)
@@ -749,71 +784,27 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 21
         DRAW_ONLY_RASTR_LINE 22
 
-
+finish_mc_only_rastr_drawing
         jp bank_drawing_common2
 
 //*************************************************************************************
+
 mc_step_drawing:
         sla c : rl b    // bc*2
+
         rra
-        
 before_odd_step
         jr nc,even_step
-odd_ix  ld ix, 0x5051 + #0808
-odd_iy  ld iy, 0x5453 + #0808
-        // total: 4+7+14+14=39
+        ld ix, 0x5051 + #0808
+        ld iy, 0x5453 + #0808
 
-        // Prepare rastr only multicolor for mc step for page 7
-        // -------------------- MC rastr descriptors
+        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+        ld (start_mc_drawing), hl
 
-        ld hl, mc_rastr_descriptors_bottom
-        add hl,bc       // * 2
-        ld sp, hl
-        exx
+        jr after_draw_colors                            
+        // total: 4+7+14+14+10+16+12=77
+        // skipped: 10+10+4+10+8=42
 
-        // Draw bottom 3-th of rastr during middle 3-th of colors
-        pop hl: ld (RASTR0_15+1), hl
-        pop hl: ld (RASTR0_14+1), hl
-        pop hl: ld (RASTR0_13+1), hl
-        pop hl: ld (RASTR0_12+1), hl
-        pop hl: ld (RASTR0_11+1), hl
-        pop hl: ld (RASTR0_10+1), hl
-        pop hl: ld (RASTR0_9+1), hl
-        pop hl: ld (RASTR0_8+1), hl
-
-        // Draw middle 3-th of rastr during top 3-th of colors
-
-        ld hl, (64-8) * 2
-        add hl, sp
-        ld sp, hl
-
-        pop hl: ld (RASTR0_7+1), hl
-        pop hl: ld (RASTR0_6+1), hl
-        pop hl: ld (RASTR0_5+1), hl
-        pop hl: ld (RASTR0_4+1), hl
-        pop hl: ld (RASTR0_3+1), hl
-        pop hl: ld (RASTR0_2+1), hl
-        pop hl: ld (RASTR0_1+1), hl
-        pop hl: ld (RASTR0_0+1), hl
-
-        // Draw top 3-th of rastr during bottom 3-th of colors
-        ; shift to 63 for MC rastr instead of 64 to move on next frame
-        exx
-        inc h
-        ld sp, hl
-
-        //pop hl: ld (RASTR_23+1), hl
-        pop hl: ld (RASTR0_22+1), hl
-        pop hl: ld (RASTR0_21+1), hl
-        pop hl: ld (RASTR0_20+1), hl
-        pop hl: ld (RASTR0_19+1), hl
-        pop hl: ld (RASTR0_18+1), hl
-        pop hl: ld (RASTR0_17+1), hl
-        pop hl: ld (RASTR0_16+1), hl
-
-        jp after_draw_colors                            ; 10+11+6+4+26*8+10+11+6+26*8+4+4+6+26*7=670
-        // total: 39+670+10=719
-        
 even_step
         ld ix, 0x5051
         ld iy, 0x5453
@@ -900,6 +891,8 @@ finish_non_mc_drawing_cont:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
+finish_page7_drawing:
+        jp finish_page7_drawing_cont
 finish_non_mc_drawing:
         jp finish_non_mc_drawing_cont
 
@@ -927,7 +920,7 @@ after_player
 start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
         ; timing here on first frame: 162625+12 - 224 = 162413
-        ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456
+        ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00
 

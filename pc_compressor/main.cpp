@@ -3823,6 +3823,22 @@ int getTicksChainForMc(
     return result;
 }
 
+int getMulticolorOnlyTicks(
+    int mcLine,
+    const CompressedData& multicolor)
+{
+    int colorHeight = multicolor.data.size();
+
+    int result = 0;
+    for (int i = 0; i < 23; ++i)
+    {
+        int line = (mcLine + i) % colorHeight;
+        result += multicolor.data[line].drawTicks;
+    }
+
+        return result;
+}
+
 int getRealTicksChainForMc(
     int line,
     const CompressedData& multicolor)
@@ -3882,9 +3898,13 @@ int initEffectDelay(int runNumber)
 }
 
 int effectRegularStepDelay(
+    const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
+    const CompressedData& data,
     const CompressedData& color,
-    int runNumber, int line)
+    const CompressedData& multicolor,
+    int runNumber, 
+    int line)
 {
     switch (line % 8)
     {
@@ -3900,8 +3920,13 @@ int effectRegularStepDelay(
 
             // 7-th bank page here with logo
             int colorTicks = getColorTicksForWholeFrame(colorDescriptors, color, (line + 7) / 8);
-            int skipped = 10 + 10 + 4 + 10 + 8;
-            int result = 719 - skipped - colorTicks;
+            int result = 0;
+            result -= colorTicks;
+            result -= 42; // Call draw color ticks
+            result -= getMulticolorOnlyTicks(line/8, multicolor);
+            result -= (kRtMcContextSwitchDelay + 10 - 72) * 24; // In rastr only mode context swithing is faster
+            result += 134; // page 7 branch itself is longer
+
             return result;
         }
         case 2:
@@ -4021,7 +4046,13 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 3;
                 break;
         }
-        kZ80CodeDelay += effectRegularStepDelay(colorDescriptors, color, runNumber, line);
+        kZ80CodeDelay += effectRegularStepDelay(
+            descriptors,
+            colorDescriptors,
+            data,
+            color,
+            multicolor,
+            runNumber, line);
 
 
         ticks += kZ80CodeDelay;
@@ -4428,7 +4459,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors; // | OptimizeMcTicks | updateColorData; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 
