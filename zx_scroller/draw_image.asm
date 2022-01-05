@@ -46,23 +46,23 @@ EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
 
                 IF (N? < 16)
                         IF (N? % 8 == 0)
-                                ld a, iyh
+                                ld a, #54
                         ELSEIF (N? % 8 == 2)
-                                ld a, iyl
+                                ld a, #53
                         ELSEIF (N? % 8 == 4)
-                                ld a, ixl
+                                ld a, #51
                         ELSEIF (N? % 8 == 6)
-                                ld a, ixh
+                                ld a, #50
                         ENDIF
                 ELSE                        
                         IF (N? % 8 == 0 || N? % 8 == 7)
-                                ld a, iyh
+                                ld a, #54
                         ELSEIF (N? % 8 == 1)
-                                ld a, iyl
+                                ld a, #53
                         ELSEIF (N? % 8 == 3)
-                                ld a, ixl
+                                ld a, #51
                         ELSEIF (N? % 8 == 5)
-                                ld a, ixh
+                                ld a, #50
                         ENDIF
                 ENDIF
                 out (0xfd), a

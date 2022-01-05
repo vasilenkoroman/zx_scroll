@@ -4003,7 +4003,7 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13;
             if (line == 0)
             {
                 //kZ80CodeDelay += 10; // jp loop
