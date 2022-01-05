@@ -311,19 +311,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 OUT (#fd), A
         ENDM
 
-        MACRO set_page_by_bank shadowBit
-                ; a - bank number
-                rra
-                cp 2
-                ccf
-                if (shadowBit)
-                        adc 0x58
-                else
-                        adc 0x50
-                endif                        
-                out (0xfd), a
-        ENDM
-
 /************** delay routine *************/
         MACRO DO_DELAY
 
@@ -462,7 +449,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32015  + 6
+fixed_startup_delay     equ 32015-64  + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
@@ -964,15 +951,18 @@ jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 write_initial_jp_ix_table
         xor a
 page_loop:
-        bit 0, a
-        jr nz, continue_page        
+        ld c, a
+        srl a
+        jr c, continue_page        
         ld sp, jpix_table + jp_write_data_offset
 continue_page:
         ld b, 3
 
-        ld c, a
-        and a
-        set_page_by_bank 1
+        cp 2
+        ccf
+        adc 0x58
+        out (0xfd), a
+
         ld a, c
 
         ld de, JP_VIA_HL_CODE
