@@ -1044,8 +1044,8 @@ t4                      EQU t3
         ret
 
         INCLUDE "zx0_standard.asm"
-        //INCLUDE "include/l4_psg_player.asm"
         INCLUDE "include/fast_psg_player.asm"
+        INCLUDE "include/draw_font.asm"
 
         ASSERT $ < generated_code
 
@@ -1066,13 +1066,17 @@ init_screen_i1
         INCBIN "resources/screen2.scr.i1", 0, 6144/2
         INCLUDE "alignint.asm"
         INCLUDE "simple_scroller.asm"
-page2_end
+
+font_data   EQU 0xc000 - 768
+        ORG font_data
+        INCLUDE "resources/Lapse.z80.asm"
 
 update_jpix_helper   EQU 0xc000 - 512
-        ASSERT simple_scroller_end < update_jpix_helper
-        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < update_jpix_helper
-        DISPLAY	"Packed Page 2 free ", /D, update_jpix_helper - simple_scroller_end
-        DISPLAY	"Unpacked Page 2 free ", /D, update_jpix_helper - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        ASSERT $ <= update_jpix_helper
+        ASSERT simple_scroller_end < font_data
+        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < font_data
+        DISPLAY	"Packed Page 2 free ", /D, font_data - simple_scroller_end
+        DISPLAY	"Unpacked Page 2 free ", /D, font_data - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
 
 
         ORG 0xc000
@@ -1164,7 +1168,7 @@ page7_end
 
         EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
-        SAVETRD "build/scroller.trd","main.C", start, page2_end - start
+        SAVETRD "build/scroller.trd","main.C", start, $C000 - start
 
         PAGE 0
         SAVETRD "build/scroller.trd","ram0.C", $C000, page0_end - $C000

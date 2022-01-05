@@ -3945,6 +3945,7 @@ int serializeTimingDataForRun(
     const std::vector<int>& musicTimings,
     int& worseLineTicks,
     int& worseLineNum,
+    int& minSpecialTicks,
     std::vector<uint16_t>& outputData,
     int runNumber)
 {
@@ -4046,13 +4047,14 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 3;
                 break;
         }
-        kZ80CodeDelay += effectRegularStepDelay(
+        int specialTicks =  effectRegularStepDelay(
             descriptors,
             colorDescriptors,
             data,
             color,
             multicolor,
             runNumber, line);
+        kZ80CodeDelay += specialTicks;
 
 
         ticks += kZ80CodeDelay;
@@ -4096,6 +4098,9 @@ int serializeTimingDataForRun(
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
         outputData.push_back(freeTicks16);
 
+        if (specialTicks < 0)
+            minSpecialTicks = std::min(freeTicks, minSpecialTicks);
+
     }
 
     return firstLineDelay;
@@ -4134,6 +4139,7 @@ int serializeTimingData(
 
     int worseLineTicks = std::numeric_limits<int>::max();
     int worseLineNum = 0;
+    int minSpecialTicks = std::numeric_limits<int>::max();
     std::vector<uint16_t> delayTicks;
     for (int runNumber = 0; runNumber < pages; ++runNumber)
     {
@@ -4151,6 +4157,7 @@ int serializeTimingData(
             musicPage,
             worseLineTicks,
             worseLineNum,
+            minSpecialTicks,
             delayTicks,
             runNumber);
     }
@@ -4159,6 +4166,7 @@ int serializeTimingData(
     if (kMinDelay - worseLineTicks > 0)
         std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
     std::cout << std::endl;
+    std::cout << "worse ticks for effects=" << minSpecialTicks << std::endl;
 
 
     std::vector<std::vector<int>> musicPages;
