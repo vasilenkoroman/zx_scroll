@@ -552,6 +552,8 @@ pg7_0   add hl, bc: jp RASTRB_0
 page7_drawing_end
         ld ix, 0x5051
         ld iy, 0x5453
+        ld a,#57
+        ld (player_pg+1),a
 
 dec_and_loop:
         ld bc, (saved_bc_value)
@@ -793,6 +795,10 @@ page7_effect
         ld ix, 0x5051 + #0808
         ld iy, 0x5453 + #0808
         ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+
+        ld a,#57 + #08
+        ld (player_pg+1),a
+
         ld (start_mc_drawing), hl
         jr after_draw_colors                            
 
@@ -904,7 +910,7 @@ load_timings_data
 
         IF (HAS_PLAYER == 1)
                 ld sp, stack_top
-                SET_PAGE 7
+player_pg       SET_PAGE 7
                 jp play
         ENDIF                                
 

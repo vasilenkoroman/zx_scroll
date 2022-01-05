@@ -3924,7 +3924,7 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 167; // page 7 branch itself is longer
+            result += 207; // page 7 branch itself is longer
 
             return result;
         }
