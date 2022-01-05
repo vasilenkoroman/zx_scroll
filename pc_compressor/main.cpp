@@ -3830,13 +3830,12 @@ int getMulticolorOnlyTicks(
     int colorHeight = multicolor.data.size();
 
     int result = 0;
-    for (int i = 0; i < 23; ++i)
+    for (int i = 0; i < 24; ++i)
     {
         int line = (mcLine + i) % colorHeight;
         result += multicolor.data[line].drawTicks;
     }
-
-        return result;
+    return result;
 }
 
 int getRealTicksChainForMc(
@@ -3924,7 +3923,7 @@ int effectRegularStepDelay(
             result -= colorTicks;
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
-            result -= (kRtMcContextSwitchDelay + 10 - 72) * 24; // In rastr only mode context swithing is faster
+            result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
             result += 134; // page 7 branch itself is longer
 
             return result;

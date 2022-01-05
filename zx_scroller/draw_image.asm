@@ -462,9 +462,10 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 28222-398 + 17017 - 145  +11+11-3 - 4  + 6
-initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  mc_preambula_delay
-INTERRUPT_PHASE         EQU 1   ; The value in range [0..3]. TODO: it need to property calculate it!
+fixed_startup_delay     equ 32015  + 6
+create_jpix_delay       equ 1058 * (imageHeight/64)
+initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
+INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 interrupt_phase EQU 2        
 
