@@ -4,15 +4,17 @@ buffer_data2 equ font_data - 512
 
 ;   Render text in the middle of attributes
 ;   a   -   char code
+;   c   -   buffer pos
 print_ch
 
     ld hl, font_data
-    ld bc, buffer_data
+    ld b, high(buffer_data)
 
     // de - font data ptr
     // hl - helper table
     // hl' - buffer ptr
     // bc' - const 32
+    // de' - const 7,~7
 
     // Calculate symbol address to draw
     add a
@@ -23,6 +25,16 @@ print_ch
     sub e
     ld d, a
     ld bc,8*256+3
+
+    exx
+    ld bc,32
+    ld de, 7 * 256 + low(~7)
+    exx
+
+    ld a, c
+    inc a
+    and 7
+    jr z, render_single_point
 
 draw_char
     ld a, (de) // load font byte
@@ -38,6 +50,27 @@ draw_char
     inc de
     djnz draw_char
     // total draw_char: 7+4+4+4+7+7+4+7+11+4+6+13=78
+    ret
+
+render_single_point
+
+draw_char2
+    ld a, (de) // load font byte
+    inc de
+    rra
+    exx
+    ld a,(hl)
+    jr c, has_inc
+    and e
+    jp 1f
+has_inc    
+    or d
+    ret c       ; 5 ticks. Align branch length
+1   ld (hl),a
+    add hl, bc
+    exx
+    djnz draw_char2
+    // total draw_char: 7+6+4+4+7+7+4+10+7+11+4+13=84
     ret
 
 
