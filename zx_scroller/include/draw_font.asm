@@ -132,3 +132,32 @@ buffer_left
     exx
     djnz copy_buffer_line
 */
+
+test_render_text
+
+    // prepare data
+    ld a,7+8
+    out (#fd),a
+
+    ld hl,#C000 + 6144
+    ld de,CC001 + 6144
+    ld bc, 768
+    ld (hl),0
+    ldir
+
+    ld hl,#C000 + 2048
+    ld de,CC001 + 2048
+    ld bc, 2048
+    ld (hl), #f0
+    ldir
+    halt
+
+    // start drwing
+1    
+    ld a, 1 ; 'A'
+    call print_ch
+    call copy_buffer
+    halt
+    jr 1b
+
+    ret
