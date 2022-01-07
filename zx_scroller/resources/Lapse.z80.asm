@@ -1,5 +1,3 @@
-	; Lapse font by DamienG https://damieng.com
-	; Reduced version with 32 chars
 font_data_start
 	defb #00,#07,#38,#3f,#00,#00,#00,#00 ; Helper data
 	defb #10,#28,#28,#44,#7c,#82,#82,#00 ; A

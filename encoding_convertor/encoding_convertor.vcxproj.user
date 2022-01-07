@@ -1,0 +1,7 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LocalDebuggerCommandArguments>c:\zx\zx_scroll\zx_scroller\resources\Lapse.z80.asm c:\zx\zx_scroll\zx_scroller\resources\reduced_lapse.z80.asm c:\zx\zx_scroll\zx_scroller\resources\scroll_text.txt c:\zx\zx_scroll\zx_scroller\resources\encoded_text.dat</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+  </PropertyGroup>
+</Project>
