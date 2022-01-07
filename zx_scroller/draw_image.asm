@@ -1063,7 +1063,7 @@ main_code_end
         INCBIN "generated_code/ram2.zx0"
 main_data_end
 init_screen_i1        
-        INCBIN "resources/screen2.scr.i1", 0, 6144/2
+        INCBIN "generated_code/screen2.scr.i1", 0, 6144/2
         INCLUDE "alignint.asm"
 encoded_text
         INCBIN "generated_code/encoded_text.dat"
@@ -1107,7 +1107,7 @@ page0_end
         INCBIN "generated_code/ram1.zx0"
 ram1_end
 init_screen_i0
-        INCBIN "resources/screen2.scr.i0"
+        INCBIN "generated_code/screen2.scr.i0"
 page1_end
         DISPLAY	"Packed Page 1 free ", /D, 65536 - page1_end, " bytes"
         DISPLAY	"Unpacked Page 1 free ", /D, 16384 - RAM1_UNCOMPRESSED_SIZE, " bytes"
