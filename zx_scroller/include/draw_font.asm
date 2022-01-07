@@ -171,12 +171,11 @@ test_draw
             call print_ch
             call copy_buffer
             pop bc
-            halt
-            halt
+            .2 halt
             djnz test_draw
             
             inc c
-            ld a,28
+            ld a,64
             cp c
             jr nz, next_char
             jp first_char

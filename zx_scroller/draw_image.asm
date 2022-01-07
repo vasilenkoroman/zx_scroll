@@ -1067,7 +1067,7 @@ init_screen_i1
         INCLUDE "alignint.asm"
         INCLUDE "simple_scroller.asm"
 
-font_data   EQU 0xc000 - 768
+font_data   EQU 0xc000 - 1024
         ORG font_data
         INCLUDE "resources/Lapse.z80.asm"
 
