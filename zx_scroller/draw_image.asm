@@ -423,7 +423,6 @@ main_entry_point
         ENDIF                
 
         call prepare_interruption_table
-        call test_render_text
         call unpack_and_play_init_screen
 
 1       halt

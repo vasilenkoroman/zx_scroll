@@ -37,6 +37,9 @@ draw_init_screen
                 ld ixl,a
                 ei
 
+                jp test_render_text
+
+
                 ld bc,768
                 ld hl,#c000+6144
                 ld de,#4000+6144
