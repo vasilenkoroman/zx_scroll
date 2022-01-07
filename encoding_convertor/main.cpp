@@ -5,6 +5,7 @@
 #include <map>
 #include <array>
 #include <sstream>
+#include <iomanip>
 
 using FontData = std::array<uint8_t, 8>;
 
@@ -142,7 +143,7 @@ int main(int argc, char** argv)
     }
 
     std::ofstream encodedTextFileOut;
-    encodedTextFileOut.open(encodedTextFileName);
+    encodedTextFileOut.open(encodedTextFileName, ios::binary);
     if (!encodedTextFileOut.is_open())
     {
         std::cerr << "Can not write file " << encodedTextFileName << std::endl;
@@ -158,6 +159,7 @@ int main(int argc, char** argv)
     std::map<int, int> mapping;
 
     dstFont.push_back(FontData{ 0x00, 0x07, 0x38, 0x3f, 0x00, 0x00, 0x00, 0x00 }); // Helper data at code 0.
+    mapping.emplace(0, 0);
 
     while (getline(fullFontFileIn, line))
     {
@@ -200,6 +202,28 @@ int main(int argc, char** argv)
             encoded = mapItr->second;
         }
         encodedLine.push_back(encoded);
+    }
+
+    // Write encoded data
+    encodedTextFileOut.write((const char*) encodedLine.data(), encodedLine.size());
+
+    // Write reduced font file
+    for (int i = 0; i < dstFont.size(); ++i)
+    {
+        const auto& charData = dstFont[i];
+        for (int i = 0; i < charData.size(); ++i)
+        {
+            reducedFontFileOut << "#" << std::hex << std::setw(2) << std::setfill('0') << (int) charData[i];
+            if (i < 7)
+                reducedFontFileOut << ", ";
+        }
+        reducedFontFileOut << "; ";
+        for (const auto& value : mapping)
+        {
+            if (value.second == i && i > 0)
+                reducedFontFileOut << (char) value.first;
+        }
+        reducedFontFileOut << std::endl;
     }
 
     return 0;
