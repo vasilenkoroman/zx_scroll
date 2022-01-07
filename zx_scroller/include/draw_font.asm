@@ -36,12 +36,13 @@ buffer0     exx
 
             and 7
             jr z, render_single_point
-
 draw_char
             ld a, (de) // load font byte
             rlca
             ld (de),a   // update font data for the next step
             rlca
+            inc de
+
             and c
             ld l, a
             ld h,high(font_data)    ; hl - helper table with paper/inc values
@@ -50,7 +51,6 @@ draw_char
             ld (hl),a   // save data in buffer
             add hl, bc
             exx
-            inc de
             djnz draw_char
             // total draw_char: 7+4+4+4+7+7+4+7+11+4+6+13=78
             ret
@@ -60,8 +60,9 @@ draw_char2
             ld a, (de) // load font byte
             rlca
             ld (de),a
+            rlca
             inc de
-            rla
+
             exx
             ld a,(hl)
             jr c, has_inc
@@ -76,7 +77,6 @@ has_inc
             djnz draw_char2
             // total draw_char: 7+6+4+4+7+7+4+10+7+11+4+13=84
             ret
-
 
 copy_buffer
             ld a, (buffer_pos+1)
@@ -96,7 +96,6 @@ copy_buffer
 
             ld de, #d900        ; middle of the colors at page 7
             ld bc, 9*256
-
 
             ld a,32
             sub l
@@ -149,35 +148,26 @@ test_render_text
     ld (hl), #0f
     ldir
     
-    ld hl, font_data+8
-    ld bc, font_data_end - (font_data+8)
-1   rrc (hl)
-    inc hl
-    dec bc
-    ld a,b
-    or c
-    jr nz, 1b
-
     halt
 
     // start drwing
 first_char    
-            ld c, 1
+            ld hl,encoded_text
 next_char            
             ld b,8
 test_draw
-            ld a, c
+            ld a, (hl)
+            or a
+            jr z,first_char
             push bc
+            push hl
             call print_ch
             call copy_buffer
+            pop hl
             pop bc
             .2 halt
             djnz test_draw
-            
-            inc c
-            ld a,64
-            cp c
-            jr nz, next_char
-            jp first_char
+            inc hl
+            jp next_char
 
             ret

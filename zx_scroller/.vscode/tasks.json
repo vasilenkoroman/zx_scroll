@@ -27,7 +27,16 @@
                 "showReuseMessage": false,
                 "clear": true
             },
-            "problemMatcher": "$errmatcher-sjasmplus"
+            "problemMatcher": "$errmatcher-sjasmplus",
+            "dependsOn":["Compile font"]
+        },
+
+        {
+            "label": "Compile font",
+            "type": "shell",
+            "command": "c:/zx/scroll/zx_scroller/resources/compile_font.bat",
+            "group": "build",
         }
+
     ]
 }

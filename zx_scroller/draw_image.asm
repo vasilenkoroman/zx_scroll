@@ -1065,11 +1065,16 @@ main_data_end
 init_screen_i1        
         INCBIN "resources/screen2.scr.i1", 0, 6144/2
         INCLUDE "alignint.asm"
+encoded_text
+        INCBIN "generated_code/encoded_text.dat"
+encoded_text_end        
         INCLUDE "simple_scroller.asm"
 
 font_data   EQU 0xc000 - 1024
         ORG font_data
-        INCLUDE "resources/Lapse.z80.asm"
+        INCLUDE "generated_code/reduced_font.asm"
+font_data_end
+        ASSERT font_data_end - font_data <= 512
 
 update_jpix_helper   EQU 0xc000 - 512
         ASSERT $ <= update_jpix_helper

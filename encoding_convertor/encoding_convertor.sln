@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
-VisualStudioVersion = 16.0.31515.178
+VisualStudioVersion = 16.0.29728.190
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "encoding_convertor", "c:\zx\zx_scroll\encoding_convertor\encoding_convertor.vcxproj", "{2E9566DF-E206-4768-B0BD-BA943264EF9A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "encoding_convertor", "encoding_convertor.vcxproj", "{2E9566DF-E206-4768-B0BD-BA943264EF9A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,6 +26,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {DA78A8D4-F7A1-43B0-B4E7-91CBD36942A3}
+		SolutionGuid = {20F2FA2D-B5C3-45A2-BA61-ABE38D561D71}
 	EndGlobalSection
 EndGlobal

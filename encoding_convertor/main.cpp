@@ -205,26 +205,38 @@ int main(int argc, char** argv)
     }
 
     // Write encoded data
+    encodedLine.push_back(0);
     encodedTextFileOut.write((const char*) encodedLine.data(), encodedLine.size());
 
     // Write reduced font file
-    for (int i = 0; i < dstFont.size(); ++i)
+    for (int symbol = 0; symbol < dstFont.size(); ++symbol)
     {
-        const auto& charData = dstFont[i];
+        const auto& charData = dstFont[symbol];
+        reducedFontFileOut << "\tdefb ";
         for (int i = 0; i < charData.size(); ++i)
         {
-            reducedFontFileOut << "#" << std::hex << std::setw(2) << std::setfill('0') << (int) charData[i];
+            uint8_t shiftedValue = charData[i];
+            // Do 'rrc'
+            if (symbol > 0)
+            {
+                if (shiftedValue % 1)
+                    shiftedValue = shiftedValue / 2 + 128;
+                else
+                    shiftedValue = shiftedValue / 2;
+            }
+
+            reducedFontFileOut << "#" << std::hex << std::setw(2) << std::setfill('0') << (int) shiftedValue;
             if (i < 7)
                 reducedFontFileOut << ", ";
         }
         reducedFontFileOut << "; ";
         for (const auto& value : mapping)
         {
-            if (value.second == i && i > 0)
+            if (value.second == symbol && symbol > 0)
                 reducedFontFileOut << (char) value.first;
         }
         reducedFontFileOut << std::endl;
     }
-
+    std::cout << "Done" << std::endl;
     return 0;
 }
