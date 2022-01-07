@@ -8,7 +8,7 @@ print_ch
             // de - font data ptr
             // hl' - buffer ptr
             // bc' - const 32
-            // de' - const 7,~7
+            // de' - const #47,~7
 
             // Calculate symbol address to draw
             add a
@@ -21,7 +21,7 @@ print_ch
 
             exx
             ld bc,32
-            ld de, 7 * 256 + low(~7)
+            ld de, #47 * 256 + low(~7)
 
 buffer_pos  ld a, 0
 

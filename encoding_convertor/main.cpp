@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     std::vector<FontData> dstFont;
     std::map<int, int> mapping;
 
-    dstFont.push_back(FontData{ 0x00, 0x07, 0x38, 0x3f, 0x00, 0x00, 0x00, 0x00 }); // Helper data at code 0.
+    dstFont.push_back(FontData{ 0x00, 0x47, 0x78, 0x7f, 0x00, 0x00, 0x00, 0x00 }); // Helper data at code 0.
     mapping.emplace(0, 0);
 
     while (getline(fullFontFileIn, line))
