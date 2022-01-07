@@ -207,7 +207,7 @@ play_init_screen
                 ld a,6
                 out (c),a
                 push bc
-                call play
+                //call play
                 pop bc
                 ld a, ixl
                 out (c),a

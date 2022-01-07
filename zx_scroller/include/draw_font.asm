@@ -58,6 +58,8 @@ draw_char
 render_single_point
 draw_char2
             ld a, (de) // load font byte
+            rlca
+            ld (de),a
             inc de
             rla
             exx
@@ -112,8 +114,9 @@ copy_buffer_line
 buffer_right
     jr copy_buffer_bytes
 
+    dec hl
     ld a, l
-    sub 32
+    sub 31
     ld l, a
 
     ld iy, $+6
@@ -130,24 +133,6 @@ copy_buffer_bytes
     jp iy
 
 
-/*
-    exx
-    ld b, 8
-copy_buffer_line
-    exx
-buffer_right
-    ld bc, 0
-    ldir
-    ld a, l
-    sub 32
-    ld l, a
-buffer_left    
-    ld bc,0
-    ldir
-    exx
-    djnz copy_buffer_line
-*/
-
 test_render_text
 
     // prepare data
@@ -163,17 +148,37 @@ test_render_text
     ld bc, 2048
     ld (hl), #0f
     ldir
+    
+    ld hl, font_data+8
+    ld bc, font_data_end - (font_data+8)
+1   rrc (hl)
+    inc hl
+    dec bc
+    ld a,b
+    or c
+    jr nz, 1b
+
     halt
 
     // start drwing
-1    
-    ld a, 1 ; 'A'
-    call print_ch
-    call copy_buffer
-    halt
-    halt
-    halt
-    halt
-    jr 1b
+first_char    
+            ld c, 1
+next_char            
+            ld b,8
+test_draw
+            ld a, c
+            push bc
+            call print_ch
+            call copy_buffer
+            pop bc
+            halt
+            halt
+            djnz test_draw
+            
+            inc c
+            ld a,28
+            cp c
+            jr nz, next_char
+            jp first_char
 
-    ret
+            ret
