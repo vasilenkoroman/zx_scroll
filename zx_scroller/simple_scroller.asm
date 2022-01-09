@@ -220,11 +220,11 @@ unpack_main_page
                 // move main data block
 main_compressed_size       EQU main_data_end - main_code_end
                 LD HL, main_data_end-1
-                LD DE, update_jpix_helper-1
+                LD DE, static_data_page2-1
                 LD BC, main_compressed_size
                 LDDR
                 // unpack main data block
-                LD HL, update_jpix_helper - main_compressed_size
+                LD HL, static_data_page2 - main_compressed_size
                 LD DE, generated_code
                 jp  dzx0_standard
 

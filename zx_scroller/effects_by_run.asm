@@ -24,17 +24,16 @@ effect3
 ef2_counter DB 8
             // Effects inside run
 effect_step
-            // temporary line:
-            jp after_draw_colors
-
+            //ret
 
             // 1. Just display "Scroller"
-ef1         ld hl, 192*4 - 40
+ef1         //ld hl, 192*2 - 35
+            ld hl, 16
             dec hl
             ld (ef1+1),hl
             ld a,h
             or l
-            jp nz, after_draw_colors
+            ret nz
 
             // 2. Effect2: remove "Scroller" with animation
             ld hl,ef2
@@ -43,7 +42,7 @@ ef2         ld hl,#c800
             ld de,hl
             inc de
             ld (hl),0
-            ld bc,32
+            ld bc,31
             ldir                ; clear line 0
 
             ld hl,(ef2+1)
@@ -51,7 +50,7 @@ ef2         ld hl,#c800
             ld de,hl
             inc de
             ld (hl),0
-            ld bc,32
+            ld bc,31
             ldir                ; clear line 1
 
 
@@ -59,61 +58,64 @@ ef2         ld hl,#c800
             add 2
             ld (ef2+2),a
             and 7
-            jp nz, after_draw_colors
+            ret nz
 
+            ld h,#c8
             ld a,(ef2+1)
-            sub -32
-            ld (ef2+1),a
+            add 32
+            ld l,a
+            ld (ef2+1),hl
 
             ld hl,ef2_counter
             dec (hl)
-            jp nz, after_draw_colors
+            ret nz
 
             ld hl,ef3
             ld (ef_x+1),hl
-            jp after_draw_colors
+            ret
 
             // Minor delay after removing "Scroller" text, prepare page7 for the scrolling text
 ef3         
             // clear attributies
             ld sp,#da00
-            ld hl,#40
+            ld de,#40
             ld b,128
-1           push hl
+1           push de
             djnz 1b
             ld hl,ef3_2
             ld (ef_x+1),hl
-            jp after_draw_colors
+            ld sp,stack_top-6
+            ret
 ef3_2
             // clear rastr
             ld sp,#d000
-            ld hl, #0f
+            ld de, #0f0f
             ld b,0
-1           .2 push hl
+1           .2 push de
             djnz 1b
             ld (ef3_2+1),sp
-            ld hl,-#c800
-            add hl,sp
-            jp nz,after_draw_colors
+            ld a,(ef3_2+2)
+            cp #c8
+            ld sp,stack_top-6
+            ret nz
 
             ld hl,ef4
             ld (ef_x+1),hl
-            jp after_draw_colors
+            ret
 
             // Start scrolling text
-ef4         ld hl,encoded_text
-
-            ld sp,stack_top+2
+ef4         ld a,(encoded_text)
             call print_ch
             call copy_buffer
 
 ch_loop     ld a,8
             dec a
-            jp nz, after_draw_colors
+            ld (ch_loop+1),a
+            ret nz
             ld a,8
             ld (ch_loop+1),a
             ld hl,(ef4+1)
             inc hl
             ld (ef4+1),hl
 
-            jp after_draw_colors
+            ret

@@ -380,7 +380,6 @@ delay_end
 BEGIN   DISP code_after_moving
 
         INCLUDE "draw_off_rastr.asm"
-        INCLUDE "effects_by_run.asm"
 
 /** ----------- Routines -------------- */
 
@@ -779,16 +778,22 @@ finish_mc_only_rastr_drawing
 
 //*************************************************************************************
 page7_effect
-        ld ix, 0x5051 + #0808
-        ld iy, 0x5453 + #0808
-
-        ld a,#57 + #08
-        ld (player_pg+1),a
-
         ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
 
-ef_x    jp effect_step
+        SET_PAGE 7+8
+        ld (player_pg+1),a
+
+        ld sp,stack_top-2
+        push bc
+ef_x    call effect_step
+        pop bc
+
+        SET_PAGE 6+8
+
+        ld ix, 0x5051 + #0808
+        ld iy, 0x5453 + #0808
+        jp after_draw_colors
 
 mc_step_drawing:
         sla c : rl b    // bc*2
@@ -1047,6 +1052,9 @@ t4                      EQU t3
         INCLUDE "zx0_standard.asm"
         INCLUDE "include/fast_psg_player.asm"
         INCLUDE "include/draw_font.asm"
+        INCLUDE "effects_by_run.asm"
+encoded_text
+        INCBIN "generated_code/encoded_text.dat"
 
         ASSERT $ < generated_code
 
@@ -1066,23 +1074,22 @@ main_data_end
 init_screen_i1        
         INCBIN "generated_code/screen2.scr.i1", 0, 6144/2
         INCLUDE "alignint.asm"
-encoded_text
-        INCBIN "generated_code/encoded_text.dat"
 encoded_text_end        
         INCLUDE "simple_scroller.asm"
 
-font_data   EQU 0xc000 - 1024
-        ORG font_data
+static_data_page2 EQU 0xc000 - 1024
+        ORG static_data_page2
+font_data   
         INCLUDE "generated_code/reduced_font.asm"
 font_data_end
         ASSERT font_data_end - font_data <= 512
 
 update_jpix_helper   EQU 0xc000 - 512
         ASSERT $ <= update_jpix_helper
-        ASSERT simple_scroller_end < font_data
-        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < font_data
-        DISPLAY	"Packed Page 2 free ", /D, font_data - simple_scroller_end
-        DISPLAY	"Unpacked Page 2 free ", /D, font_data - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
+        ASSERT simple_scroller_end < static_data_page2
+        ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < static_data_page2
+        DISPLAY	"Packed Page 2 free ", /D, static_data_page2 - simple_scroller_end
+        DISPLAY	"Unpacked Page 2 free ", /D, static_data_page2 - (generated_code + RAM2_UNCOMPRESSED_SIZE), " bytes"
 
 
         ORG 0xc000
