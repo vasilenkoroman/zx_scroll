@@ -46,21 +46,25 @@ ef2         ld hl,#c800
             ld bc,32
             ldir                ; clear line 0
 
-            ld l,0
-            ld e,l
+            ld hl,(ef2+1)
             inc h
-            inc d
+            ld de,hl
+            inc de
+            ld (hl),0
+            ld bc,32
             ldir                ; clear line 1
 
-            inc h
-            ld a,h
+
+            ld a,(ef2+2)
+            add 2
             ld (ef2+2),a
             and 7
             jp nz, after_draw_colors
 
-            ld l,#c8
-            ld (ef2+1),hl
-            
+            ld a,(ef2+1)
+            sub -32
+            ld (ef2+1),a
+
             ld hl,ef2_counter
             dec (hl)
             jp nz, after_draw_colors
