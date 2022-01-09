@@ -24,7 +24,7 @@ effect3
 ef2_counter DB 8
             // Effects inside run
 effect_step
-            //ret
+            ret
 
             // 1. Just display "Scroller"
 ef1         //ld hl, 192*2 - 35
