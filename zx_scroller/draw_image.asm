@@ -788,7 +788,7 @@ page7_effect
         ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
 
-        jp effect_step
+ef_x    jp effect_step
 
 mc_step_drawing:
         sla c : rl b    // bc*2
