@@ -1,3 +1,5 @@
+    // Effects by run (perform on step 0)
+
 effect0
     ld a, #3e                   ; make JR xx to LD A, XX
     ld (check_for_page7_effect),a
@@ -17,3 +19,8 @@ effect3
     ld a, #3e                   ; make JR xx to LD A, XX
     ld (check_for_page7_effect),a
     jp loop
+
+    // Effects inside run
+effect_step
+
+    jp after_draw_colors                            

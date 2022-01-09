@@ -37,8 +37,6 @@ draw_init_screen
                 ld ixl,a
                 ei
 
-                jp test_render_text
-
 
                 ld bc,768
                 ld hl,#c000+6144
@@ -207,7 +205,7 @@ play_init_screen
                 ld a,6
                 out (c),a
                 push bc
-                //call play
+                call play
                 pop bc
                 ld a, ixl
                 out (c),a

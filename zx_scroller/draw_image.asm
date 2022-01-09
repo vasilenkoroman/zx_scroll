@@ -781,13 +781,14 @@ finish_mc_only_rastr_drawing
 page7_effect
         ld ix, 0x5051 + #0808
         ld iy, 0x5453 + #0808
-        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
 
         ld a,#57 + #08
         ld (player_pg+1),a
 
+        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
-        jr after_draw_colors                            
+
+        jp effect_step
 
 mc_step_drawing:
         sla c : rl b    // bc*2

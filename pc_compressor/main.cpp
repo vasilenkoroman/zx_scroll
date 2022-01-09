@@ -3896,6 +3896,14 @@ int initEffectDelay(int runNumber)
     return 7+13+10;
 }
 
+int effectDelayByStepInternal(
+    int runNumber,
+    int line)
+{
+    // Delay for function 'effect_step'
+    return 10;
+}
+
 int effectRegularStepDelay(
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
@@ -3924,7 +3932,8 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 207; // page 7 branch itself is longer
+            result += 205; // page 7 branch itself is longer
+            result += effectDelayByStepInternal(runNumber, line);
 
             return result;
         }
