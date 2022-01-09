@@ -78,7 +78,7 @@ ef2         ld hl,#c800
 ef3         
             // clear attributies
             ld sp,#da00
-            ld de,#40
+            ld de,#4040
             ld b,128
 1           push de
             djnz 1b
