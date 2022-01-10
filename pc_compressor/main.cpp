@@ -20,7 +20,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 29000;
+static const int kDefaultCodeOffset = 29500;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -3954,13 +3954,8 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
     result.push_back(3140);
 
     // Effect3_2 delay
-    result.push_back(10);
-    result.push_back(10);
-
-    for (auto itr = result.begin(); itr != result.end(); ++itr)
-    {
-        std::cout << (*itr + 17) << std::endl;
-    }
+    result.push_back(9032+11);
+    result.push_back(9063+10);
 
     return result;
 }
@@ -3968,8 +3963,17 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
 std::vector<int> getEffectDelayInternalForRun2(int imageHeight)
 {
     std::vector<int> result;
-    for (int i = 0; i < imageHeight/2; ++i)
-        result.push_back(10);
+    for (int i = 0; i < imageHeight / 2 / 8; ++i)
+    {
+        result.push_back(6162 + 11);
+        for (int k = 0; k < 3; ++k)
+        {
+            result.push_back(6107+11);
+            result.push_back(6109+11);
+        }
+        result.push_back(6170+10);
+    }
+
     return result;
 }
 

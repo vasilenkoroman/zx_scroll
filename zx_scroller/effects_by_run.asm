@@ -89,7 +89,6 @@ ef3
             ret
             // total: 10+10+7+(11+13)*128-5+10+16+10+10=3140
 ef3_2
-            ret
             // clear rastr
             ld sp,#d000
             ld de, #0f0f
@@ -101,11 +100,11 @@ ef3_2
             cp #c8
             ld sp,stack_top-6
             ret nz
-
+            // total:9032+11
             ld hl,ef4
             ld (ef_x+1),hl
             ret
-
+            // total:9063+10
             // Start scrolling text
 ef4         ld a,(encoded_text)
             call print_ch

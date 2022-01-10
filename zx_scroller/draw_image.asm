@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 29000
+generated_code          equ 29500
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
