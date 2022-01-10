@@ -196,25 +196,6 @@ unpack_and_play_init_screen
 simple_scroller_end
 
             ORG #BF01
-play_init_screen
-                push af
-                push de
-                exx
-
-                ld bc, #7ffd
-                ld a,6
-                out (c),a
-                push bc
-                call play
-                pop bc
-                ld a, ixl
-                out (c),a
-
-                exx
-                pop de
-                pop af
-                ei
-                ret
 
 unpack_main_page
                 // move main data block
@@ -227,5 +208,29 @@ main_compressed_size       EQU main_data_end - main_code_end
                 LD HL, static_data_page2 - main_compressed_size
                 LD DE, generated_code
                 jp  dzx0_standard
+
+                IF ($ < #BF80)
+                        ORG #BF80
+                ENDIF
+
+play_init_screen
+                push af
+                push de
+                exx
+
+                ld bc, #7ffd
+set_player_page ld a,6
+                out (c),a
+                push bc
+                call play
+                pop bc
+                ld a, ixl
+                out (c),a
+
+                exx
+                pop de
+                pop af
+                ei
+                ret
 
             ASSERT $ <= #BFBF

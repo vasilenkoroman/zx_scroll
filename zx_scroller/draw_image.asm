@@ -963,9 +963,33 @@ first_mc_line: JP 00
         DRAW_MULTICOLOR_LINE 23
 
 show_final_screen
+        SET_PAGE 4
+        ld ixl,a                
+        ld (set_player_page+1),a
+
         ld sp,stack_top
-        call stop
+        ld hl,final_mus
+        call  init // player init
+        call play
+
+        ld hl, end_mus_finished
+        ld(endtrack+1), hl
+
+        // restore interruption vector
+        LD   hl, #BE00
+        LD   de, #BE01
+        LD   bc, #0100
+        LD   (hl), #BF
+        LD   a, h
+        LDIR
+
+1       ei
         halt
+        jr 1b
+
+end_mus_finished
+        call stop
+        halt        
 
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.
@@ -1160,6 +1184,8 @@ page3_end
         INCBIN "generated_code/timings3.dat"
         INCBIN "generated_code/main3.z80"
         INCBIN "generated_code/reach_descriptor3.z80"
+final_mus        
+        INCBIN "resources/final.mus"
 page4_end        
         DISPLAY	"Page 4 free ", /D, 65536 - page4_end, " bytes"
 
