@@ -1,1 +1,1 @@
-Thanks everybody from telegram channel "zxcoding" for helping me with the first demo! Special thanks to @sslead. Source code is available at www.github.com/vasilenkoroman/zx_scroll
+The source code is available at www.github.com/vasilenkoroman/zx_scroll    

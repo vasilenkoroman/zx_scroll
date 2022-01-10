@@ -3929,12 +3929,12 @@ int effectDelayByStepInternal(
 }
 #endif
 
-std::vector<int> getEffectDelayInternal(int imageHeight)
+std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
 {
     std::vector<int> result;
 
     // Effect1 delay
-    for (int i = imageHeight/2 - 34 - 1; i > 0; --i)
+    for (int i = imageHeight/4 - 34 - 1; i > 0; --i)
         result.push_back(51);
     
     // Last step Effect1 delay
@@ -3957,23 +3957,47 @@ std::vector<int> getEffectDelayInternal(int imageHeight)
     result.push_back(9032+11);
     result.push_back(9063+10);
 
+    // Effect 4
 
-    // Effect4
-    while (result.size() < imageHeight * 4)
+    while (result.size() < imageHeight / 2)
     {
-        for (int i = 0; i < imageHeight / 2 / 8; ++i)
+        result.push_back(6162 + 11);
+        for (int k = 0; k < 3; ++k)
         {
-            result.push_back(6162 + 11);
-            for (int k = 0; k < 3; ++k)
-            {
-                result.push_back(6107 + 11);
-                result.push_back(6109 + 11);
-            }
-            result.push_back(6170 + 10);
+            result.push_back(6107 + 11);
+            result.push_back(6109 + 11);
         }
+        result.push_back(6170 + 10);
+    }
+
+
+    return result;
+}
+
+std::vector<int> getEffectDelayInternalForRun2(int imageHeight)
+{
+    std::vector<int> result;
+    while (result.size() < imageHeight / 2)
+    {
+        result.push_back(6162 + 11);
+        for (int k = 0; k < 3; ++k)
+        {
+            result.push_back(6107+11);
+            result.push_back(6109+11);
+        }
+        result.push_back(6170+10);
     }
 
     return result;
+}
+
+std::vector<int> getEffectDelayInternalForRun(int runNumber, int imageHeight)
+{
+    if (runNumber == 1)
+        return getEffectDelayInternalForRun1(imageHeight);
+    else if (runNumber == 2)
+        return getEffectDelayInternalForRun2(imageHeight);
+    return std::vector<int>();
 }
 
 int effectRegularStepDelay(
@@ -4030,13 +4054,14 @@ int serializeTimingDataForRun(
     int& worseLineNum,
     int& minSpecialTicks,
     std::vector<uint16_t>& outputData,
-    int runNumber,
-    std::vector<int>* effectDelay)
+    int runNumber)
 {
     using namespace std;
 
     const int imageHeight = data.data.size();
     const int colorHeight = imageHeight / 8;
+
+    std::vector<int> effectDelay = getEffectDelayInternalForRun(runNumber, imageHeight);
 
     int firstLineDelay = 0;
     for (int line = 0; line < imageHeight; ++line)
@@ -4137,7 +4162,7 @@ int serializeTimingDataForRun(
             color,
             multicolor,
             runNumber, line,
-            effectDelay);
+            &effectDelay);
         kZ80CodeDelay += specialTicks;
 
 
@@ -4225,9 +4250,6 @@ int serializeTimingData(
     int worseLineNum = 0;
     int minSpecialTicks = std::numeric_limits<int>::max();
     std::vector<uint16_t> delayTicks;
-
-    std::vector<int> effectDelay = getEffectDelayInternal(imageHeight);
-
     for (int runNumber = 0; runNumber < pages; ++runNumber)
     {
         std::vector<int> musicPage;
@@ -4246,8 +4268,7 @@ int serializeTimingData(
             worseLineNum,
             minSpecialTicks,
             delayTicks,
-            runNumber,
-            &effectDelay);
+            runNumber);
     }
 
     std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";

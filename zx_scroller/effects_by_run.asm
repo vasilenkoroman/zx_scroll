@@ -25,7 +25,7 @@ ef2_counter DB 8
             // Effects inside run
 effect_step
             // 1. Just display "Scroller"
-ef1         ld hl, imageHeight/2 - 34
+ef1         ld hl, imageHeight/4 - 34
             dec hl
             ld (ef1+1),hl
             ld a,h
