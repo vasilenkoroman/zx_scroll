@@ -24,20 +24,19 @@ effect3
 ef2_counter DB 8
             // Effects inside run
 effect_step
-            ret
-
             // 1. Just display "Scroller"
-ef1         //ld hl, 192*2 - 35
-            ld hl, 16
+ef1         ld hl, imageHeight/2 - 34
             dec hl
             ld (ef1+1),hl
             ld a,h
             or l
             ret nz
+            // 10+6+16+4+4+11=51
 
             // 2. Effect2: remove "Scroller" with animation
             ld hl,ef2
             ld (ef_x+1),hl
+            //51-6+10+16=71
 ef2         ld hl,#c800    
             ld de,hl
             inc de
@@ -59,7 +58,7 @@ ef2         ld hl,#c800
             ld (ef2+2),a
             and 7
             ret nz
-
+            // total: 1430+11=1441
             ld h,#c8
             ld a,(ef2+1)
             add 32
@@ -69,10 +68,12 @@ ef2         ld hl,#c800
             ld hl,ef2_counter
             dec (hl)
             ret nz
+            // total: 7+13+7+4+16+10+11+11=79
 
             ld hl,ef3
             ld (ef_x+1),hl
             ret
+            // total: 10+16+10=36
 
             // Minor delay after removing "Scroller" text, prepare page7 for the scrolling text
 ef3         
@@ -86,7 +87,9 @@ ef3
             ld (ef_x+1),hl
             ld sp,stack_top-6
             ret
+            // total: 10+10+7+(11+13)*128-5+10+16+10+10=3140
 ef3_2
+            ret
             // clear rastr
             ld sp,#d000
             ld de, #0f0f

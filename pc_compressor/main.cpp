@@ -18,7 +18,7 @@
 #include "timings_helper.h"
 
 #define LOG_INFO
-#define LOG_DEBUG
+//#define LOG_DEBUG
 
 static const int kDefaultCodeOffset = 29000;
 static const int totalTicksPerFrame = 71680;
@@ -3896,12 +3896,90 @@ int initEffectDelay(int runNumber)
     return 7+13+10;
 }
 
+#if 0
 int effectDelayByStepInternal(
     int runNumber,
     int line)
 {
-    // Delay for function 'effect_step'
+    // Effect1 delay
+    static int ef1Counter = 192*2 - 34;
+    --ef1Counter;
+    if (ef1Counter > 0)
+        return 51;
+
+    // Effect2 delay
+    static int ef2Counter = 64/2;
+    --ef2Counter;
+
+    if (ef1Counter == 0)
+        return 71 + 1441;
+
+    if (ef2Counter > 0)
+    {
+        if (ef2Counter % 4 != 0)
+            return 1441;
+        else
+            return 1441 - 6 + 79;
+    }
+    else if (ef2Counter == 0)
+        return 1441-6 + 79-6+36;
+
+    // Effect3 delay
     return 10;
+}
+#endif
+
+std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
+{
+    std::vector<int> result;
+
+    // Effect1 delay
+    for (int i = imageHeight/2 - 34 - 1; i > 0; --i)
+        result.push_back(51);
+    
+    // Last step Effect1 delay
+    result.push_back(71 + 1441);
+
+    // Effect2 delay
+    for (int i = 1; i < 31; ++i)
+    {
+        if (i % 4 != 0)
+            result.push_back(1441);
+        else
+            result.push_back(1441 - 6 + 79);
+    }
+    result.push_back(1441 - 6 + 79 - 6 + 36);
+
+    // Effect3 delay
+    result.push_back(3140);
+
+    // Effect3_2 delay
+    result.push_back(10);
+    result.push_back(10);
+
+    for (auto itr = result.begin(); itr != result.end(); ++itr)
+    {
+        std::cout << (*itr + 17) << std::endl;
+    }
+
+    return result;
+}
+
+std::vector<int> getEffectDelayInternalForRun2(int imageHeight)
+{
+    std::vector<int> result;
+    for (int i = 0; i < imageHeight/2; ++i)
+        result.push_back(10);
+    return result;
+}
+
+std::vector<int> getEffectDelayInternalForRun(int runNumber, int imageHeight)
+{
+    if (runNumber == 1)
+        return getEffectDelayInternalForRun1(imageHeight);
+    else if (runNumber == 2)
+        return getEffectDelayInternalForRun2(imageHeight);
+    return std::vector<int>();
 }
 
 int effectRegularStepDelay(
@@ -3911,7 +3989,8 @@ int effectRegularStepDelay(
     const CompressedData& color,
     const CompressedData& multicolor,
     int runNumber, 
-    int line)
+    int line,
+    std::vector<int>* effectDelay)
 {
     switch (line % 8)
     {
@@ -3933,7 +4012,8 @@ int effectRegularStepDelay(
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
             result += 205+77; // page 7 branch itself is longer
-            result += effectDelayByStepInternal(runNumber, line);
+            result += *effectDelay->rbegin();
+            effectDelay->pop_back();
 
             return result;
         }
@@ -3963,6 +4043,7 @@ int serializeTimingDataForRun(
     const int imageHeight = data.data.size();
     const int colorHeight = imageHeight / 8;
 
+    std::vector<int> effectDelay = getEffectDelayInternalForRun(runNumber, imageHeight);
 
     int firstLineDelay = 0;
     for (int line = 0; line < imageHeight; ++line)
@@ -4062,7 +4143,8 @@ int serializeTimingDataForRun(
             data,
             color,
             multicolor,
-            runNumber, line);
+            runNumber, line,
+            &effectDelay);
         kZ80CodeDelay += specialTicks;
 
 
