@@ -1,1 +1,1 @@
-Thanks all who help me with the first demo! Bla-bla-bla. It need to write text. It should be long enough for scrool run 3.                                 bla-bla. Just filler. Write text here!!!                                                       
+Thanks everybody from telegram channel "zxcoding" for helping me with the first demo! Special thanks to @sslead. Source code is available at www.github.com/vasilenkoroman/zx_scroll

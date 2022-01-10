@@ -415,6 +415,9 @@ main_entry_point
 /*************** Main. ******************/
         ld sp, stack_top
 
+        ld a, 0                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
+
         //ld  hl, packed_music
         IF (HAS_PLAYER == 1)
                 ld hl, mus_intro
@@ -427,6 +430,10 @@ main_entry_point
 1       halt
         jr 1b
 after_play_intro
+
+        ld a, 7                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
+
         // 224-47 = 177t longer than final ret in align int.
         // Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-177) % 71680
         ld sp, stack_top
@@ -451,7 +458,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 6
+fixed_startup_delay     equ 35644 + 26 + 18 + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
@@ -466,9 +473,6 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         ld (stack_top), hl
 
 max_scroll_offset equ imageHeight - 1
-
-        ld a, 3                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
 
         // Prepare data
         xor a
@@ -489,6 +493,9 @@ max_scroll_offset equ imageHeight - 1
         ld b,32
 1       .4 push de
         djnz 1b
+
+        ld a, 3                         ; 7 ticks
+        out 0xfe,a                      ; 11 ticks
 
         jp loop1
 lower_limit_reached:
