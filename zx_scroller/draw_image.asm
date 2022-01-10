@@ -433,6 +433,9 @@ after_play_intro
         ld hl, music_main
         call  init // player init
 
+        ld hl, show_final_screen
+        ld(endtrack+1), hl
+
         call write_initial_jp_ix_table
         call create_jpix_helper
         ld ix, 0x5051
@@ -448,12 +451,11 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 6
+fixed_startup_delay     equ 35644 + 26 + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
-interrupt_phase EQU 2        
 
         DISPLAY	"sync_tick ", /D, sync_tick
 
@@ -952,6 +954,11 @@ first_mc_line: JP 00
         DRAW_MULTICOLOR_AND_RASTR_LINE 21
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
+
+show_final_screen
+        ld sp,stack_top
+        call stop
+        halt
 
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.
