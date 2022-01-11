@@ -1002,6 +1002,11 @@ next_column
 cp1             ld hl, #c000
                 ld de, hl
                 res 7,d
+
+                ld a,l
+                and 7
+                out (#fe),a
+
                 exx
                 
                 ld b,192 + 24

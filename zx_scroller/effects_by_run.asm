@@ -92,17 +92,26 @@ ef3_2
             // clear rastr
             ld sp,#d000
             ld de, #0f0f
-            ld b,0
-1           .2 push de
+            ld b,64
+1           .8 push de
             djnz 1b
             ld (ef3_2+1),sp
-            ld a,(ef3_2+2)
-            cp #c8
+
+sp2         ld sp,#d800
+            ld de, #0000
+            ld b,16
+1           .8 push de
+            djnz 1b
+            ld (sp2+1),sp
+
+            ld a,(sp2+2)
+            cp #d6
             ld sp,stack_top-6
             ret nz
             // total:9032+11
             ld hl,ef4
             ld (ef_x+1),hl
+
             ret
             // total:9063+10
             // Start scrolling text
