@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 29500
+generated_code          equ 29800
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -964,13 +964,15 @@ first_mc_line: JP 00
 
 show_final_screen
         SET_PAGE 4
-        ld ixl,a                
         ld (set_player_page+1),a
 
         ld sp,stack_top
         ld hl,final_mus
         call  init // player init
         call play
+
+        SET_PAGE 7
+        ld ixl,a                
 
         ld hl, end_mus_finished
         ld(endtrack+1), hl
@@ -982,13 +984,49 @@ show_final_screen
         LD   (hl), #BF
         LD   a, h
         LDIR
+        ei
 
-1       ei
-        halt
-        jr 1b
+
+                // Unpack final screen to the page 7
+                LD DE, #c000
+                LD HL, final_screen
+                CALL  dzx0_standard
+
+                // Copy page 7 to Page 5 with animation
+                halt
+
+                ld c,32
+next_column
+                exx
+                ld bc, 32
+cp1             ld hl, #c000
+                ld de, hl
+                res 7,d
+                exx
+                
+                ld b,192 + 24
+
+copy_column     exx
+                ld a,(hl)
+                ld (de),a
+                add hl,bc
+                ld de,hl
+                res 7,d
+                exx
+                djnz copy_column
+                halt
+
+                ld hl, cp1+1
+                inc (hl)
+                dec c
+                jr nz, next_column
+
+1               halt
+                jr 1b
 
 end_mus_finished
         call stop
+        di
         halt        
 
 /**     ----------------------------------------- routines -----------------------------------------
@@ -1104,6 +1142,8 @@ t4                      EQU t3
         INCLUDE "effects_by_run.asm"
 encoded_text
         INCBIN "generated_code/encoded_text.dat"
+final_screen        
+        INCBIN "generated_code/final.scr.zx0"
 
         ASSERT $ < generated_code
 
