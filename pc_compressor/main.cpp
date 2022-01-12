@@ -4453,6 +4453,65 @@ void runCompressor(const std::string& outFileName)
     system(command.data());
 }
 
+std::vector<uint8_t> interlaceBuffer(const std::vector<uint8_t>& buffer)
+{
+    int height = buffer.size() / 32;
+    int parts = height / 64;
+    std::vector<uint8_t> result;
+    for (int k = 0; k < parts; ++k)
+    {
+        for (int y2 = 0; y2 < 8; ++y2)
+        {
+            for (int y1 = 0; y1 < 64; y1 += 8)
+            {
+                auto itr = buffer.begin() + (y2 + y1 + k*64) * 32;
+                result.insert(result.end(), itr, itr + 32);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, bool isInterleaved)
+{
+    const uint8_t* bufferEnd = buffer.data() + buffer.size();
+    const uint8_t* firstLinePtr = bufferEnd - screenHeight * 32;
+
+    if (isInterleaved)
+        deinterlaceBuffer(buffer);
+
+    bufferEnd = buffer.data() + buffer.size();
+    firstLinePtr = bufferEnd - screenHeight * 32;
+
+    std::vector<uint8_t> result;
+
+
+    int imageHeight = buffer.size() / 32;
+
+    for (int y = imageHeight - screenHeight; y < imageHeight; ++y)
+    {
+        const uint8_t* curLine = buffer.data() + y * 32;
+        int prevLineNum = y + direction;
+        if (prevLineNum < 0)
+            prevLineNum = imageHeight - 1;
+        else if (prevLineNum == imageHeight)
+            prevLineNum = 0;
+        const uint8_t* prevLine = buffer.data() + prevLineNum * 32;
+
+        for (int x = 0; x < 32; ++x)
+        {
+            if (curLine[x] == prevLine[x])
+                result.push_back(curLine[x]);
+            else
+                result.push_back(0);
+        }
+    }
+    if (isInterleaved)
+        result = interlaceBuffer(result);
+
+    return result;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -4570,7 +4629,9 @@ int main(int argc, char** argv)
 
     std::ofstream firstScreenFile;
     firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
-    firstScreenFile.write((const char*) buffer.data() + buffer.size() - 6144, 6144);
+    auto firstScreenDelta = getDeltaForFirstScreen(buffer, 192, -1, true);
+    firstScreenFile.write((const char*) firstScreenDelta.data(), firstScreenDelta.size());
+    //firstScreenFile.write((const char*) buffer.data() + buffer.size() - 6144, 6144);
 
     int codeOffset = sldFileName.empty() ? kDefaultCodeOffset : parseSldFile(sldFileName);
 
@@ -4590,7 +4651,10 @@ int main(int argc, char** argv)
 
     auto colorBufferCopy = colorBuffer;
     mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
-    firstScreenFile.write((const char*)colorBufferCopy.data() + colorBufferCopy.size() - 768, 768);
+
+    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, false);
+    firstScreenFile.write((const char*) firstScreenDelta.data(), firstScreenDelta.size());
+    //firstScreenFile.write((const char*)colorBufferCopy.data() + colorBufferCopy.size() - 768, 768);
     firstScreenFile.close();
 
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);

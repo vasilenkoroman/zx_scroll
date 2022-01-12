@@ -147,7 +147,7 @@ unpack_and_play_init_screen
             halt
             LONG_SET_PAGE 0+8
             ld ixl,a
-            LD HL, ram0_end
+            LD HL, first_multicolor_delta
             LD DE, 16384
             CALL  dzx0_standard
 

@@ -1194,6 +1194,7 @@ update_jpix_helper   EQU 0xc000 - 512
         //INCBIN "generated_code/reach_descriptor0.z80"
         INCBIN "generated_code/ram0.zx0"
 ram0_end
+first_multicolor_delta
         INCBIN "generated_code/first_screen.zx0"
 page0_end
         DISPLAY	"Packed Page 0 free ", /D, 65536 - page0_end, " bytes"
