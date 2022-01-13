@@ -427,6 +427,7 @@ main_entry_point
         call prepare_interruption_table
         call unpack_and_play_init_screen
 
+
 1       halt
         jr 1b
 after_play_intro
@@ -1183,8 +1184,6 @@ update_jpix_helper   EQU 0xc000 - 512
         //INCBIN "generated_code/reach_descriptor0.z80"
         INCBIN "generated_code/ram0.zx0"
 ram0_end
-first_multicolor_delta
-        INCBIN "generated_code/first_screen.zx0"
 page0_end
         DISPLAY	"Packed Page 0 free ", /D, 65536 - page0_end, " bytes"
         DISPLAY	"Unpacked Page 0 free ", /D, 16384 - RAM0_UNCOMPRESSED_SIZE, " bytes"
@@ -1206,12 +1205,19 @@ page1_end
 
         ORG 0xc000
         PAGE 3
-        INCBIN "generated_code/jpix2.dat"
-        INCBIN "generated_code/timings2.dat"
-        INCBIN "generated_code/main2.z80"
-        INCBIN "generated_code/reach_descriptor2.z80"
+        //INCBIN "generated_code/jpix2.dat"
+        //INCBIN "generated_code/timings2.dat"
+        //INCBIN "generated_code/main2.z80"
+        //INCBIN "generated_code/reach_descriptor2.z80"
+        INCBIN "generated_code/ram3.zx0"
+ram3_end
+screen3
+        INCBIN "generated_code/screen3.scr.zx0"
+first_multicolor_delta
+        INCBIN "generated_code/first_screen.zx0"
 page3_end        
-        DISPLAY	"Page 3 free ", /D, 65536 - page3_end, " bytes"
+        DISPLAY	"Packed Page 3 free ", /D, 65536 - page3_end, " bytes"
+        DISPLAY	"Unpacked Page 3 free ", /D, 16384 - RAM3_UNCOMPRESSED_SIZE, " bytes"
 
         ORG 0xc000
         PAGE 4

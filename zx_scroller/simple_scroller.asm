@@ -115,26 +115,6 @@ prepare_interruption_table:
         ei
         halt
 
-unpack_page
-            halt
-            ld bc, #7ffd
-            out (c),a
-            ld ixl,a
-
-            //LD HL, page1_end-1
-            LD DE, 65535
-            LD C,L
-            LD A,H
-            and #3f
-            LD B,A
-            INC BC
-            LDDR
-
-            ex hl, de
-            inc hl
-            LD DE, #c000
-            CALL  dzx0_standard
-            ret
 
 unpack_and_play_init_screen
             ld hl, after_play_intro
@@ -142,24 +122,6 @@ unpack_and_play_init_screen
 
             // Play initial screen here
             call draw_init_screen
-
-            // unpack initial screen to video memory (show shadow screen)
-            halt
-            LONG_SET_PAGE 0+8
-            ld ixl,a
-            LD HL, first_multicolor_delta
-            LD DE, 16384
-            CALL  dzx0_standard
-
-            // unpack page0 (lose packed first screen)
-            LD HL, ram0_end-1
-            LD A,8
-            CALL unpack_page
-
-            // unpack page1
-            LD HL, ram1_end-1
-            LD A,1+8
-            CALL unpack_page
 
             //create_write_off_rastr_helper
             ld sp, draw_offrastr_offset+16
@@ -189,16 +151,30 @@ unpack_and_play_init_screen
             push hl
             ld hl, effect0
             push hl
-       
             ld sp, stack_top-2
-            jp unpack_main_page
+
+            // unpack page0
+            LONG_SET_PAGE 0+8
+            LD HL, ram0_end-1
+            LD A,8
+            CALL unpack_page
+
+            // unpack page1
+            LD HL, ram1_end-1
+            LD A,1+8
+            CALL unpack_page
+
+
+            jp continue_unpacking
 
 simple_scroller_end
 
             ORG #BF01
 
-unpack_main_page
-                // move main data block
+continue_unpacking
+                // This code is safe under unpack page2. Code above is lost
+
+                // Unpack page 2
 main_compressed_size       EQU main_data_end - main_code_end
                 LD HL, main_data_end-1
                 LD DE, static_data_page2-1
@@ -207,8 +183,59 @@ main_compressed_size       EQU main_data_end - main_code_end
                 // unpack main data block
                 LD HL, static_data_page2 - main_compressed_size
                 LD DE, generated_code
+                call  dzx0_standard
+
+                // unpack screen3 screen to page 5 (show shadow screen)
+                halt
+                LONG_SET_PAGE 3+8
+                ld ixl,a
+                LD HL, screen3
+                LD DE, 16384
+                CALL  dzx0_standard
+
+                // copy page5->page7
+                halt
+                LONG_SET_PAGE 7
+                ld ixl,a
+                ld de,#c000
+                ld hl,#4000
+                ld bc,6912
+                ldir
+
+                // unpack initial screen to video memory (show shadow screen)
+                halt
+                LONG_SET_PAGE 3+8
+                ld ixl,a
+                LD HL, first_multicolor_delta
+                LD DE, 16384
+                CALL  dzx0_standard
+
+                // unpack ram 3
+                LD HL, ram3_end-1
+                LD A,3+8
+                CALL unpack_page
+                ret
+
+unpack_page
+                halt
+                ld bc, #7ffd
+                out (c),a
+                ld ixl,a
+
+                LD DE, 65535
+                LD C,L
+                LD A,H
+                and #3f
+                LD B,A
+                INC BC
+                LDDR
+
+                ex hl, de
+                inc hl
+                LD DE, #c000
                 jp  dzx0_standard
 
+                ASSERT $ <= #BF80
                 IF ($ < #BF80)
                         ORG #BF80
                 ENDIF

@@ -3472,6 +3472,10 @@ void serializeAsmFile(
         fileSizeSum(inputFileName, "jpix0.dat", "timings0.dat", "main0.z80", "reach_descriptor0.z80") << std::endl;
     phaseFile << "RAM1_UNCOMPRESSED_SIZE   EQU    " <<
         fileSizeSum(inputFileName, "jpix1.dat", "timings1.dat", "main1.z80", "reach_descriptor1.z80") << std::endl;
+    phaseFile << "RAM3_UNCOMPRESSED_SIZE   EQU    " <<
+        fileSizeSum(inputFileName, "jpix2.dat", "timings2.dat", "main2.z80", "reach_descriptor2.z80") << std::endl;
+    phaseFile << "RAM4_UNCOMPRESSED_SIZE   EQU    " <<
+        fileSizeSum(inputFileName, "jpix3.dat", "timings3.dat", "main3.z80", "reach_descriptor3.z80") << std::endl;
 
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
