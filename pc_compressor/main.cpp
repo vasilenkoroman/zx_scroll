@@ -4472,25 +4472,20 @@ std::vector<uint8_t> interlaceBuffer(const std::vector<uint8_t>& buffer)
     return result;
 }
 
-std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, bool isInterleaved)
+std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, std::vector<uint8_t>* colorData)
 {
-    const uint8_t* bufferEnd = buffer.data() + buffer.size();
-    const uint8_t* firstLinePtr = bufferEnd - screenHeight * 32;
-
-    if (isInterleaved)
-        deinterlaceBuffer(buffer);
-
-    bufferEnd = buffer.data() + buffer.size();
-    firstLinePtr = bufferEnd - screenHeight * 32;
-
     std::vector<uint8_t> result;
 
-
     int imageHeight = buffer.size() / 32;
+
 
     for (int y = imageHeight - screenHeight; y < imageHeight; ++y)
     {
         const uint8_t* curLine = buffer.data() + y * 32;
+
+
+
+
         int prevLineNum = y + direction;
         if (prevLineNum < 0)
             prevLineNum = imageHeight - 1;
@@ -4500,14 +4495,20 @@ std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int scr
 
         for (int x = 0; x < 32; ++x)
         {
-            if (curLine[x] == prevLine[x])
+            bool forceToSave = false; // colorData&& isHiddenData(colorData->data(), x, y / 8);
+
+            if (colorData && isHiddenData(colorData->data(), x, y / 8))
+                forceToSave = true;
+
+            if (screenHeight == 192 && y < imageHeight - screenHeight + 64)
+                forceToSave = true;
+
+            if (curLine[x] == prevLine[x] || forceToSave)
                 result.push_back(curLine[x]);
             else
                 result.push_back(0);
         }
     }
-    if (isInterleaved)
-        result = interlaceBuffer(result);
 
     return result;
 }
@@ -4627,16 +4628,11 @@ int main(int argc, char** argv)
 
     inverseImageIfNeed(buffer.data(), colorBuffer.data());
 
-    std::ofstream firstScreenFile;
-    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
-    auto firstScreenDelta = getDeltaForFirstScreen(buffer, 192, -1, true);
-    firstScreenFile.write((const char*) firstScreenDelta.data(), firstScreenDelta.size());
-    //firstScreenFile.write((const char*) buffer.data() + buffer.size() - 6144, 6144);
-
     int codeOffset = sldFileName.empty() ? kDefaultCodeOffset : parseSldFile(sldFileName);
 
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + "image.bmp");
+    const auto deinterlacedRastr = buffer;
 
     const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
 
@@ -4652,9 +4648,14 @@ int main(int argc, char** argv)
     auto colorBufferCopy = colorBuffer;
     mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
 
-    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, false);
+    std::ofstream firstScreenFile;
+    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
+    auto firstScreenDelta = getDeltaForFirstScreen(deinterlacedRastr, 192, -1, &colorBufferCopy);
+    firstScreenDelta = interlaceBuffer(firstScreenDelta);
+    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
+
+    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, nullptr);
     firstScreenFile.write((const char*) firstScreenDelta.data(), firstScreenDelta.size());
-    //firstScreenFile.write((const char*)colorBufferCopy.data() + colorBufferCopy.size() - 768, 768);
     firstScreenFile.close();
 
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
