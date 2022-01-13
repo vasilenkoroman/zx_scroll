@@ -24,8 +24,23 @@ effect3
 ef2_counter DB 8
             // Effects inside run
 effect_step
+
+            ld de,0
+            ld sp,#d900
+            ld b,32
+1           .4 push de
+            djnz 1b
+            ld sp,#db00
+            ld b,32
+1           .4 push de
+            djnz 1b
+            ld hl,ef1
+            ld (ef_x+1),hl
+            ld sp,stack_top-6
+            ret
+
             // 1. Just display "Scroller"
-ef1         ld hl, imageHeight/4 - 34
+ef1         ld hl, imageHeight/4 - 35
             dec hl
             ld (ef1+1),hl
             ld a,h

@@ -458,7 +458,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8 + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -482,18 +482,7 @@ max_scroll_offset equ imageHeight - 1
         pop af
         ex af, af'
 
-        // clear attributies in the top and bottom at the page 7
-        SET_PAGE 7
-        ld de,0
-        ld sp,#db00
-        ld bc,32*256
-1       .4 push de
-        djnz 1b
-        ld sp,#d900
-        ld b,32
-1       .4 push de
-        djnz 1b
-
+        ld b,a: ld c,a
         ld a, 3                         ; 7 ticks
         out 0xfe,a                      ; 11 ticks
 

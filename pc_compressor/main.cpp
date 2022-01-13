@@ -3934,7 +3934,8 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
     std::vector<int> result;
 
     // Effect1 delay
-    for (int i = imageHeight/4 - 34 - 1; i > 0; --i)
+    result.push_back(3718+10);
+    for (int i = imageHeight/4 - 35 - 1; i > 0; --i)
         result.push_back(51);
     
     // Last step Effect1 delay
