@@ -116,7 +116,7 @@ void serialize(std::vector<uint8_t>& data, uint16_t value)
     data.push_back(value >> 8);
 }
 
-inline bool isHiddenData(uint8_t* colorBuffer, int x, int y)
+inline bool isHiddenData(const uint8_t* colorBuffer, int x, int y)
 {
     if (!colorBuffer)
         return false;
@@ -4473,7 +4473,9 @@ std::vector<uint8_t> interlaceBuffer(const std::vector<uint8_t>& buffer)
     return result;
 }
 
-std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, std::vector<uint8_t>* colorData)
+std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, 
+    const std::vector<uint8_t>* colorData,
+    const std::vector<LineDescriptor>* descriptors)
 {
     std::vector<uint8_t> result;
 
@@ -4502,7 +4504,15 @@ std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int scr
                 forceToSave = true;
 
             if (screenHeight == 192 && y < imageHeight - screenHeight + 64)
-                forceToSave = true;
+            {
+                int yDelta = y - (imageHeight - screenHeight);
+                int bank = 7 - (yDelta % 8);
+
+                auto d = descriptors->at(128 + bank).rastrForOffscreen;
+                int offset = (7 - yDelta/8) * 32 + (31 - x);
+                if (offset < d.startSpDelta)
+                    forceToSave = true;
+            }
 
             if (curLine[x] == prevLine[x] || forceToSave)
                 result.push_back(curLine[x]);
@@ -4649,16 +4659,6 @@ int main(int argc, char** argv)
     auto colorBufferCopy = colorBuffer;
     mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
 
-    std::ofstream firstScreenFile;
-    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
-    auto firstScreenDelta = getDeltaForFirstScreen(deinterlacedRastr, 192, -1, &colorBufferCopy);
-    firstScreenDelta = interlaceBuffer(firstScreenDelta);
-    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
-
-    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, nullptr);
-    firstScreenFile.write((const char*) firstScreenDelta.data(), firstScreenDelta.size());
-    firstScreenFile.close();
-
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
@@ -4707,6 +4707,17 @@ int main(int argc, char** argv)
 
     labels.mt_and_rt_reach_descriptor = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
     labels.multicolor = serializeMultiColorData(multicolorData, outputFileName, codeOffset + labels.mt_and_rt_reach_descriptor);
+
+
+    std::ofstream firstScreenFile;
+    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
+    auto firstScreenDelta = getDeltaForFirstScreen(deinterlacedRastr, 192, -1, &colorBufferCopy, &descriptors);
+    firstScreenDelta = interlaceBuffer(firstScreenDelta);
+    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
+
+    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, nullptr, nullptr);
+    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
+    firstScreenFile.close();
 
     // put JP to the latest line of colors
     colorData.data[colorData.data.size() - 1].jp(kColorDataStartAddr);
