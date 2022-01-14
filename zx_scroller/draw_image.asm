@@ -977,21 +977,46 @@ show_final_screen
         ei
 
 
-                // Unpack final screen to the page 7
-                LD DE, #c000
-                LD HL, final_screen
-                CALL  dzx0_standard
+        // Unpack final screen to the page 7
+        LD DE, #c000
+        LD HL, final_screen
+        CALL  dzx0_standard
+        
+        halt
+        call copy_7_to_5_animated
 
+1       halt
+        jr 1b           ; finish play music
+
+end_mus_finished
+        call stop
+        di
+        halt        
+
+copy_5_to_7_animated
+                ld hl, #4000
+                ld (cp1+1), hl
+                ld a,#fa        ; set 7,d
+                ld (upd_de_anim+1),a
+                ld (upd_de_anim2+1),a
+                jr copy_page_animated
+
+copy_7_to_5_animated
+                ld hl, #c000
+                ld (cp1+1), hl
+                ld a,#ba        ; res 7,d
+                ld (upd_de_anim+1),a
+                ld (upd_de_anim2+1),a
+
+copy_page_animated
                 // Copy page 7 to Page 5 with animation
-                halt
-
                 ld c,32
 next_column
                 exx
                 ld bc, 32
 cp1             ld hl, #c000
                 ld de, hl
-                res 7,d
+upd_de_anim     res 7,d
 
                 ld a,l
                 and 7
@@ -1006,7 +1031,7 @@ copy_column     exx
                 ld (de),a
                 add hl,bc
                 ld de,hl
-                res 7,d
+upd_de_anim2    res 7,d
                 exx
                 djnz copy_column
                 halt
@@ -1015,14 +1040,8 @@ copy_column     exx
                 inc (hl)
                 dec c
                 jr nz, next_column
+                ret
 
-1               halt
-                jr 1b
-
-end_mus_finished
-        call stop
-        di
-        halt        
 
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.

@@ -153,17 +153,46 @@ unpack_and_play_init_screen
             push hl
             ld sp, stack_top-2
 
-            // unpack page0
-            LONG_SET_PAGE 0+8
-            LD HL, ram0_end-1
-            LD A,8
-            CALL unpack_page
+                // unpack screen3 screen to page 5 (show shadow screen)
+                halt
+                LONG_SET_PAGE 3+8
+                ld ixl,a
+                LD HL, screen3
+                LD DE, 16384
+                CALL  dzx0_standard
 
-            // unpack page1
-            LD HL, ram1_end-1
-            LD A,1+8
-            CALL unpack_page
+                // copy page5->page7
+                halt
+                LONG_SET_PAGE 7+8
+                ld ixl,a
+                /*
+                ld de,#c000
+                ld hl,#4000
+                ld bc,6912
+                ldir
+                */
+                call copy_5_to_7_animated
+                xor a
+                out (#fe),a
 
+                // unpack initial screen to video memory (show shadow screen)
+                halt
+                LONG_SET_PAGE 3+8
+                ld ixl,a
+                LD HL, first_multicolor_delta
+                LD DE, 16384
+                CALL  dzx0_standard
+
+                // unpack page0
+                LONG_SET_PAGE 0+8
+                LD HL, ram0_end-1
+                LD A,8
+                CALL unpack_page
+
+                // unpack page1
+                LD HL, ram1_end-1
+                LD A,1+8
+                CALL unpack_page
 
             jp continue_unpacking
 
@@ -184,31 +213,6 @@ main_compressed_size       EQU main_data_end - main_code_end
                 LD HL, static_data_page2 - main_compressed_size
                 LD DE, generated_code
                 call  dzx0_standard
-
-                // unpack screen3 screen to page 5 (show shadow screen)
-                halt
-                LONG_SET_PAGE 3+8
-                ld ixl,a
-                LD HL, screen3
-                LD DE, 16384
-                CALL  dzx0_standard
-
-                // copy page5->page7
-                halt
-                LONG_SET_PAGE 7
-                ld ixl,a
-                ld de,#c000
-                ld hl,#4000
-                ld bc,6912
-                ldir
-
-                // unpack initial screen to video memory (show shadow screen)
-                halt
-                LONG_SET_PAGE 3+8
-                ld ixl,a
-                LD HL, first_multicolor_delta
-                LD DE, 16384
-                CALL  dzx0_standard
 
                 // unpack ram 3
                 LD HL, ram3_end-1
@@ -234,6 +238,8 @@ unpack_page
                 inc hl
                 LD DE, #c000
                 jp  dzx0_standard
+
+                DISPLAY	"GGGG -------- free ", /D, #BF80 - $
 
                 ASSERT $ <= #BF80
                 IF ($ < #BF80)
