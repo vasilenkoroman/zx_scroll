@@ -1158,6 +1158,8 @@ encoded_text
         INCBIN "generated_code/encoded_text.dat"
 final_screen        
         INCBIN "generated_code/final.scr.zx0"
+gigascreen_logo        
+        INCBIN "generated_code/scroller.scr.zx0"
 
         ASSERT $ < generated_code
 
@@ -1174,7 +1176,7 @@ main_code_end
         //INCBIN "generated_code/multicolor.z80"
         INCBIN "generated_code/ram2.zx0"
 main_data_end
-init_screen_i1        
+init_screen_i1
         INCBIN "generated_code/screen2.scr.i1", 0, 6144/2
         INCLUDE "alignint.asm"
 encoded_text_end        

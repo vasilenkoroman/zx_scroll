@@ -9,4 +9,6 @@ del "../generated_code/screen3.scr.zx0"
 "../generated_code/zx0.exe" screen3.scr "../generated_code/screen3.scr.zx0"
 
 del "../generated_code/scroller.scr.zx0"
-"../generated_code/zx0.exe" scroller.scr "../generated_code/scroller.scr.zx0"
+del "../generated_code/scroller.scr"
+file_truncate.exe scroller.scr "../generated_code/scroller.scr"
+"../generated_code/zx0.exe" "../generated_code/scroller.scr" "../generated_code/scroller.scr.zx0"
