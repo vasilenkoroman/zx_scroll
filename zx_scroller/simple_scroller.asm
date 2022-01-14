@@ -178,14 +178,14 @@ continue_unpacking
                 out (#fe),a
 
                 // unpack initial screen to video memory (show shadow screen)
-                LONG_SET_PAGE 3+8
+                LONG_SET_PAGE 0+8
                 ld ixl,a
                 LD HL, first_multicolor_delta
                 LD DE, 16384
                 CALL  dzx0_standard
 
                 // unpack page0
-                LONG_SET_PAGE 0+8
+                //LONG_SET_PAGE 0+8
                 LD HL, ram0_end-1
                 LD A,8
                 CALL unpack_page

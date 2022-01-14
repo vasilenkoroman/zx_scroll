@@ -4490,9 +4490,6 @@ std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int scr
     {
         const uint8_t* curLine = buffer.data() + y * 32;
 
-
-
-
         int prevLineNum = y + direction;
         if (prevLineNum < 0)
             prevLineNum = imageHeight - 1;
@@ -4517,6 +4514,9 @@ std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int scr
                 if (offset < d.startSpDelta)
                     forceToSave = true;
             }
+#if 1
+            forceToSave = true; // Save Whole screen instead of delta
+#endif
 
             if (curLine[x] == prevLine[x] || forceToSave)
                 result.push_back(curLine[x]);

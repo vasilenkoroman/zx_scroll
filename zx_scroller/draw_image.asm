@@ -463,12 +463,18 @@ fixed_startup_delay     equ 35644 + 26 + 18 -3703+8 + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE - (73263-71680)
 
         DISPLAY	"sync_tick ", /D, sync_tick
 
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
+
+        SET_PAGE 7
+        LD HL, gigascreen_logo
+        LD DE, #c800
+        CALL  dzx0_standard
+
 
         ld hl, after_player
         ld (stack_top), hl
@@ -1205,6 +1211,8 @@ update_jpix_helper   EQU 0xc000 - 512
         //INCBIN "generated_code/reach_descriptor0.z80"
         INCBIN "generated_code/ram0.zx0"
 ram0_end
+first_multicolor_delta
+        INCBIN "generated_code/first_screen.zx0"
 page0_end
         DISPLAY	"Packed Page 0 free ", /D, 65536 - page0_end, " bytes"
         DISPLAY	"Unpacked Page 0 free ", /D, 16384 - RAM0_UNCOMPRESSED_SIZE, " bytes"
@@ -1234,8 +1242,6 @@ page1_end
 ram3_end
 screen3
         INCBIN "generated_code/screen3.scr.zx0"
-first_multicolor_delta
-        INCBIN "generated_code/first_screen.zx0"
 page3_end        
         DISPLAY	"Packed Page 3 free ", /D, 65536 - page3_end, " bytes"
         DISPLAY	"Unpacked Page 3 free ", /D, 16384 - RAM3_UNCOMPRESSED_SIZE, " bytes"
