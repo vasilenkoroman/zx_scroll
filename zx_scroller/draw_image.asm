@@ -459,11 +459,11 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8 + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8 + 12773 + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
-sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE - (73263-71680)
+INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
+sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
 
@@ -473,6 +473,9 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         SET_PAGE 7
         LD HL, gigascreen_logo
         LD DE, #c800
+        CALL  dzx0_standard
+        LD HL, gigascreen_logo_attr
+        LD DE, #D900
         CALL  dzx0_standard
 
 
@@ -1166,6 +1169,8 @@ final_screen
         INCBIN "generated_code/final.scr.zx0"
 gigascreen_logo        
         INCBIN "generated_code/scroller.scr.zx0"
+gigascreen_logo_attr
+        INCBIN "generated_code/scroller_attr.scr.zx0"
 
         ASSERT $ < generated_code
 

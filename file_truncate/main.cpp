@@ -7,14 +7,16 @@ int main(int argc, char** argv)
     using namespace std;
 
     std::cout << "Truncate scr file v.1.0" << std::endl;
-    if (argc < 3)
+    if (argc < 5)
     {
-        std::cout << "Usage: file_truncate  input_file output_file" << std::endl;
+        std::cout << "Usage: file_truncate  <input_file> <output_file> <first_pos> <duration>" << std::endl;
         return -1;
     }
     
     std::string inputFileName = argv[1];
     std::string outputFileName = argv[2];
+    int startPos = atoi(argv[3]);
+    int length = atoi(argv[4]);
     std::ifstream fileIn;
     fileIn.open(inputFileName, std::ios::binary);
     if (!fileIn.is_open())
@@ -34,7 +36,7 @@ int main(int argc, char** argv)
     std::vector<uint8_t> buffer(6912);
     fileIn.read((char*)  buffer.data(), buffer.size());
 
-    std::vector<uint8_t> dstBuffer(buffer.begin() + 2048, buffer.begin() + 2048*2);
+    std::vector<uint8_t> dstBuffer(buffer.begin() + startPos, buffer.begin() + startPos + length);
 
     std::ofstream fileOut;
     fileOut.open(outputFileName, std::ios::binary);
