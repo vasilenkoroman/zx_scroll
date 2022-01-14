@@ -153,8 +153,16 @@ unpack_and_play_init_screen
             push hl
             ld sp, stack_top-2
 
+            halt
+            jp continue_unpacking
+
+simple_scroller_end
+
+            ORG #BF01
+
+continue_unpacking
+                // This code is safe under unpack page2. Code above is lost
                 // unpack screen3 screen to page 5 (show shadow screen)
-                halt
                 LONG_SET_PAGE 3+8
                 ld ixl,a
                 LD HL, screen3
@@ -165,18 +173,11 @@ unpack_and_play_init_screen
                 halt
                 LONG_SET_PAGE 7+8
                 ld ixl,a
-                /*
-                ld de,#c000
-                ld hl,#4000
-                ld bc,6912
-                ldir
-                */
                 call copy_5_to_7_animated
                 xor a
                 out (#fe),a
 
                 // unpack initial screen to video memory (show shadow screen)
-                halt
                 LONG_SET_PAGE 3+8
                 ld ixl,a
                 LD HL, first_multicolor_delta
@@ -194,15 +195,6 @@ unpack_and_play_init_screen
                 LD A,1+8
                 CALL unpack_page
 
-            jp continue_unpacking
-
-simple_scroller_end
-
-            ORG #BF01
-
-continue_unpacking
-                // This code is safe under unpack page2. Code above is lost
-
                 // Unpack page 2
 main_compressed_size       EQU main_data_end - main_code_end
                 LD HL, main_data_end-1
@@ -217,8 +209,8 @@ main_compressed_size       EQU main_data_end - main_code_end
                 // unpack ram 3
                 LD HL, ram3_end-1
                 LD A,3+8
-                CALL unpack_page
-                ret
+                //CALL unpack_page
+                //ret
 
 unpack_page
                 halt
@@ -239,7 +231,7 @@ unpack_page
                 LD DE, #c000
                 jp  dzx0_standard
 
-                DISPLAY	"GGGG -------- free ", /D, #BF80 - $
+                DISPLAY	"Above interruption vector free ", /D, #BF80 - $
 
                 ASSERT $ <= #BF80
                 IF ($ < #BF80)
