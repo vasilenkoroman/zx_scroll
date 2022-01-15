@@ -69,9 +69,7 @@ draw_to_page5
                 call move_screen
 
                 // copy_last_line to page 5
-                ld bc, #7ffd
-                ld a,1+8
-                out (c),a
+                SET_PAGE 1
 i1              ld hl, init_screen_i0
                 ld bc,32
                 ldir
