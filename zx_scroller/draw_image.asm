@@ -464,7 +464,7 @@ mc_preambula_delay      equ 46
 fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + (83175-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
