@@ -32,45 +32,7 @@ JR_CODE		EQU 0x18
 							
 init		EQU mus_init
 play		EQU trb_play
-stop		ld c,#fd
-			ld hl,#ffbf
-			ld de,#0d00
-1			ld b,h
-			out (c),d
-			ld b,l
-			out (c),e
-			dec d
-			ret m
-			jr 1b
-		
-mus_init	ld	 a, l
-			ld	 (mus_low+1), a
-			ld	 a, h
-			ld	 (mus_high+1), a
-			ld	de, 16*4
-			add	 hl, de
-			ld (pl_track+1), hl
-			xor a
-			ld (trb_rep+1), a
-			ld a, LD_HL_CODE
-			ld (trb_play), a
-			ret							; 10+16+4+13+7+13+10=73
-			// total for looping: 171+73=244
 
-pause_rep	db 0
-trb_pause	ld hl, pause_rep
-			dec	 (hl)
-			ret nz						; 10+11+5=26t
-
-saved_track	
-			ld hl, LD_HL_CODE			; end of pause
-			ld (trb_play), hl
-			jr trb_rep					; 10+16+12=38t
-			// total: 34+38=72t
-
-endtrack	//end of track
-			jp 00
-			//play note
 trb_play	
 pl_track	ld hl, 0				
 
@@ -93,6 +55,17 @@ trb_rest	ld hl, 0
 			ld (pl_track+1), hl
 			ret								; 10+6+16+10=42t
 			// total: 28+33+34+42=137t + pl0x time(661t) = 798t(max)
+
+pause_rep	db 0
+trb_pause	ld hl, pause_rep
+			dec	 (hl)
+			ret nz						; 10+11+5=26t
+
+saved_track	
+			ld hl, LD_HL_CODE			; end of pause
+			ld (trb_play), hl
+			jr trb_rep					; 10+16+12=38t
+			// total: 34+38=72t
 
 pl1x		// Process ref	
 			ld b, (hl)
@@ -136,6 +109,8 @@ pause_cont	ld (pause_rep), a
 			pop	 hl						
 			ret							; 4+4+13+4+13+10+16+10+10=84
 			// total for pause: 94+41+84=219t
+
+endtrack	jp 00
 
 pause_or_psg1
 			add	 a
@@ -313,5 +288,31 @@ reg_left_6	add a
 			ret						; 4+5+4+12+4+16+10=55, 53+222+55 = 330
 			// total: 318 + 330 = 648 (all_0_5 + mask_6_13)
 			// total: 325 + 330 = 655 (mask_0_5 + mask_6_13)
+
+stop		ld c,#fd
+			ld hl,#ffbf
+			ld de,#0d00
+1			ld b,h
+			out (c),d
+			ld b,l
+			out (c),e
+			dec d
+			ret m
+			jr 1b
+		
+mus_init	ld	 a, l
+			ld	 (mus_low+1), a
+			ld	 a, h
+			ld	 (mus_high+1), a
+			ld	de, 16*4
+			add	 hl, de
+			ld (pl_track+1), hl
+			xor a
+			ld (trb_rep+1), a
+			ld a, LD_HL_CODE
+			ld (trb_play), a
+			ret							; 10+16+4+13+7+13+10=73
+			// total for looping: 171+73=244
+
 
 			DISPLAY	"player code occupies ", /D, $-stop, " bytes"

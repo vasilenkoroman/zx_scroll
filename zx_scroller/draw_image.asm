@@ -907,10 +907,12 @@ finish_non_mc_drawing_cont:
         jp z, lower_limit_reached      ; 10 ticks
         jp loop                        ; 12 ticks
 
+        IF (HAS_PLAYER == 0)        
 finish_page7_drawing:
-        jp finish_page7_drawing_cont
+                jp finish_page7_drawing_cont
 finish_non_mc_drawing:
-        jp finish_non_mc_drawing_cont
+                jp finish_non_mc_drawing_cont
+        ENDIF        
 
 bank_drawing_common:
         ld (next_step_first_bank + 1), a
@@ -929,7 +931,12 @@ load_timings_data
         IF (HAS_PLAYER == 1)
                 ld sp, stack_top
 player_pg       SET_PAGE 7
-                jp play
+                //jp play
+                INCLUDE "include/fast_psg_player.asm"
+finish_page7_drawing:
+                jp finish_page7_drawing_cont
+finish_non_mc_drawing:
+                jp finish_non_mc_drawing_cont
         ENDIF                                
 
 after_player
@@ -1166,7 +1173,6 @@ t4                      EQU t3
         ret
 
         INCLUDE "zx0_standard.asm"
-        INCLUDE "include/fast_psg_player.asm"
         INCLUDE "include/draw_font.asm"
         INCLUDE "effects_by_run.asm"
 encoded_text
