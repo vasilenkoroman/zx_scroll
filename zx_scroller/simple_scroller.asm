@@ -1,3 +1,9 @@
+        MACRO LONG_SET_PAGE page_number
+                ld bc, #7ffd
+                ld a, page_number
+                out (c),a
+        ENDM
+
 move_screen
 next_line
                 ld bc, 8*256 + 255
@@ -29,10 +35,11 @@ upd_de          set 7,d
                 ret
 
 draw_init_screen
-                ld hl, play_init_screen
+                // Init music callback
+                ld hl, player_callback
                 ld   (#BFBF+1), hl
-   
 
+                // Show page 7
                 LONG_SET_PAGE 7+8
                 ld ixl,a
                 ei
@@ -92,6 +99,19 @@ draw_common
                 out (c),a
                 pop bc
                 djnz screen_loop
+                ret
+
+copy_page7_screen
+                SET_PAGE 7+8
+                ld bc,6912
+                ld hl,#c000
+                ld de,#4000
+                ldir
+                LONG_SET_PAGE 7
+                ld bc,6912
+                ld de,#c000
+                ld hl,#4000
+                ldir
                 ret
 
 prepare_interruption_table:
@@ -163,7 +183,7 @@ simple_scroller_end
 continue_unpacking
                 // This code is safe under unpack page2. Code above is lost
                 // unpack screen3 screen to page 5 (show shadow screen)
-                LONG_SET_PAGE 3+8
+                SET_PAGE 3+8
                 ld ixl,a
                 LD HL, screen3
                 LD DE, 16384
@@ -178,14 +198,14 @@ continue_unpacking
                 out (#fe),a
 
                 // unpack initial screen to video memory (show shadow screen)
-                LONG_SET_PAGE 0+8
+                SET_PAGE 0+8
                 ld ixl,a
                 LD HL, first_multicolor_delta
                 LD DE, 16384
                 CALL  dzx0_standard
 
                 // unpack page0
-                //LONG_SET_PAGE 0+8
+                //SET_PAGE 0+8
                 LD HL, ram0_end-1
                 LD A,8
                 CALL unpack_page
@@ -209,8 +229,8 @@ main_compressed_size       EQU main_data_end - main_code_end
                 // unpack ram 3
                 LD HL, ram3_end-1
                 LD A,3+8
-                //CALL unpack_page
-                //ret
+                CALL unpack_page
+                ret
 
 unpack_page
                 halt
@@ -238,20 +258,27 @@ unpack_page
                         ORG #BF80
                 ENDIF
 
-play_init_screen
+player_callback
                 push af
                 push de
                 exx
 
-                ld bc, #7ffd
-set_player_page ld a,6
-                out (c),a
-                push bc
-                call play
-                pop bc
-                ld a, ixl
-                out (c),a
+set_player_page ld a, #56
+                out (#fd),a
 
+                call play
+                ld a, ixl
+                and 7
+                cp 7
+                ld a, ixl
+                jr z, restore_long_page
+                out (#fd),a
+                jr 1f
+restore_long_page                
+                // Use full address here to correct address shadow screen
+                ld bc, #7ffd
+                out (c),a
+1
                 exx
                 pop de
                 pop af

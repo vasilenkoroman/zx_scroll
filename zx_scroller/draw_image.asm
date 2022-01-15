@@ -300,12 +300,6 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
-        MACRO LONG_SET_PAGE page_number
-                ld bc, #7ffd
-                ld a, page_number
-                out (c),a
-        ENDM
-
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
                 OUT (#fd), A
@@ -424,6 +418,7 @@ main_entry_point
                 call  init // player init
         ENDIF                
 
+        call copy_page7_screen
         call prepare_interruption_table
         call unpack_and_play_init_screen
 
@@ -436,7 +431,7 @@ after_play_intro
         out 0xfe,a                      ; 11 ticks
 
         // 224-47 = 177t longer than final ret in align int.
-        // Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-177) % 71680
+        // Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
         ld sp, stack_top
         ld hl, music_main
         call  init // player init
@@ -459,7 +454,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8 + (83175-71680) + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22 + (83175-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
