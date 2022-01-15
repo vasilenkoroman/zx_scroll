@@ -207,12 +207,12 @@ continue_unpacking
                 // unpack page0
                 //SET_PAGE 0+8
                 LD HL, ram0_end-1
-                LD A,8
+                LD A, #50 + 8
                 CALL unpack_page
 
                 // unpack page1
                 LD HL, ram1_end-1
-                LD A,1+8
+                LD A,#51 + 8
                 CALL unpack_page
 
                 // Unpack page 2
@@ -228,14 +228,13 @@ main_compressed_size       EQU main_data_end - main_code_end
 
                 // unpack ram 3
                 LD HL, ram3_end-1
-                LD A,3+8
+                LD A,#53 + 8
                 CALL unpack_page
                 ret
 
 unpack_page
                 halt
-                ld bc, #7ffd
-                out (c),a
+                out (#fd),a
                 ld ixl,a
 
                 LD DE, 65535
