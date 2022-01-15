@@ -3900,39 +3900,6 @@ int initEffectDelay(int runNumber)
     return 7+13+10;
 }
 
-#if 0
-int effectDelayByStepInternal(
-    int runNumber,
-    int line)
-{
-    // Effect1 delay
-    static int ef1Counter = 192*2 - 34;
-    --ef1Counter;
-    if (ef1Counter > 0)
-        return 51;
-
-    // Effect2 delay
-    static int ef2Counter = 64/2;
-    --ef2Counter;
-
-    if (ef1Counter == 0)
-        return 71 + 1441;
-
-    if (ef2Counter > 0)
-    {
-        if (ef2Counter % 4 != 0)
-            return 1441;
-        else
-            return 1441 - 6 + 79;
-    }
-    else if (ef2Counter == 0)
-        return 1441-6 + 79-6+36;
-
-    // Effect3 delay
-    return 10;
-}
-#endif
-
 std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
 {
     std::vector<int> result;
@@ -4034,7 +4001,7 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 205+77; // page 7 branch itself is longer
+            result += 205+77+18; // page 7 branch itself is longer
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 

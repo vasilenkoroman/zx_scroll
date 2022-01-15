@@ -300,6 +300,13 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
         ENDM
 
+        MACRO LONG_SET_PAGE page_number
+                ld bc, #7ffd
+                ld a, page_number
+                out (c),a
+        ENDM
+        // 10+7+12=29
+
         MACRO SET_PAGE page_number
                 LD A, #50 + page_number
                 OUT (#fd), A
@@ -454,7 +461,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22 + (83175-71680) + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + (83175-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
@@ -465,7 +472,7 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
-        SET_PAGE 7
+        LONG_SET_PAGE 7
         LD HL, gigascreen_logo
         LD DE, #c800
         CALL  dzx0_standard
@@ -795,11 +802,15 @@ page7_effect
         ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
         ld (start_mc_drawing), hl
 
-        SET_PAGE 7+8
+
+        LD A, #50 + 7+8
+        //OUT (#fd), A
         ld (player_pg+1),a
 
         ld sp,stack_top-2
         push bc
+        LONG_SET_PAGE 7+8
+
 ef_x    call effect_step
         pop bc
 

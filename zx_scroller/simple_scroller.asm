@@ -1,9 +1,3 @@
-        MACRO LONG_SET_PAGE page_number
-                ld bc, #7ffd
-                ld a, page_number
-                out (c),a
-        ENDM
-
 move_screen
 next_line
                 ld bc, 8*256 + 255
