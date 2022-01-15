@@ -40,8 +40,8 @@ stop		ld c,#fd
 			ld b,l
 			out (c),e
 			dec d
-			jr nz,1b
-			ret
+			ret m
+			jr 1b
 		
 mus_init	ld	 a, l
 			ld	 (mus_low+1), a
