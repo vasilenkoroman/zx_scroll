@@ -4096,6 +4096,7 @@ int serializeTimingDataForRun(
                 //kZ80CodeDelay += 10; // jp loop
                 kZ80CodeDelay += 38; // next timings page
                 kZ80CodeDelay += 49; // jump to next effect handler
+                kZ80CodeDelay -= 43-26;    // new jpix_helper
                 kZ80CodeDelay += initEffectDelay(runNumber);
             }
         }
@@ -4104,29 +4105,37 @@ int serializeTimingDataForRun(
         switch (line % 8)
         {
             case 0:
+                kZ80CodeDelay -= 23;    // new jpix_helper
                 break;
             case 1:
+                kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 4;
                 kZ80CodeDelay += 13;
                 break;
             case 2:
+                kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -4 + 20;
                 break;
             case 3:
+                kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 8;
                 kZ80CodeDelay += 13;
                 break;
             case 4:
+                kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -8 + 20;
                 break;
             case 5:
+                kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 12;
                 kZ80CodeDelay += 13;
                 break;
             case 6:
+                kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -12 + 20;
                 break;
             case 7:
+                kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 16;
                 kZ80CodeDelay += 13;
                 kZ80CodeDelay -= 3;

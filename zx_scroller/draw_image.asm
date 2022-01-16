@@ -461,10 +461,10 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + (83175-71680) + 6 -2
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 62 + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
@@ -502,6 +502,11 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
         ld bc,  max_scroll_offset  ; 14 ticks
         
+        // Update jpix_helper data
+        ld hl, update_jpix_helper + imageHeight/2 - 2
+        ld (jpix_h_pos+2), hl
+        // 10+16=26
+
         // Go to next timings page
         ld hl, load_timings_data+1
         ld a, (hl)
@@ -574,6 +579,11 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
         // between frames: 73248/71456
         ; a = bank number
         // set bits that match page number to 0
+
+jpix_h_pos      
+        ld sp, (update_jpix_helper + imageHeight/2 - 2)
+
+/*
         ld a, ~6                        ; 7
         and c                           ; 4
         ld h, b                         ; 4
@@ -589,8 +599,11 @@ no:
         ld sp, hl
         pop hl
         ld sp, hl
+        // total: 7+4+4+8+4+7+7+4+10+11+6+10+6=88/86
+*/        
 
-next_step_first_bank
+
+        //next_step_first_bank
         exa
         out (#fd),a
         //SET_PAGE 0 //< Page number is updated in runtime
@@ -825,6 +838,7 @@ ef_x    call effect_step
 mc_step_drawing:
         sla c : rl b    // bc*2
         rra
+
 check_for_page7_effect
         jr c, page7_effect
 
@@ -908,6 +922,14 @@ finish_non_mc_drawing_cont:
         ld a, b
         inc a
         jp z, lower_limit_reached      ; 10 ticks
+
+        ld sp, jpix_h_pos+2
+        pop hl
+        dec hl
+        dec hl
+        push hl
+        // 10+10+6+6+11=43
+
         jp loop                        ; 12 ticks
 
         IF (HAS_PLAYER == 0)        
@@ -944,8 +966,8 @@ finish_non_mc_drawing:
 
 after_player
 start_mc_drawing:
-        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625=162625
-        ; timing here on first frame: 162625+12 - 224 = 162413
+        ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
+        ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
         scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
 first_mc_line: JP 00

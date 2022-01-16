@@ -186,7 +186,21 @@ it1_end:        ex de,hl
 
         ENDM
 
+        MACRO   UPDATE_JPIX_HELPER value
+                ld hl, jpix_h_pos+2
+                IF (value > 0)
+                        inc (hl)
+                        inc (hl)
+                ELSE                        
+                        dec (hl)
+                        dec (hl)
+                ENDIF
+                 // total: 32
+        ENDM
+
 draw_off_rastr_7
+                UPDATE_JPIX_HELPER -2
+
                 update_rastr RASTR_8, RASTR_0, RASTR_16
 
                 UPDATE_SP2 OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP,   RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16
@@ -198,6 +212,7 @@ draw_off_rastr_7
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
 draw_off_rastr_6
+                UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_9, RASTR_1, RASTR_17
 
                 LD A, 0X7C      // LD a, iyh 2-ND BYTE
@@ -211,6 +226,7 @@ draw_off_rastr_6
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
+                UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_10, RASTR_2, RASTR_18
 
                 UPDATE_SP2 OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP,   RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18
@@ -224,6 +240,7 @@ draw_off_rastr_5
                 START_OFF_DRAWING it5_start
 
 draw_off_rastr_4
+                UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_11, RASTR_3, RASTR_19
 
                 ld A, 0xFD      // (0x51 -> 0x53)
@@ -237,6 +254,7 @@ draw_off_rastr_4
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
+                UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_12, RASTR_4, RASTR_20
 
                 UPDATE_SP2 OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP,   RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20
@@ -249,6 +267,7 @@ draw_off_rastr_3
                 START_OFF_DRAWING it3_start
 
 draw_off_rastr_2
+                UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_13, RASTR_5, RASTR_21
 
                 ld A, 0x7D      // (0x50 -> 0x51)
@@ -262,6 +281,7 @@ draw_off_rastr_2
                 START_OFF_DRAWING it2_start
 
 draw_off_rastr_1
+                UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_14, RASTR_6, RASTR_22
 
                 UPDATE_SP2 OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP,   RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22
