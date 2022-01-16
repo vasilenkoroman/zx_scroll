@@ -574,7 +574,6 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
         // between frames: 73248/71456
         ; a = bank number
         // set bits that match page number to 0
-/*        
         ld a, ~6                        ; 7
         and c                           ; 4
         ld h, b                         ; 4
@@ -590,11 +589,6 @@ no:
         ld sp, hl
         pop hl
         ld sp, hl
-        // total: 7+4+4+8+4+7+7+4+10+11+6=72/70
-*/
-ipix_ptr
-        ld sp, #c000              
-        // total: 10
 
 next_step_first_bank
         exa
@@ -612,10 +606,7 @@ next_step_first_bank
         .2 write_jp_ix_data_via_bc
         // total: 562/560 (with switching page)
         // ------------------------- update jpix table end
-        
-        ld (ipix_ptr+1),sp
-        // 20 + 10 = 30
-
+        scf
         DRAW_RASTR_LINE_S 23
 
 loop1:
@@ -627,13 +618,6 @@ loop1:
         jp nz, mc_step_drawing
 
         /************************* no-mc step drawing *********************************************/
-
-        ld sp, ipix_ptr+1+2
-        pop hl
-        ld de, -(jp_ix_record_size * 6)
-        add hl,de
-        push hl
-        // 10+10+10+11+11=52
 
         update_colors_jpix        
         ld sp, color_addr + 768                         ; 10
