@@ -2583,13 +2583,13 @@ struct DescriptorState
         if (startSpDelta > 0)
         {
             const uint8_t* dataPtr = serializedData.data() + lineStartOffset;
-            if (!firstCommands.empty() && firstCommands[0] >= 0x70 && firstCommands[0] <= 0x77)
+            if (!firstCommands.empty() && z80Command::isLoadViaHl(firstCommands[0]))
             {
                 uint8_t dataByte = firstCommands[0];
                 firstCommands.erase(firstCommands.begin());
                 replaceLoadWithHlToSp(imageHeight, dataByte, registers);
             }
-            else if (firstCommands.empty() && dataPtr[0] >= 0x70 && dataPtr[0] <= 0x77)
+            else if (firstCommands.empty() && z80Command::isLoadViaHl(dataPtr[0]))
             {
                 replaceLoadWithHlToSp(imageHeight, dataPtr[0], registers);
                 codeInfo.startOffset++;

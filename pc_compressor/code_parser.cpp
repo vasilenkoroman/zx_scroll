@@ -978,6 +978,10 @@ int Z80Parser::swap2CommandIfNeed(
     if (command1.opCode == kLdSpHlCode)
         return 0;
 
+    // Do not touch load Via HL command
+    if (command1.isLoadViaHl())
+        return 0;
+
     const Register16 af("af");
     auto info1 = parseCode(af, ptr, command1.size);
     auto info2 = parseCode(af, ptr + command1.size, command2.size);
