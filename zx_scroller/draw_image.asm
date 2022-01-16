@@ -606,7 +606,6 @@ next_step_first_bank
         .2 write_jp_ix_data_via_bc
         // total: 562/560 (with switching page)
         // ------------------------- update jpix table end
-        scf
         DRAW_RASTR_LINE_S 23
 
 loop1:
