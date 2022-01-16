@@ -570,7 +570,7 @@ bool hasByteFromExistingRegisterExceptHl(
         {
             return true;
         }
-        else if (reg.l.hasValue(byte))
+        else if (reg.l.hasValue(byte) && reg.l.name != 'f')
         {
             return true;
         }
@@ -971,7 +971,7 @@ Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int8
 {
     Register16 af("af");
     std::map<uint8_t, int> byteCount;
-    for (int y = 0; y < 24; ++y)
+    for (int y = 0; y < imageHeight; ++y)
     {
         for (int x = 0; x < 32;)
         {
@@ -2125,8 +2125,8 @@ CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, 
     context.sameBytesCount = &sameBytesCount;
 
     int count1;
-    context.af = findBestByte(suffledPtr, imageHeight, &sameBytesCount, &count1);
-    context.af.isAltAf = true;
+    //context.af = findBestByte(suffledPtr, imageHeight, &sameBytesCount, &count1);
+    //context.af.isAltAf = true;
 
     CompressedData compressedData;
     for (int y = imageHeight-1; y >= 0; --y)
@@ -2174,7 +2174,7 @@ CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, 
     return compressedData;
 }
 
-CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register16& af2)
+CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 {
     int flags = verticalCompressionH | interlineRegisters | optimizeLineEdge;
     std::vector<int8_t> sameBytesCount = createSameBytesTable(flags, buffer, /*maskColors*/ nullptr, imageHeight / 8);
@@ -2185,7 +2185,8 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     context.imageHeight = imageHeight / 8;
     context.buffer = buffer;
     context.sameBytesCount = &sameBytesCount;
-    //context.af = af2;
+    //context.af.h = findBestByte(buffer, context.imageHeight, &sameBytesCount).h;
+
     std::vector<int> lines;
     for (int y = 0; y < imageHeight / 8; y++)
     {
@@ -2193,9 +2194,12 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight, const Register1
     }
 
     CompressedData compressedData;
-    //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
-    //compressedData.data = compressLines(registers, context, lines, /*maxTransitiveDepth*/ 24);
+#if 1
+    std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+    compressedData.data = compressLines(registers, context, lines, /*maxTransitiveDepth*/ 24);
+#else
 	compressedData.data = compressLines(context, lines, /*maxTransitiveDepth*/ 24);
+#endif
     compressedData.sameBytesCount = sameBytesCount;
     compressedData.flags = flags;
     return compressedData;
@@ -3441,6 +3445,7 @@ int fileSizeSum(const std::string& inputFileName, Values&&... values)
 void serializeAsmFile(
     const std::string& inputFileName,
     const CompressedData& rastrData,
+    const CompressedData& colorData,
     const CompressedData& multicolorData,
     int rastrFlags,
     const Labels& labels,
@@ -3461,7 +3466,7 @@ void serializeAsmFile(
     int imageHeight = colorHeight * 8;
 
     //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
-    phaseFile << "COLOR_REG_AF2             EQU    " << multicolorData.data[0].inputAf->value16() << std::endl;
+    phaseFile << "COLOR_REG_AF2             EQU    #" << std::hex << colorData.data[0].inputAf->value16() << std::dec << std::endl;
     phaseFile << "FIRST_LINE_DELAY          EQU    " << multicolorData.data[colorHeight-1].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
@@ -4632,7 +4637,7 @@ int main(int argc, char** argv)
 
     alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
 
-    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight, *multicolorData.data[0].inputAf);
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
 
     const auto t2 = std::chrono::system_clock::now();
@@ -4698,7 +4703,7 @@ int main(int argc, char** argv)
     serializeJpIxDescriptors(descriptors, outputFileName);
 
     serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName,  flags, musicTimings);
-    serializeAsmFile(outputFileName, data, multicolorData, flags, labels, !musicTimings.empty());
+    serializeAsmFile(outputFileName, data, colorData, multicolorData, flags, labels, !musicTimings.empty());
 
     runCompressor(outputFileName);
 

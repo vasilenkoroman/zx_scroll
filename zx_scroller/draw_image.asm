@@ -461,7 +461,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + (83175-71680) + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + (83175-71680) + 6 -2
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -619,10 +619,13 @@ loop1:
 
         update_colors_jpix        
         ld sp, color_addr + 768                         ; 10
-        ld hl, $ + 7                                    ; 10
+        ld hl, finish_draw_colors0                      ; 10
         exx                                             ; 4
+        //exa
 start_draw_colors0:
         jp 00                                           ; 8
+finish_draw_colors0        
+        //exa
 
         // Update off rastr drawing for then next 8 steps
 
@@ -818,7 +821,7 @@ ef_x    call effect_step
 
         ld ix, 0x5051 + #0808
         ld iy, 0x5453 + #0808
-        jp after_draw_colors
+        jp skip_draw_colors
 
 mc_step_drawing:
         sla c : rl b    // bc*2
@@ -829,9 +832,12 @@ check_for_page7_effect
         ld sp, color_addr + 768                         
         ld hl, after_draw_colors                        
         exx                                             ; 10+10+4=24
+        //exa
 start_draw_colors:
         jp 00                                           ; 10
 after_draw_colors
+        //exa
+skip_draw_colors        
        
         // Exec off rastr
         ld de, bank_drawing_common  // next jump
