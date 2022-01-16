@@ -591,7 +591,9 @@ no:
         ld sp, hl
 
 next_step_first_bank
-        SET_PAGE 0 //< Page number is updated in runtime
+        exa
+        out (#fd),a
+        //SET_PAGE 0 //< Page number is updated in runtime
 
         ld hl, loop1
         exx
@@ -621,11 +623,9 @@ loop1:
         ld sp, color_addr + 768                         ; 10
         ld hl, finish_draw_colors0                      ; 10
         exx                                             ; 4
-        //exa
 start_draw_colors0:
         jp 00                                           ; 8
 finish_draw_colors0        
-        //exa
 
         // Update off rastr drawing for then next 8 steps
 
@@ -769,7 +769,7 @@ finish_draw_colors0
         jp it0_start
 finish_off_drawing_0
         // MC part rastr
-        ld (next_step_first_bank + 1), a
+        exa
         scf
         DRAW_ONLY_RASTR_LINE 0
         DRAW_ONLY_RASTR_LINE 1
@@ -832,11 +832,9 @@ check_for_page7_effect
         ld sp, color_addr + 768                         
         ld hl, after_draw_colors                        
         exx                                             ; 10+10+4=24
-        //exa
 start_draw_colors:
         jp 00                                           ; 10
 after_draw_colors
-        //exa
 skip_draw_colors        
        
         // Exec off rastr
@@ -921,7 +919,7 @@ finish_non_mc_drawing:
         ENDIF        
 
 bank_drawing_common:
-        ld (next_step_first_bank + 1), a
+        exa             ; save current value for the next_step_first_bank
 bank_drawing_common2:
         ; delay
 
