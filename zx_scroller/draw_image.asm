@@ -214,7 +214,8 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 // begin addr
                 pop hl
                 IF (N? == 0)
-                        ld (first_mc_line + 1), hl
+                        //ld (first_mc_line + 1), hl
+                        ld (stack_top), hl
                 ELSE
                         ld (RASTRJ_prevN? + 1), hl
                 ENDIF
@@ -473,7 +474,7 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         CALL  dzx0_standard
 
 
-        ld hl, after_player
+        ld hl, 0
         ld (stack_top), hl
 
 max_scroll_offset equ imageHeight - 1
@@ -519,8 +520,12 @@ lower_limit_reached:
         // total: 7+4+7+4+7+6+10+4=49
 
 finish_page7_drawing_cont
-        ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
-        ld (start_mc_drawing), hl
+        //ld hl, 0x00 + 0xc3*256 // restore data: scf, JP
+        //ld (start_mc_drawing), hl
+
+saved_mc_line_0
+        ld hl, 0
+        ld (stack_top), hl
 
         ld bc,-4
         ld hl, pg7_0
@@ -746,8 +751,11 @@ finish_draw_colors0
         pop hl: ld (RASTR0_17+1), hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR0_16+1), hl: //ld (RASTR_16+1), hl
 
-        ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
-        ld (start_mc_drawing), hl
+        //ld hl, 0x18 + (finish_non_mc_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+        //ld (start_mc_drawing), hl
+        ld hl, finish_non_mc_drawing_cont
+        ld (stack_top), hl
+
 
         ld de, finish_off_drawing_0
         ld h, high(it0_start)
@@ -787,8 +795,14 @@ finish_mc_only_rastr_drawing
 
 //*************************************************************************************
 page7_effect
-        ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
-        ld (start_mc_drawing), hl
+        //ld hl, 0x18 + (finish_page7_drawing - start_mc_drawing - 2) * 256 // put jr command to code
+        //ld (start_mc_drawing), hl
+
+        ld sp, stack_top
+        ld hl,finish_page7_drawing_cont
+        ex (sp),hl
+        ld (saved_mc_line_0+1), hl
+        //10+10+19+16=55
 
 
         LD A, #50 + 7+8
@@ -875,8 +889,8 @@ finish_non_mc_drawing_cont:
         PREPARE_MC_DRAWING 1, 0
         PREPARE_MC_DRAWING 0, -1
 
-        ld hl, 0x37 + 0xc3*256 // restore data: scf, JP
-        ld (start_mc_drawing), hl
+        //ld hl, 0x00 + 0xc3*256 // restore data: scf, JP
+        //ld (start_mc_drawing), hl
 
 
         // update ports [50..54] for the next step 7
@@ -906,12 +920,14 @@ finish_non_mc_drawing_cont:
 
         jp loop                        ; 12 ticks
 
+/*
         IF (HAS_PLAYER == 0)        
 finish_page7_drawing:
                 jp finish_page7_drawing_cont
 finish_non_mc_drawing:
                 jp finish_non_mc_drawing_cont
         ENDIF        
+*/        
 
 bank_drawing_common:
         exa             ; save current value for the next_step_first_bank
@@ -927,24 +943,30 @@ load_timings_data
 
         DO_DELAY
 
+        ld sp, stack_top
         IF (HAS_PLAYER == 1)
-                ld sp, stack_top
 player_pg       SET_PAGE 7
                 //jp play
                 INCLUDE "include/fast_psg_player.asm"
+
+/*                
 finish_page7_drawing:
                 jp finish_page7_drawing_cont
 finish_non_mc_drawing:
                 jp finish_non_mc_drawing_cont
-        ENDIF                                
+*/                
+        ELSE
+                scf
+                ret
+        ENDIF
 
-after_player
-start_mc_drawing:
+//after_player
+//start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
-        scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
-first_mc_line: JP 00
+//        nop             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
+//first_mc_line: JP 00
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
