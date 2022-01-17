@@ -79,6 +79,7 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
 
         ld hl, bc
         srl h: rr l
+        srl h: rr l
 
         ld de, color_descriptor                         ; 10
         add hl, de                                      ; 11
@@ -461,10 +462,10 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 62 + (83186-71680) + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 60 + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
@@ -500,7 +501,7 @@ max_scroll_offset equ imageHeight - 1
 
         jp loop1
 lower_limit_reached:
-        ld bc,  max_scroll_offset  ; 14 ticks
+        ld bc,  max_scroll_offset*2     ; 10 ticks
         
         // Update jpix_helper data
         ld hl, update_jpix_helper + imageHeight/2 - 2
@@ -569,7 +570,8 @@ page7_drawing_end
 
 dec_and_loop:
         ld bc, (saved_bc_value)
-        dec bc
+        dec c
+        dec c
 loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
@@ -603,8 +605,9 @@ jpix_h_pos
 
 loop1:
         ld (saved_bc_value), bc
+
         SET_PAGE 6
-        ld a, 7
+        ld a, 15
         and c
 
         jp nz, mc_step_drawing
@@ -621,7 +624,6 @@ finish_draw_colors0
 
         // Update off rastr drawing for then next 8 steps
 
-        sla c : rl b    // bc*2
         ld hl, off_rastr_descriptors
         add hl,bc       // * 2
         ld sp, hl
@@ -816,8 +818,7 @@ ef_x    call effect_step
         jp skip_draw_colors
 
 mc_step_drawing:
-        sla c : rl b    // bc*2
-        rra
+        .2 rra
 
 check_for_page7_effect
         jr c, page7_effect
@@ -850,7 +851,8 @@ finish_non_mc_drawing_cont:
         // calculate bc/8 * 10
         ld bc, (saved_bc_value)
         ld de, bc
-        add hl, bc
+        srl d: rr e
+        add hl, de
 
         srl d: rr e
         srl d: rr e
@@ -898,6 +900,7 @@ finish_non_mc_drawing_cont:
         ld (RASTRS_19 - 4), a
 
         dec bc
+        dec c
         ; compare to -1
         ld a, b
         inc a
