@@ -583,26 +583,6 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
 jpix_h_pos      
         ld sp, (update_jpix_helper + imageHeight/2 - 2)
 
-/*
-        ld a, ~6                        ; 7
-        and c                           ; 4
-        ld h, b                         ; 4
-        rr h                            ; 8
-        rra                             ; 4
-        jr nc, no                       ; 7/12
-        add 2                           ; 7
-no:
-        ld l, a                         ; 4
-        ld de,  update_jpix_helper      ; 10
-        add hl, de                      ; 11
-        
-        ld sp, hl
-        pop hl
-        ld sp, hl
-        // total: 7+4+4+8+4+7+7+4+10+11+6+10+6=88/86
-*/        
-
-
         //next_step_first_bank
         exa
         out (#fd),a
