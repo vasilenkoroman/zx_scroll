@@ -1,4 +1,4 @@
-COLOR_REG_AF2             EQU    #7fe5
+COLOR_REG_AF2             EQU    #7fe7
 FIRST_LINE_DELAY          EQU    40
 UNSTABLE_STACK_POS        EQU    1
 RAM2_UNCOMPRESSED_SIZE   EQU    16810

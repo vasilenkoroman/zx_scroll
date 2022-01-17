@@ -26,7 +26,7 @@ draw_offrastr_off_end   equ screen_end + 16
 code_after_moving       equ draw_offrastr_off_end
 
 color_data_to_restore   equ #bfc2
-saved_bc_value          equ #bfc4
+//saved_bc_value          equ #bfc4
 
 effects_by_run          equ #bfc6
 effects_by_run_end      equ effects_by_run + 8
@@ -417,15 +417,6 @@ main_entry_point
 /*************** Main. ******************/
         ld sp, stack_top
 
-        ld a, 0                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
-
-        //ld  hl, packed_music
-        IF (HAS_PLAYER == 1)
-                ld hl, mus_intro
-                call  init // player init
-        ENDIF                
-
         call copy_page7_screen
         call prepare_interruption_table
         call unpack_and_play_init_screen
@@ -462,7 +453,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 60 + (83186-71680) + 6
+fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 60-10+3  + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -502,6 +493,7 @@ max_scroll_offset equ imageHeight - 1
         jp loop1
 lower_limit_reached:
         ld bc,  max_scroll_offset*2     ; 10 ticks
+        ld (saved_bc_value), bc
         
         // Update jpix_helper data
         ld hl, update_jpix_helper + imageHeight/2 - 2
@@ -569,9 +561,12 @@ page7_drawing_end
         ld (player_pg+1),a
 
 dec_and_loop:
-        ld bc, (saved_bc_value)
+saved_bc_value  EQU $ +1
+        ld bc, 0        ;saved_bc_value here
         dec c
         dec c
+        ld a, c
+        ld (saved_bc_value), a
 loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
@@ -604,8 +599,6 @@ jpix_h_pos
         DRAW_RASTR_LINE_S 23
 
 loop1:
-        ld (saved_bc_value), bc
-
         SET_PAGE 6
         ld a, 15
         and c
@@ -913,6 +906,7 @@ finish_non_mc_drawing_cont:
         push hl
         // 10+10+6+6+11=43
 
+        ld (saved_bc_value), bc
         jp loop                        ; 12 ticks
 
         IF (HAS_PLAYER == 0)        
