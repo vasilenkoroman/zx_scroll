@@ -94,6 +94,17 @@ draw_common
                 ret
 
 copy_page7_screen
+
+                ld a, 0                         ; 7 ticks
+                out 0xfe,a                      ; 11 ticks
+
+                //ld  hl, packed_music
+                IF (HAS_PLAYER == 1)
+                        ld hl, mus_intro
+                        call  init // player init
+                ENDIF                
+
+
                 SET_PAGE 7+8
                 ld bc,6912
                 ld hl,#c000
@@ -221,8 +232,8 @@ main_compressed_size       EQU main_data_end - main_code_end
                 // unpack ram 3
                 LD HL, ram3_end-1
                 LD A,#53 + 8
-                CALL unpack_page
-                ret
+                //CALL unpack_page
+                //ret
 
 unpack_page
                 halt

@@ -59,6 +59,7 @@ trb_rest	ld hl, 0
 pause_rep	db 0
 trb_pause	ld hl, pause_rep
 			dec	 (hl)
+			scf
 			ret nz						; 10+11+5=26t
 
 saved_track	
@@ -97,6 +98,7 @@ long_pause
 			jr	 pause_cont
 pl_pause	and	 #0f
 			inc hl
+			scf
 			jr z, single_pause
 pause_cont	ld (pause_rep), a
 			ld (pl_track+1), hl
@@ -126,6 +128,7 @@ pause_or_psg1
 			out (c),a
 			ld b, #bf
 			outi
+			scf
 			ret							; 12+7+16+10=45
 
 pl00		add	 a
@@ -238,6 +241,7 @@ play_all_6_13
 				outi				; 8*40=320
 1				
 			edup
+			scf
 			ret						; 11+320+10=341
 			// total: 313 + 341 = 654 (all_0_5 + all_6_13)
 			// total: 320 + 341 = 661 (mask_0_5 + all_6_13)
@@ -284,7 +288,8 @@ reg_left_6	add a
 			dec d
 			out (c),d
 			ld b,e
-			outi					
+			outi
+			scf					
 			ret						; 4+5+4+12+4+16+10=55, 53+222+55 = 330
 			// total: 318 + 330 = 648 (all_0_5 + mask_6_13)
 			// total: 325 + 330 = 655 (mask_0_5 + mask_6_13)

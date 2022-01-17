@@ -417,15 +417,6 @@ main_entry_point
 /*************** Main. ******************/
         ld sp, stack_top
 
-        ld a, 0                         ; 7 ticks
-        out 0xfe,a                      ; 11 ticks
-
-        //ld  hl, packed_music
-        IF (HAS_PLAYER == 1)
-                ld hl, mus_intro
-                call  init // player init
-        ENDIF                
-
         call copy_page7_screen
         call prepare_interruption_table
         call unpack_and_play_init_screen
@@ -1192,7 +1183,7 @@ gigascreen_logo
 gigascreen_logo_attr
         INCBIN "generated_code/scroller_attr.scr.zx0"
 
-        ASSERT $ < generated_code
+        ASSERT $ <= generated_code
 
         ENT     ; end of disp
 move_code
