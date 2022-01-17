@@ -4086,11 +4086,11 @@ int serializeTimingDataForRun(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2488 - 12-4    - 10;
+        int kZ80CodeDelay = 2488 - 12-4    - 11;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1;
             if (line == 0)
             {
                 //kZ80CodeDelay += 10; // jp loop

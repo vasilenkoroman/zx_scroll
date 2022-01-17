@@ -6,12 +6,12 @@ effect0
             jp loop
 
 effect1
-            ld a, #38                   ; JR C
+            ld a, #20                   ; JR nz
             ld (check_for_page7_effect),a
             jp loop
 
 effect2
-            ld a, #38                   ; JR C
+            ld a, #20                   ; JR nz
             ld (check_for_page7_effect),a
             jp loop
 

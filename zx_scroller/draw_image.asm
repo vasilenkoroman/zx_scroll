@@ -818,10 +818,10 @@ ef_x    call effect_step
         jp skip_draw_colors
 
 mc_step_drawing:
-        .2 rra
+        and 2
 
 check_for_page7_effect
-        jr c, page7_effect
+        jr nz, page7_effect
 
         ld sp, color_addr + 768                         
         ld hl, after_draw_colors                        
