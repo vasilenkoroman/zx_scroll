@@ -266,7 +266,9 @@ player_callback
 set_player_page ld a, #56
                 out (#fd),a
 
-                call play
+                IF (HAS_PLAYER == 1)
+                        call play
+                ENDIF
                 ld a, ixl
                 and 7
                 cp 7

@@ -26,9 +26,7 @@ draw_offrastr_off_end   equ screen_end + 16
 code_after_moving       equ draw_offrastr_off_end
 
 color_data_to_restore   equ #bfc2
-//saved_bc_value          equ #bfc4
-
-effects_by_run          equ #bfc6
+effects_by_run          equ #bfc4
 effects_by_run_end      equ effects_by_run + 8
 
 STACK_SIZE:             equ 12  ; in words
@@ -422,8 +420,10 @@ main_entry_point
         call unpack_and_play_init_screen
 
 
-1       halt
-        jr 1b
+        IF (HAS_PLAYER == 1)
+1               halt
+                jr 1b
+        ENDIF                
 after_play_intro
 
         ld a, 7                         ; 7 ticks
@@ -936,7 +936,7 @@ start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
-        scf             // scf, jp is overrided to "jr finish_non_mc_drawing" for non-mc drawing step
+        scf
 first_mc_line: JP 00
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
