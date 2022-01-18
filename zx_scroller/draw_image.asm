@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 29800
+generated_code          equ 29900
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -453,7 +453,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 60-10+3  + (83186-71680) + 6
+fixed_startup_delay     equ 32035+6166 + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -471,6 +471,13 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         LD HL, gigascreen_logo_attr
         LD DE, #D900
         CALL  dzx0_standard
+
+        // Clear 512 bottom rastr bytes of the  page 7
+        ld sp,#d800
+        ld de, #0000
+        ld b,0
+1       push de
+        djnz 1b
 
 
         ld hl, start_mc_drawing
@@ -792,15 +799,46 @@ page7_effect
         ld hl,finish_page7_drawing_cont
         ld (stack_top), hl
 
-
         LD A, #50 + 7+8
         ld (player_pg+1),a
 
+
+        // Update attributes in the top and bottom
+attr_colors        
+        exx
+        LONG_SET_PAGE 7+8
+
+        ld hl, (saved_bc_value)
+        srl h: rr l
+        srl h: rr l
+        srl h: rr l
+        srl h: rr l
+
+        ld de, attributes_color_for_page_7
+        add hl, de
+
+        ld sp, #d800 + 768
+        ld a,2
+rep2
+        ld b, 8
+1       ld d,(hl)
+        ld e,d
+        inc hl
+       .16 push de
+        djnz 1b
+
+        ld de, 8
+        add hl,de
+        ld sp, #d800 + 256
+        dec a
+        jr nz, rep2
+
+        exx
+
+        // Main part
         ld sp,stack_top-2
         push bc
         push de
-        LONG_SET_PAGE 7+8
-
 ef_x    call effect_step
         pop de
         pop bc
@@ -1294,6 +1332,13 @@ page6_end
         PAGE 7
         INCBIN "resources/screen1.scr", 0, 6144
         BLOCK 768, #7
+attributes_color_for_page_7
+        //defs imageHeight/8, 0
+        defs 24, 0x3f
+        defs 24, 0
+        defs 24, 0x3f
+        defs 24, 0
+        defs 24, 0x3f
 music_main
         INCBIN "resources/main.mus"
 page7_end

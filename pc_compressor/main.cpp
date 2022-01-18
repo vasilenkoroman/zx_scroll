@@ -20,7 +20,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
-static const int kDefaultCodeOffset = 29800;
+static const int kDefaultCodeOffset = 29900;
 static const int totalTicksPerFrame = 71680;
 
 static const uint8_t DEC_SP_CODE = 0x3b;
@@ -3936,8 +3936,8 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
     result.push_back(3140);
 
     // Effect3_2 delay
-    result.push_back(8194+11);
-    result.push_back(8225+10);
+    result.push_back(6536+11);
+    result.push_back(6567+10);
 
     // Effect 4
 
@@ -3951,7 +3951,6 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
         }
         result.push_back(6170 + 10);
     }
-
 
     return result;
 }
@@ -4012,6 +4011,7 @@ int effectRegularStepDelay(
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
             result += 205+77+18+21-22; // page 7 branch itself is longer
+            result += 3544-29;
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 
