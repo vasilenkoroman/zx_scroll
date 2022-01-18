@@ -3465,8 +3465,13 @@ void serializeAsmFile(
     int colorHeight = multicolorData.data.size();
     int imageHeight = colorHeight * 8;
 
-    //phaseFile << "RASTR_REG_A               EQU    " << (unsigned) *rastrData.af.h.value << std::endl;
-    phaseFile << "COLOR_REG_AF2             EQU    #" << std::hex << colorData.data[0].inputAf->value16() << std::dec << std::endl;
+    phaseFile << "COLOR_REG_AF2             EQU    #" << std::hex;
+    if (!colorData.data[0].inputAf->isEmpty())
+        phaseFile << colorData.data[0].inputAf->value16();
+    else
+        phaseFile << 0;
+    phaseFile << std::dec << std::endl;
+
     phaseFile << "FIRST_LINE_DELAY          EQU    " << multicolorData.data[colorHeight-1].mcStats.pos << std::endl;
     phaseFile << "UNSTABLE_STACK_POS        EQU    "
         << ((rastrFlags & optimizeLineEdge) ? 1 : 0)
@@ -4006,7 +4011,7 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 205+77+18; // page 7 branch itself is longer
+            result += 205+77+18+21; // page 7 branch itself is longer
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 
@@ -4086,11 +4091,11 @@ int serializeTimingDataForRun(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3;
+        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7;
             if (line == 0)
             {
                 //kZ80CodeDelay += 10; // jp loop

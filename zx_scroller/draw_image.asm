@@ -794,14 +794,15 @@ page7_effect
 
 
         LD A, #50 + 7+8
-        //OUT (#fd), A
         ld (player_pg+1),a
 
         ld sp,stack_top-2
         push bc
+        push de
         LONG_SET_PAGE 7+8
 
 ef_x    call effect_step
+        pop de
         pop bc
 
         SET_PAGE 6+8
@@ -811,6 +812,7 @@ ef_x    call effect_step
         jp skip_draw_colors
 
 mc_step_drawing:
+        ld e,a
         and 2
 
 check_for_page7_effect
@@ -825,11 +827,9 @@ after_draw_colors
 skip_draw_colors        
        
         // Exec off rastr
-        ld de, bank_drawing_common  // next jump
         ld h, high(draw_offrastr_offset)
-        ld a, 15
-        and c
-        ld l, a
+        ld l, e
+        ld de, bank_drawing_common  // next jump
         ld sp, hl
 
         pop hl
