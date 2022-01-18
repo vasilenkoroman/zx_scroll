@@ -453,7 +453,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 35644 + 26 + 18 -3703+8-22+11 + 60-10+3  + (83186-71680) + 6
+fixed_startup_delay     equ 32035+6166 + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -471,6 +471,13 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         LD HL, gigascreen_logo_attr
         LD DE, #D900
         CALL  dzx0_standard
+
+        // Clear 512 bottom rastr bytes of the  page 7
+        ld sp,#d800
+        ld de, #0000
+        ld b,0
+1       push de
+        djnz 1b
 
 
         ld hl, start_mc_drawing

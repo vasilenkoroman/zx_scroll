@@ -112,15 +112,8 @@ ef3_2
             djnz 1b
             ld (ef3_2+1),sp
 
-sp2         ld sp,#d800
-            ld de, #0000
-            ld b,16
-1           .8 push de
-            djnz 1b
-            ld (sp2+1),sp
-
-            ld a,(sp2+2)
-            cp #d6
+            ld a,(ef3_2+2)
+            cp #c8
             ld sp,stack_top-8
             ret nz
             // total:9032+11
