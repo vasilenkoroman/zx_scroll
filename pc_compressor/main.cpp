@@ -4011,7 +4011,7 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 205+77+18+21; // page 7 branch itself is longer
+            result += 205+77+18+21-22; // page 7 branch itself is longer
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 
@@ -4095,7 +4095,7 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22;
             if (line == 0)
             {
                 //kZ80CodeDelay += 10; // jp loop
