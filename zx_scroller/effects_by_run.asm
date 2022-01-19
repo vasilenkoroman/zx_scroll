@@ -138,3 +138,65 @@ ch_loop     ld a,8
             ld (ef4+1),hl
 
             ret
+
+///////////////////////////////////////////
+fill_page7_step
+
+pg7_fill_stack  ld sp, #d800
+                ld bc,2
+pg7_fill_value  ld de,0
+pg7_fill        .16 push de
+                ld hl,0
+                add hl,sp
+                dec h
+                ld sp,hl
+                djnz pg7_fill
+
+                ld sp,stack_top-8
+                ld (pg7_fill_stack),hl
+
+                // up_hl
+                ld a,h
+                and 7
+                cp 7
+                ret nz
+
+                cp #c0-1
+                jr z, up_reached
+                cp #d8-1
+                jr z, bottom_reached
+
+                ld de, 8*256 - 32
+                add hl,de
+                ld (pg7_fill_stack),hl
+                ret
+
+up_reached
+                ld hl, #d800
+                ld (pg7_fill_stack+1),hl
+
+                ld a,(pg7_fill_value+1)
+                cpl
+                ld l,a
+                ld h,a
+                ld (pg7_fill_value+1),hl
+                ret
+
+bottom_reached
+                ld hl, #c800
+                ld (pg7_fill_stack+1),hl
+
+                ld hl,pg7_fill_wait
+                ld (ex_p+1),hl
+                ret
+
+pg7_fill_wait
+                ld a,32
+                dec a
+                and 0x1f
+                ld (pg7_fill_wait+1),a
+                ret nz
+
+                ld hl,fill_page7_step
+                ld (ex_p+1),hl
+                ret
