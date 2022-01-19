@@ -1,6 +1,3 @@
-buffer_data     equ #C000 + 6144 - 512
-buffer_data2    equ #C000 + 6144 - 256
-
 ;   Render text in the middle of attributes
 ;   a   -   char code
 print_ch

@@ -25,7 +25,7 @@ ef2_counter DB 8
             // Effects inside run
 effect_step
 
-            ld de,0
+            ld de,#0303
             ld sp,#d900
             ld b,32
 1           .4 push de

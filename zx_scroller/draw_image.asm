@@ -18,7 +18,7 @@ screen_addr:            equ 16384
 color_addr:             equ 5800h
 screen_end:             equ 5b00h
 start:                  equ 6b00h
-generated_code          equ 29800
+generated_code          equ 29900
 
 draw_offrastr_offset    equ screen_end                     ; [0..15]
 draw_offrastr_off_end   equ screen_end + 16
@@ -453,7 +453,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32035+6166 + (83186-71680) + 6
+fixed_startup_delay     equ 32035+29432 + (83186-71680) + 6
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
@@ -472,13 +472,26 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         LD DE, #D900
         CALL  dzx0_standard
 
-        // Clear 512 bottom rastr bytes of the  page 7
-        ld sp,#d800
-        ld de, #0000
-        ld b,0
-1       push de
-        djnz 1b
+        // Clear  page 7
+        ld sp,#c000+6144
+        ld de, #aaaa
+        ld hl, #5555
 
+        ld c,2
+fill_start
+        ld a,4
+fill_rep
+        ld b,32
+1       .4 push de
+        djnz 1b
+        ld b,32
+1       .4 push hl
+        djnz 1b
+        dec a
+        jr nz, fill_rep
+        dec c
+        ld sp,#c000+2048
+        jr nz, fill_start
 
         ld hl, start_mc_drawing
         ld (stack_top), hl
@@ -1204,8 +1217,12 @@ init_screen_i1
 encoded_text_end        
         INCLUDE "simple_scroller.asm"
 
-static_data_page2 EQU 0xc000 - 1024
+static_data_page2 EQU 0xc000 - 1024-512
         ORG static_data_page2
+
+buffer_data  defs 256, 0
+buffer_data2 defs 256, 0
+
 font_data   
         INCLUDE "generated_code/reduced_font.asm"
 font_data_end
