@@ -9,3 +9,4 @@ RAM4_UNCOMPRESSED_SIZE   EQU    15119
 HAS_PLAYER   EQU    1
 imageHeight   EQU    768
 timings_data   EQU    51840
+DIRECT_PLAYER_JUMP  EQU    1

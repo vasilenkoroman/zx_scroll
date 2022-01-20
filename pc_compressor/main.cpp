@@ -52,11 +52,12 @@ enum Flags
     inverseColors = 16,         //< Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
-    updateViaHl = 512,
-    OptimizeMcTicks = 1024,
-    threeStackPos = 2048,
-    twoRastrDescriptors = 4096,
-    updateColorData = 8192,
+    updateViaHl = 512,          //< use ld(hl),reg8 after stack moving
+    OptimizeMcTicks = 1024,     //< Allow multicolor lines became shorter or longer than 224t in case of timing of the current line allows it.
+    threeStackPos = 2048,       //< Draw multicolor line in 3 pieces with two intermediate stack moving.
+    twoRastrDescriptors = 4096, //< Generate 3 descriptor tables instead of 1 to reduce wait ticks. More memory usage.
+    updateColorData = 8192,     //< Change color attribute to the same paper/inc in case of rastr data has only 0x00 or 0xff.
+    directPlayerJump = 16384,   //< Reduce only 10 ticks but make debugging more difficult. Can be turned of before debug session.
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -3490,6 +3491,7 @@ void serializeAsmFile(
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
     phaseFile << "timings_data   EQU    " << getTimingsStartAddress(imageHeight) << std::endl;
+    phaseFile << "DIRECT_PLAYER_JUMP  EQU    " << ((rastrFlags & directPlayerJump) ? 1 : 0) << std::endl;
 }
 
 int serializeMultiColorData(
@@ -3983,6 +3985,7 @@ std::vector<int> getEffectDelayInternalForRun(int runNumber, int imageHeight)
 }
 
 int effectRegularStepDelay(
+    int rastrFlags,
     const std::vector<LineDescriptor>& descriptors,
     const std::vector<ColorDescriptor>& colorDescriptors,
     const CompressedData& data,
@@ -4011,7 +4014,9 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 205+77+18+21-22; // page 7 branch itself is longer
+            result += 205+77+18+21-22+4+29; // page 7 branch itself is longer
+            if (rastrFlags & directPlayerJump)
+                result += 10;
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 
@@ -4091,11 +4096,11 @@ int serializeTimingDataForRun(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
         }
 
-        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7;
+        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7-4;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22+4;
             if (line == 0)
             {
                 //kZ80CodeDelay += 10; // jp loop
@@ -4104,6 +4109,13 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 43-26;    // new jpix_helper
                 kZ80CodeDelay += initEffectDelay(runNumber);
             }
+            if (flags & directPlayerJump)
+                kZ80CodeDelay -= 26;
+        }
+        else
+        {
+            if (flags & directPlayerJump)
+                kZ80CodeDelay -= 10;
         }
         
         // offscreen drawing branches has different length
@@ -4147,6 +4159,7 @@ int serializeTimingDataForRun(
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
+            flags,
             descriptors,
             colorDescriptors,
             data,
@@ -4640,7 +4653,7 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump; // | inverseColors;
 
     const auto t1 = std::chrono::system_clock::now();
 

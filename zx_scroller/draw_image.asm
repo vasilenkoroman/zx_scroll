@@ -212,7 +212,12 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
                 // begin addr
                 pop hl
                 IF (N? == 0)
-                        ld (first_mc_line + 1), hl
+
+                        IF (DIRECT_PLAYER_JUMP != 1)
+                                ld (first_mc_line + 1), hl
+                        ELSE                                
+                                ld (stack_top), hl
+                        ENDIF                
                 ELSE
                         ld (RASTRJ_prevN? + 1), hl
                 ENDIF
@@ -809,8 +814,11 @@ finish_mc_only_rastr_drawing
 
 //*************************************************************************************
 page7_effect
+        ld sp, stack_top
         ld hl,finish_page7_drawing_cont
-        ld (stack_top), hl
+        ex (sp),hl
+        ld (finish_page7_drawing_cont+1), hl
+        //10+10+19+16=55
 
 
         LD A, #50 + 7+8
@@ -897,8 +905,10 @@ finish_non_mc_drawing_cont:
         PREPARE_MC_DRAWING 1, 0
         PREPARE_MC_DRAWING 0, -1
 
-        ld hl, start_mc_drawing
-        ld (stack_top), hl
+        if (DIRECT_PLAYER_JUMP != 1)
+                ld hl, start_mc_drawing
+                ld (stack_top), hl
+        ENDIF                
 
 
         // update ports [50..54] for the next step 7
@@ -956,8 +966,9 @@ start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
-        scf
+        IF (DIRECT_PLAYER_JUMP  != 1)
 first_mc_line: JP 00
+        ENDIF
 
         DRAW_MULTICOLOR_AND_RASTR_LINE 0
         DRAW_MULTICOLOR_AND_RASTR_LINE 1
