@@ -628,10 +628,62 @@ loop1:
         ld a, 15
         and c
 
-        jp nz, mc_step_drawing
+        //jp nz, mc_step_drawing
+        jr z, non_mc_draw_step
+        
+mc_step_drawing:
+        ld e,a
+        and 2
+
+check_for_page7_effect
+        jr nz, page7_effect
+
+        ld sp, color_addr + 768                         
+        ld hl, after_draw_colors                        
+        exx                                             ; 10+10+4=24
+start_draw_colors:
+        jp 00                                           ; 10
+after_draw_colors
+skip_draw_colors        
+       
+        // Exec off rastr
+        ld h, high(draw_offrastr_offset)
+        ld l, e
+        ld de, bank_drawing_common  // next jump
+        ld sp, hl
+
+        pop hl
+        jp hl
+
+//*************************************************************************************
+page7_effect
+        ld sp, stack_top
+        ld hl,finish_page7_drawing_cont
+        ex (sp),hl
+        ld (finish_page7_drawing_cont+1), hl
+        //10+10+19+16=55
+
+
+        LD A, #50 + 7+8
+        ld (player_pg+1),a
+
+        ld sp,stack_top-2
+        push bc
+        push de
+        LONG_SET_PAGE 7+8
+
+ef_x    call effect_step
+        pop de
+        pop bc
+
+        SET_PAGE 6+8
+
+        ld ix, 0x5051 + #0808
+        ld iy, 0x5453 + #0808
+        jp skip_draw_colors
 
         /************************* no-mc step drawing *********************************************/
-
+non_mc_draw_step
         update_colors_jpix        
         ld sp, color_addr + 768                         ; 10
         ld hl, finish_draw_colors0                      ; 10
@@ -811,57 +863,6 @@ finish_off_drawing_0
 
 finish_mc_only_rastr_drawing
         jp bank_drawing_common2
-
-//*************************************************************************************
-page7_effect
-        ld sp, stack_top
-        ld hl,finish_page7_drawing_cont
-        ex (sp),hl
-        ld (finish_page7_drawing_cont+1), hl
-        //10+10+19+16=55
-
-
-        LD A, #50 + 7+8
-        ld (player_pg+1),a
-
-        ld sp,stack_top-2
-        push bc
-        push de
-        LONG_SET_PAGE 7+8
-
-ef_x    call effect_step
-        pop de
-        pop bc
-
-        SET_PAGE 6+8
-
-        ld ix, 0x5051 + #0808
-        ld iy, 0x5453 + #0808
-        jp skip_draw_colors
-
-mc_step_drawing:
-        ld e,a
-        and 2
-
-check_for_page7_effect
-        jr nz, page7_effect
-
-        ld sp, color_addr + 768                         
-        ld hl, after_draw_colors                        
-        exx                                             ; 10+10+4=24
-start_draw_colors:
-        jp 00                                           ; 10
-after_draw_colors
-skip_draw_colors        
-       
-        // Exec off rastr
-        ld h, high(draw_offrastr_offset)
-        ld l, e
-        ld de, bank_drawing_common  // next jump
-        ld sp, hl
-
-        pop hl
-        jp hl
 
 finish_non_mc_drawing_cont:
         SET_PAGE 6
