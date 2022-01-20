@@ -35,7 +35,7 @@ static const int kSetPageTicks = 0;
 static const int kPageNumPrefix = 0x50;
 static const int kMinOffscreenBytes = 8; // < It contains at least 8 writted bytes to the screen
 static const int kThirdSpPartSize = 4;
-static const int kCallPlayerDelay = 10 + 18 + 10;
+static const int kCallPlayerDelay = 18-10-4;
 
 // Pages 0,1, 3,4
 static const uint16_t rastrCodeStartAddrBase = 0xc000;
@@ -4047,6 +4047,7 @@ int serializeTimingDataForRun(
 
     const int imageHeight = data.data.size();
     const int colorHeight = imageHeight / 8;
+    bool hasPlayer = !musicTimings.empty();
 
     std::vector<int> effectDelay = getEffectDelayInternalForRun(runNumber, imageHeight);
 
@@ -4094,20 +4095,29 @@ int serializeTimingDataForRun(
                 ticks += prev_frame_line_23_overrun(descriptors, multicolor, line);
             }
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
+
+            if (!hasPlayer)
+                ticks -= 14;
         }
 
-        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7-4-3;
+        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7-4-3 + 34;
 
         if (line % 8 == 0)
         {
             kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22+4+5;
             if (line == 0)
             {
-                //kZ80CodeDelay += 10; // jp loop
-                kZ80CodeDelay += 38; // next timings page
-                kZ80CodeDelay += 49; // jump to next effect handler
                 kZ80CodeDelay -= 43-26;    // new jpix_helper
-                kZ80CodeDelay += initEffectDelay(runNumber);
+                if (hasPlayer)
+                {
+                    kZ80CodeDelay += 38; // next timings page
+                    kZ80CodeDelay += 49; // jump to next effect handler
+                    kZ80CodeDelay += initEffectDelay(runNumber);
+                }
+                else
+                {
+                    kZ80CodeDelay += 10; // jp loop
+                }
             }
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 26;

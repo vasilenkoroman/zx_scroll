@@ -94,14 +94,12 @@ draw_common
                 ret
 
 copy_page7_screen
+                IF (HAS_PLAYER == 1)
                 ld a, 0                         ; 7 ticks
                 out 0xfe,a                      ; 11 ticks
 
-                //ld  hl, packed_music
-                IF (HAS_PLAYER == 1)
-                        ld hl, mus_intro
-                        call  init // player init
-                ENDIF                
+                ld hl, mus_intro
+                call  init // player init
 
                 SET_PAGE 7+8
                 ld bc,6912
@@ -113,6 +111,7 @@ copy_page7_screen
                 ld de,#c000
                 ld hl,#4000
                 ldir
+                ENDIF                
                 ret
 
 prepare_interruption_table:
@@ -138,11 +137,16 @@ prepare_interruption_table:
 
 
 unpack_and_play_init_screen
+        IF (HAS_PLAYER == 1)
+
             ld hl, after_play_intro
             ld(endtrack+1), hl
 
             // Play initial screen here
             call draw_init_screen
+        ELSE
+            di            
+        ENDIF            
 
             //create_write_off_rastr_helper
             ld sp, draw_offrastr_offset+16
@@ -163,6 +167,7 @@ unpack_and_play_init_screen
             // The value 0 is not used.
 
             // Create effects by run helper
+        IF (HAS_PLAYER == 1)            
             ld sp, effects_by_run + 8
             ld hl, effect3
             push hl
@@ -173,8 +178,10 @@ unpack_and_play_init_screen
             ld hl, effect0
             push hl
             ld sp, stack_top-2
-
             halt
+        ELSE
+            ld sp, stack_top-2
+        ENDIF            
             jp continue_unpacking
 
 simple_scroller_end
@@ -184,19 +191,21 @@ simple_scroller_end
 continue_unpacking
                 // This code is safe under unpack page2. Code above is lost
                 // unpack screen3 screen to page 5 (show shadow screen)
-                SET_PAGE 3+8
-                ld ixl,a
-                LD HL, screen3
-                LD DE, 16384
-                CALL  dzx0_standard
+                IF (HAS_PLAYER == 1)                
+                        SET_PAGE 3+8
+                        ld ixl,a
+                        LD HL, screen3
+                        LD DE, 16384
+                        CALL  dzx0_standard
 
-                // copy page5->page7
-                halt
-                LONG_SET_PAGE 7+8
-                ld ixl,a
-                call copy_5_to_7_animated
-                xor a
-                out (#fe),a
+                        // copy page5->page7
+                        halt
+                        LONG_SET_PAGE 7+8
+                        ld ixl,a
+                        call copy_5_to_7_animated
+                        xor a
+                        out (#fe),a
+                ENDIF     
 
                 // unpack initial screen to video memory (show shadow screen)
                 SET_PAGE 0+8
@@ -234,7 +243,9 @@ main_compressed_size       EQU main_data_end - main_code_end
                 ret
 
 unpack_page
-                halt
+                IF (HAS_PLAYER == 1)
+                        halt
+                ENDIF
                 out (#fd),a
                 ld ixl,a
 

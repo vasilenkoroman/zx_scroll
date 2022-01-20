@@ -428,6 +428,13 @@ main_entry_point
         IF (HAS_PLAYER == 1)
 1               halt
                 jr 1b
+        ELSE
+                ld hl, align_path_delay
+                ld   (#BFBF+1), hl
+                ei
+                halt
+align_path_delay                
+                ld sp, stack_top
         ENDIF                
 after_play_intro
 
@@ -436,12 +443,14 @@ after_play_intro
 
         // 224-47 = 177t longer than final ret in align int.
         // Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
-        ld sp, stack_top
-        ld hl, music_main
-        call  init // player init
+        IF (HAS_PLAYER == 1)        
+                ld sp, stack_top
+                ld hl, music_main
+                call  init // player init
 
-        ld hl, show_final_screen
-        ld(endtrack+1), hl
+                ld hl, show_final_screen
+                ld(endtrack+1), hl
+        ENDIF
 
         call write_initial_jp_ix_table
         call create_jpix_helper
@@ -458,9 +467,17 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32035+29432 + (83186-71680) + 6
+fixed_startup_delay     equ 32035 + 6
+        IF HAS_PLAYER == 1
+pl_delay                equ 29432 + (83186-71680)
+        ELSE
+pl_delay                equ -202 -171
+        ENDIF
+
+//40998
+
 create_jpix_delay       equ 1058 * (imageHeight/64)
-initial_delay           equ first_timing_in_interrupt + fixed_startup_delay +  create_jpix_delay + mc_preambula_delay
+initial_delay           equ first_timing_in_interrupt + fixed_startup_delay + pl_delay + create_jpix_delay + mc_preambula_delay
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
@@ -469,34 +486,36 @@ sync_tick               equ screen_ticks + screen_start_tick  - initial_delay + 
         assert (sync_tick <= 65535 && sync_tick >= 4)
         call static_delay
 
-        LONG_SET_PAGE 7
-        LD HL, gigascreen_logo
-        LD DE, #c800
-        CALL  dzx0_standard
-        LD HL, gigascreen_logo_attr
-        LD DE, #D900
-        CALL  dzx0_standard
+        IF (HAS_PLAYER == 1)
+                LONG_SET_PAGE 7
+                LD HL, gigascreen_logo
+                LD DE, #c800
+                CALL  dzx0_standard
+                LD HL, gigascreen_logo_attr
+                LD DE, #D900
+                CALL  dzx0_standard
 
-        // Clear  page 7
-        ld sp,#c000+6144
-        ld de, #aaaa
-        ld hl, #5555
+                // Clear  page 7
+                ld sp,#c000+6144
+                ld de, #aaaa
+                ld hl, #5555
 
-        ld c,2
+                ld c,2
 fill_start
-        ld a,4
+                ld a,4
 fill_rep
-        ld b,32
-1       .4 push de
-        djnz 1b
-        ld b,32
-1       .4 push hl
-        djnz 1b
-        dec a
-        jr nz, fill_rep
-        dec c
-        ld sp,#c000+2048
-        jr nz, fill_start
+                ld b,32
+1               .4 push de
+                djnz 1b
+                ld b,32
+1               .4 push hl
+                djnz 1b
+                dec a
+                jr nz, fill_rep
+                dec c
+                ld sp,#c000+2048
+                jr nz, fill_start
+        ENDIF                
 
         ld hl, start_mc_drawing
         ld (stack_top), hl
@@ -525,25 +544,30 @@ lower_limit_reached:
         ld (jpix_h_pos+2), hl
         // 10+16=26
 
-        // Go to next timings page
-        ld hl, load_timings_data+1
-        ld a, (hl)
-        add 4
-        and #ef
-        ld (hl), a
-         // total: 10+7+7+7+7=38
+        IF (HAS_PLAYER == 1)         
+                // Go to next timings page
+                ld hl, load_timings_data+1
+                ld a, (hl)
+                add 4
+                and #ef
+                ld (hl), a
+                // total: 10+7+7+7+7=38
 
          // Prepare next effect for next scroll run
-        and #0f
-        rra
-        add low(effects_by_run)
-        ld l,a
-        ld h,high(effects_by_run)
-        ld sp, hl
-        pop hl
-        jp hl
+                and #0f
+                rra
+                add low(effects_by_run)
+                ld l,a
+                ld h,high(effects_by_run)
+                ld sp, hl
+                pop hl
+                jp hl
         // total: 7+4+7+4+7+6+10+4=49
+        ELSE
+                jp loop                
+        ENDIF
 
+        IF (HAS_PLAYER == 1)
 finish_page7_drawing_cont
         ld hl, start_mc_drawing
         ld (stack_top), hl
@@ -584,6 +608,7 @@ page7_drawing_end
         ld iy, 0x5453
         ld a,#57
         ld (player_pg+1),a
+        ENDIF
 
 dec_and_loop:
 saved_bc_value  EQU $ +1
@@ -628,15 +653,16 @@ loop1:
         ld a, 15
         and c
 
-        //jp nz, mc_step_drawing
         jr z, non_mc_draw_step
         
 mc_step_drawing:
         ld e,a
-        and 2
 
+        IF (HAS_PLAYER == 1)
+                and 2
 check_for_page7_effect
-        jr nz, page7_effect
+                jr nz, page7_effect
+        ENDIF
 
         ld sp, color_addr + 768                         
         ld hl, after_draw_colors                        
@@ -656,6 +682,7 @@ skip_draw_colors
         jp hl
 
 //*************************************************************************************
+        IF (HAS_PLAYER == 1)
 page7_effect
         ld sp, stack_top
         ld hl,finish_page7_drawing_cont
@@ -681,6 +708,8 @@ ef_x    call effect_step
         ld ix, 0x5051 + #0808
         ld iy, 0x5453 + #0808
         jp skip_draw_colors
+
+        ENDIF
 
         /************************* no-mc step drawing *********************************************/
 non_mc_draw_step
@@ -960,6 +989,7 @@ player_pg       SET_PAGE 7
                 //jp play
                 INCLUDE "include/fast_psg_player.asm"
         ELSE                
+                scf
                 ret
         ENDIF                                
 
@@ -967,6 +997,7 @@ start_mc_drawing:
         ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
         ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
         ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
+        ; Pure scroller timing: 162435+202=162637
         IF (DIRECT_PLAYER_JUMP  != 1)
 first_mc_line: JP 00
         ENDIF
@@ -998,6 +1029,7 @@ first_mc_line: JP 00
         DRAW_MULTICOLOR_AND_RASTR_LINE 22
         DRAW_MULTICOLOR_LINE 23
 
+        IF (HAS_PLAYER == 1)
 show_final_screen
         SET_PAGE 4
         ld (set_player_page+1),a
@@ -1038,6 +1070,8 @@ end_mus_finished
         call stop
         di
         halt        
+        ENDIF   // has_player
+
 
 copy_5_to_7_animated
                 ld hl, #4000
@@ -1087,7 +1121,6 @@ upd_de_anim2    res 7,d
                 dec c
                 jr nz, next_column
                 ret
-
 
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.
@@ -1197,8 +1230,10 @@ t4                      EQU t3
         ret
 
         INCLUDE "zx0_standard.asm"
-        INCLUDE "include/draw_font.asm"
-        INCLUDE "effects_by_run.asm"
+        IF (HAS_PLAYER == 1)
+                INCLUDE "include/draw_font.asm"
+                INCLUDE "effects_by_run.asm"
+        ENDIF                
 encoded_text
         INCBIN "generated_code/encoded_text.dat"
 final_screen        
