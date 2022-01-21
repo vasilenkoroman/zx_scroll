@@ -171,18 +171,20 @@ it1_end:        ex de,hl
                 add hl, bc      // *2
                 ld sp, hl
                 pop hl: ld (L1?+1), hl
+                // 10+11+6+10+16=53
 
                 ld hl, (64-1) * 2
                 add hl, sp
                 ld sp, hl
                 pop hl: ld (L2?+1), hl
+                // 10+11+6+10+16=53
 
                 ld hl, mc_rastr_descriptors_next + 127 * 2
                 add hl, bc
                 ld sp, hl
-
                 pop hl: ld (RASTR_23+1), hl
                 pop hl: ld (L3?+1), hl
+                // 10+11+6+10+16+10+16=79
 
         ENDM
 

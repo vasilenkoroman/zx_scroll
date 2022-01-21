@@ -353,26 +353,26 @@ wait1   ld      de,-d3          ; 10
 t24     nop
 t20     nop
 t16     nop
-t12     jr delay_end
+t12     jr delay_end                    ; 12
 
 t27     nop
 t23     nop
 t19     nop
 t15     nop
 t11     ld l, low(delay_end)
-        jp (hl)
+        jp (hl)                         ; 11
 
 t26     nop
 t22     nop
 t18     nop
 t14     nop
-t10     jp delay_end
+t10     jp delay_end                    ; 10
 
 t25     nop
 t21     nop
 t17     nop
 t13     nop
-t09     ld a, r
+t09     ld a, r                         ;9
 delay_end
         ASSERT high(delay_end) == high(base)
         ENDM
@@ -620,23 +620,16 @@ saved_bc_value  EQU $ +1
 loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
         // --------------------- update_jp_ix_table --------------------------------
-
-        // ------------------------- update jpix table
-        // bc - screen address to draw
         // between frames: 73248/71456
-        ; a = bank number
-        // set bits that match page number to 0
 
-jpix_h_pos      
-        ld sp, (update_jpix_helper + imageHeight/2 - 2)
+        ld hl, loop1
+        exx
 
         //next_step_first_bank
         exa
         out (#fd),a
-        //SET_PAGE 0 //< Page number is updated in runtime
-
-        ld hl, loop1
-        exx
+jpix_h_pos      
+        ld sp, (update_jpix_helper + imageHeight/2 - 2)
         ld bc, JP_VIA_HL_CODE
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
@@ -644,7 +637,7 @@ jpix_h_pos
         .2 write_jp_ix_data_via_bc
         .2 restore_jp_ix
         .2 write_jp_ix_data_via_bc
-        // total: 562/560 (with switching page)
+        // total: 465 (with switching page)
         // ------------------------- update jpix table end
         DRAW_RASTR_LINE_S 23
 
@@ -652,7 +645,6 @@ loop1:
         SET_PAGE 6
         ld a, 15
         and c
-
         jr z, non_mc_draw_step
         
 mc_step_drawing:
@@ -677,7 +669,6 @@ skip_draw_colors
         ld l, e
         ld de, bank_drawing_common  // next jump
         ld sp, hl
-
         pop hl
         jp hl
 

@@ -4100,7 +4100,7 @@ int serializeTimingDataForRun(
                 ticks -= 14;
         }
 
-        int kZ80CodeDelay = 2488 - 12-4   - 11 - 10-3-7-4-3 + 34;
+        int kZ80CodeDelay = 2468;
 
         if (line % 8 == 0)
         {
