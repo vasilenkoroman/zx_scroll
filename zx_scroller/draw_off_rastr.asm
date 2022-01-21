@@ -69,7 +69,7 @@ OFF_Iteration?_Step?_JP
 
 it0_start:      ld a, #54
                 out (0xfd), a
-                DRAW_OFFSCREEN_LINES 0, 23,  it0_start
+                DRAW_OFFSCREEN_LINES 0, 23,  0
 L01:            DRAW_OFFSCREEN_LINES 0, 15,  L01
 L02:            DRAW_OFFSCREEN_LINES   0, 7, L02
 

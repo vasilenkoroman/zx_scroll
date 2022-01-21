@@ -25,7 +25,7 @@ draw_offrastr_off_end   equ screen_end + 16
 
 code_after_moving       equ draw_offrastr_off_end
 
-color_data_to_restore   equ #bfc2
+//color_data_to_restore   equ #bfc2
 effects_by_run          equ #bfc4
 effects_by_run_end      equ effects_by_run + 8
 
@@ -72,8 +72,7 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
         ENDM                
 
         MACRO update_colors_jpix
-        //MACRO draw_colors
-        ; bc - line number
+        ; bc - line number*2
 
         ld hl, bc
         srl h: rr l
@@ -91,20 +90,21 @@ RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)
 
         // restore data from prev MC drawing steps
         pop hl
-        ld sp, hl
-        inc sp
-        inc sp
-        ld hl, (color_data_to_restore)
-        push hl
 
-        ex de, hl
-
-        ; write JP_IX to end exec address, 
-        ; store original data to HL
-        ; store end exec address to de
+        ; new JPIX from DE to SP
+        ex de,hl
         ld sp, hl                                       ; 6
-        ld de, JP_VIA_HL_CODE                           ; 10
-        ex de, hl                                       ; 4
+        ex de,hl
+
+        ; Old data to restore to DE, restore data from prev MC drawing steps in HL
+color_data_to_restore EQU $+1        
+        ld de, 0
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        // 4+6+16+4+7+6+7=50
+
+        ld hl, JP_VIA_HL_CODE                           ; 10
         ex (sp), hl                                     ; 19
         ld (color_data_to_restore), hl
         ENDM
@@ -705,6 +705,7 @@ ef_x    call effect_step
         /************************* no-mc step drawing *********************************************/
 non_mc_draw_step
         update_colors_jpix        
+
         ld sp, color_addr + 768                         ; 10
         ld hl, finish_draw_colors0                      ; 10
         exx                                             ; 4
@@ -849,7 +850,6 @@ finish_draw_colors0
         ld (stack_top), hl
 
         ld de, finish_off_drawing_0
-        ld h, high(it0_start)
         jp it0_start
 finish_off_drawing_0
         // MC part rastr

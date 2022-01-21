@@ -4104,7 +4104,7 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22+4+5;
+            kZ80CodeDelay += 6321 - 9 + 600 + 230 - 13 + 16+4+10+1+10+3+7-22+4+5 - 15-4;
             if (line == 0)
             {
                 kZ80CodeDelay -= 43-26;    // new jpix_helper
