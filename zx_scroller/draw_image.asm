@@ -20,13 +20,9 @@ screen_end:             equ 5b00h
 start:                  equ 6b00h
 generated_code          equ 29900
 
-draw_offrastr_offset    equ screen_end                     ; [0..15]
-draw_offrastr_off_end   equ screen_end + 16
+code_after_moving       equ screen_end
 
-code_after_moving       equ draw_offrastr_off_end
-
-//color_data_to_restore   equ #bfc2
-effects_by_run          equ #bfc4
+effects_by_run          equ #bfc2
 effects_by_run_end      equ effects_by_run + 8
 
 STACK_SIZE:             equ 12  ; in words
@@ -648,7 +644,7 @@ loop1:
         jr z, non_mc_draw_step
         
 mc_step_drawing:
-        ld e,a
+        //ld e,a
 
         IF (HAS_PLAYER == 1)
                 and 2
@@ -657,20 +653,12 @@ check_for_page7_effect
         ENDIF
 
         ld sp, color_addr + 768                         
-        ld hl, after_draw_colors                        
+        ld de, bank_drawing_common
+draw_off_x_step        
+        ld hl, draw_off_rastr_7                      
         exx                                             ; 10+10+4=24
 start_draw_colors:
         jp 00                                           ; 10
-after_draw_colors
-skip_draw_colors        
-       
-        // Exec off rastr
-        ld h, high(draw_offrastr_offset)
-        ld l, e
-        ld de, bank_drawing_common  // next jump
-        ld sp, hl
-        pop hl
-        jp hl
 
 //*************************************************************************************
         IF (HAS_PLAYER == 1)
@@ -698,7 +686,11 @@ ef_x    call effect_step
 
         ld ix, 0x5051 + #0808
         ld iy, 0x5453 + #0808
-        jp skip_draw_colors
+
+
+        ld de, bank_drawing_common
+        ld hl,(draw_off_x_step+1)
+        jp hl
 
         ENDIF
 
@@ -713,7 +705,7 @@ start_draw_colors0:
         jp 00                                           ; 8
 finish_draw_colors0        
 
-        // Update off rastr drawing for then next 8 steps
+        // Update off rastr drawing for then next 7 steps
 
         ld hl, off_rastr_descriptors
         add hl,bc       // * 2

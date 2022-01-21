@@ -148,24 +148,6 @@ unpack_and_play_init_screen
             di            
         ENDIF            
 
-            //create_write_off_rastr_helper
-            ld sp, draw_offrastr_offset+16
-            ld hl, draw_off_rastr_7
-            push hl
-            ld hl, draw_off_rastr_6
-            push hl
-            ld hl, draw_off_rastr_5
-            push hl
-            ld hl, draw_off_rastr_4
-            push hl
-            ld hl, draw_off_rastr_3
-            push hl
-            ld hl, draw_off_rastr_2
-            push hl
-            ld hl, draw_off_rastr_1
-            push hl
-            // The value 0 is not used.
-
             // Create effects by run helper
         IF (HAS_PLAYER == 1)            
             ld sp, effects_by_run + 8

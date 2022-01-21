@@ -320,4 +320,4 @@ mus_init	ld	 a, l
 			// total for looping: 171+73=244
 
 
-			DISPLAY	"player code occupies ", /D, $-stop, " bytes"
+			DISPLAY	"player code occupies ", /D, $-pl_track, " bytes"

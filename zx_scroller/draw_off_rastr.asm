@@ -200,7 +200,13 @@ it1_end:        ex de,hl
                  // total: 32
         ENDM
 
+        MACRO SET_NEXT_STEP value
+                ld hl, value
+                ld (draw_off_x_step+1),hl
+        ENDM
+
 draw_off_rastr_7
+                SET_NEXT_STEP draw_off_rastr_6
                 UPDATE_JPIX_HELPER -2
 
                 update_rastr RASTR_8, RASTR_0, RASTR_16
@@ -214,6 +220,7 @@ draw_off_rastr_7
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
 draw_off_rastr_6
+                SET_NEXT_STEP draw_off_rastr_5
                 UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_9, RASTR_1, RASTR_17
 
@@ -228,6 +235,7 @@ draw_off_rastr_6
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
+                SET_NEXT_STEP draw_off_rastr_4
                 UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_10, RASTR_2, RASTR_18
 
@@ -242,6 +250,7 @@ draw_off_rastr_5
                 START_OFF_DRAWING it5_start
 
 draw_off_rastr_4
+                SET_NEXT_STEP draw_off_rastr_3
                 UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_11, RASTR_3, RASTR_19
 
@@ -256,6 +265,7 @@ draw_off_rastr_4
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
+                SET_NEXT_STEP draw_off_rastr_2
                 UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_12, RASTR_4, RASTR_20
 
@@ -269,6 +279,7 @@ draw_off_rastr_3
                 START_OFF_DRAWING it3_start
 
 draw_off_rastr_2
+                SET_NEXT_STEP draw_off_rastr_1
                 UPDATE_JPIX_HELPER 2
                 update_rastr RASTR_13, RASTR_5, RASTR_21
 
@@ -283,6 +294,7 @@ draw_off_rastr_2
                 START_OFF_DRAWING it2_start
 
 draw_off_rastr_1
+                SET_NEXT_STEP draw_off_rastr_7
                 UPDATE_JPIX_HELPER -2
                 update_rastr RASTR_14, RASTR_6, RASTR_22
 
