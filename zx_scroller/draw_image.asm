@@ -41,30 +41,43 @@ EXX_DE_JP_HL_CODE       EQU 0xeb + 0xe9 * 256
                 IF (N? < 16)
                         IF (N? % 8 == 0)
                                 ld a, #54
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 2)
                                 ld a, #53
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 4)
                                 ld a, #51
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 6)
                                 ld a, #50
+                                out (0xfd), a
                         ENDIF
                 ELSE                        
                         IF (N? % 8 == 0 || N? % 8 == 7)
                                 ld a, #54
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 1)
                                 ld a, #53
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 3)
                                 ld a, #51
+                                out (0xfd), a
                         ELSEIF (N? % 8 == 5)
                                 ld a, #50
+                                out (0xfd), a
                         ENDIF
                 ENDIF
-                out (0xfd), a
 
                 ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
                 ld hl, $ + 7
                 exx
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
+        ENDM                
+
+        MACRO DRAW_ONLY_RASTR_LINE_22
+                ld sp, 16384 + ((22 + 8) % 24) * 256 + 256       ; 10
+                exx
+RASTR0_22       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
 
         MACRO update_colors_jpix
@@ -871,10 +884,9 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 19
         DRAW_ONLY_RASTR_LINE 20
         DRAW_ONLY_RASTR_LINE 21
-        DRAW_ONLY_RASTR_LINE 22
 
-finish_mc_only_rastr_drawing
-        jp bank_drawing_common2
+        ld hl, bank_drawing_common2
+        DRAW_ONLY_RASTR_LINE_22
 
 finish_non_mc_drawing_cont:
         SET_PAGE 6
