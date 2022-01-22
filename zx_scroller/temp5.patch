@@ -1,0 +1,139 @@
+diff --git a/pc_compressor/main.cpp b/pc_compressor/main.cpp
+index 2dbf431..41e2655 100644
+--- a/pc_compressor/main.cpp
++++ b/pc_compressor/main.cpp
+@@ -4680,7 +4680,7 @@ int main(int argc, char** argv)
+     mirrorBuffer8(buffer.data(), imageHeight);
+     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
+ 
+-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump; // | inverseColors;
++    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors;// | OptimizeMcTicks | updateColorData | directPlayerJump; // | inverseColors;
+ 
+     const auto t1 = std::chrono::system_clock::now();
+ 
+diff --git a/zx_scroller/generated_code/color.z80 b/zx_scroller/generated_code/color.z80
+index 605bd86..668027d 100644
+Binary files a/zx_scroller/generated_code/color.z80 and b/zx_scroller/generated_code/color.z80 differ
+diff --git a/zx_scroller/generated_code/color_descriptor.dat b/zx_scroller/generated_code/color_descriptor.dat
+index 8470575..8e43936 100644
+Binary files a/zx_scroller/generated_code/color_descriptor.dat and b/zx_scroller/generated_code/color_descriptor.dat differ
+diff --git a/zx_scroller/generated_code/first_screen.scr b/zx_scroller/generated_code/first_screen.scr
+index b49c91e..e40629c 100644
+Binary files a/zx_scroller/generated_code/first_screen.scr and b/zx_scroller/generated_code/first_screen.scr differ
+diff --git a/zx_scroller/generated_code/first_screen.zx0 b/zx_scroller/generated_code/first_screen.zx0
+index 260c857..ef6eb66 100644
+Binary files a/zx_scroller/generated_code/first_screen.zx0 and b/zx_scroller/generated_code/first_screen.zx0 differ
+diff --git a/zx_scroller/generated_code/jpix0.dat b/zx_scroller/generated_code/jpix0.dat
+index d9d8ec9..b351b1c 100644
+Binary files a/zx_scroller/generated_code/jpix0.dat and b/zx_scroller/generated_code/jpix0.dat differ
+diff --git a/zx_scroller/generated_code/jpix1.dat b/zx_scroller/generated_code/jpix1.dat
+index 4dab662..145a0b9 100644
+Binary files a/zx_scroller/generated_code/jpix1.dat and b/zx_scroller/generated_code/jpix1.dat differ
+diff --git a/zx_scroller/generated_code/jpix2.dat b/zx_scroller/generated_code/jpix2.dat
+index dacd9a8..2c8d51c 100644
+Binary files a/zx_scroller/generated_code/jpix2.dat and b/zx_scroller/generated_code/jpix2.dat differ
+diff --git a/zx_scroller/generated_code/jpix3.dat b/zx_scroller/generated_code/jpix3.dat
+index d6dceac..f263dd4 100644
+Binary files a/zx_scroller/generated_code/jpix3.dat and b/zx_scroller/generated_code/jpix3.dat differ
+diff --git a/zx_scroller/generated_code/labels.asm b/zx_scroller/generated_code/labels.asm
+index 2835f5b..3ecb676 100644
+--- a/zx_scroller/generated_code/labels.asm
++++ b/zx_scroller/generated_code/labels.asm
+@@ -1,12 +1,12 @@
+ COLOR_REG_AF2             EQU    #0
+-FIRST_LINE_DELAY          EQU    40
++FIRST_LINE_DELAY          EQU    0
+ UNSTABLE_STACK_POS        EQU    1
+-RAM2_UNCOMPRESSED_SIZE   EQU    16819
+-RAM0_UNCOMPRESSED_SIZE   EQU    15125
+-RAM1_UNCOMPRESSED_SIZE   EQU    15309
+-RAM3_UNCOMPRESSED_SIZE   EQU    15323
+-RAM4_UNCOMPRESSED_SIZE   EQU    15119
++RAM2_UNCOMPRESSED_SIZE   EQU    17645
++RAM0_UNCOMPRESSED_SIZE   EQU    15110
++RAM1_UNCOMPRESSED_SIZE   EQU    15301
++RAM3_UNCOMPRESSED_SIZE   EQU    15307
++RAM4_UNCOMPRESSED_SIZE   EQU    15139
+ HAS_PLAYER   EQU    1
+ imageHeight   EQU    768
+ timings_data   EQU    51840
+-DIRECT_PLAYER_JUMP  EQU    1
++DIRECT_PLAYER_JUMP  EQU    0
+diff --git a/zx_scroller/generated_code/main0.z80 b/zx_scroller/generated_code/main0.z80
+index 79b3c1a..bdcee83 100644
+Binary files a/zx_scroller/generated_code/main0.z80 and b/zx_scroller/generated_code/main0.z80 differ
+diff --git a/zx_scroller/generated_code/main1.z80 b/zx_scroller/generated_code/main1.z80
+index ac46851..6f8b371 100644
+Binary files a/zx_scroller/generated_code/main1.z80 and b/zx_scroller/generated_code/main1.z80 differ
+diff --git a/zx_scroller/generated_code/main2.z80 b/zx_scroller/generated_code/main2.z80
+index c0da1ad..92bd169 100644
+Binary files a/zx_scroller/generated_code/main2.z80 and b/zx_scroller/generated_code/main2.z80 differ
+diff --git a/zx_scroller/generated_code/main3.z80 b/zx_scroller/generated_code/main3.z80
+index 113dea9..33602e7 100644
+Binary files a/zx_scroller/generated_code/main3.z80 and b/zx_scroller/generated_code/main3.z80 differ
+diff --git a/zx_scroller/generated_code/mc_descriptors.dat b/zx_scroller/generated_code/mc_descriptors.dat
+index c3e8d14..1720194 100644
+Binary files a/zx_scroller/generated_code/mc_descriptors.dat and b/zx_scroller/generated_code/mc_descriptors.dat differ
+diff --git a/zx_scroller/generated_code/mc_rastr_bottom_descriptors.dat b/zx_scroller/generated_code/mc_rastr_bottom_descriptors.dat
+index 026624a..2f52217 100644
+Binary files a/zx_scroller/generated_code/mc_rastr_bottom_descriptors.dat and b/zx_scroller/generated_code/mc_rastr_bottom_descriptors.dat differ
+diff --git a/zx_scroller/generated_code/mc_rastr_next_descriptors.dat b/zx_scroller/generated_code/mc_rastr_next_descriptors.dat
+index 5d63f58..bff8bc0 100644
+Binary files a/zx_scroller/generated_code/mc_rastr_next_descriptors.dat and b/zx_scroller/generated_code/mc_rastr_next_descriptors.dat differ
+diff --git a/zx_scroller/generated_code/mc_rastr_top_descriptors.dat b/zx_scroller/generated_code/mc_rastr_top_descriptors.dat
+index fab679a..a443894 100644
+Binary files a/zx_scroller/generated_code/mc_rastr_top_descriptors.dat and b/zx_scroller/generated_code/mc_rastr_top_descriptors.dat differ
+diff --git a/zx_scroller/generated_code/mt_and_rt_reach_descriptor.z80 b/zx_scroller/generated_code/mt_and_rt_reach_descriptor.z80
+index 80ba8c0..e0cea03 100644
+Binary files a/zx_scroller/generated_code/mt_and_rt_reach_descriptor.z80 and b/zx_scroller/generated_code/mt_and_rt_reach_descriptor.z80 differ
+diff --git a/zx_scroller/generated_code/multicolor.z80 b/zx_scroller/generated_code/multicolor.z80
+index 070668a..60ff73f 100644
+Binary files a/zx_scroller/generated_code/multicolor.z80 and b/zx_scroller/generated_code/multicolor.z80 differ
+diff --git a/zx_scroller/generated_code/off_rastr_descriptors.dat b/zx_scroller/generated_code/off_rastr_descriptors.dat
+index dd4ca5b..bab6856 100644
+Binary files a/zx_scroller/generated_code/off_rastr_descriptors.dat and b/zx_scroller/generated_code/off_rastr_descriptors.dat differ
+diff --git a/zx_scroller/generated_code/ram0.zx0 b/zx_scroller/generated_code/ram0.zx0
+index c222f93..fc30256 100644
+Binary files a/zx_scroller/generated_code/ram0.zx0 and b/zx_scroller/generated_code/ram0.zx0 differ
+diff --git a/zx_scroller/generated_code/ram1.zx0 b/zx_scroller/generated_code/ram1.zx0
+index 62a9e43..9d9a888 100644
+Binary files a/zx_scroller/generated_code/ram1.zx0 and b/zx_scroller/generated_code/ram1.zx0 differ
+diff --git a/zx_scroller/generated_code/ram2.zx0 b/zx_scroller/generated_code/ram2.zx0
+index 2c67609..1af29bc 100644
+Binary files a/zx_scroller/generated_code/ram2.zx0 and b/zx_scroller/generated_code/ram2.zx0 differ
+diff --git a/zx_scroller/generated_code/ram3.zx0 b/zx_scroller/generated_code/ram3.zx0
+index ad02599..d76127c 100644
+Binary files a/zx_scroller/generated_code/ram3.zx0 and b/zx_scroller/generated_code/ram3.zx0 differ
+diff --git a/zx_scroller/generated_code/reach_descriptor0.z80 b/zx_scroller/generated_code/reach_descriptor0.z80
+index 14c469d..06574a7 100644
+Binary files a/zx_scroller/generated_code/reach_descriptor0.z80 and b/zx_scroller/generated_code/reach_descriptor0.z80 differ
+diff --git a/zx_scroller/generated_code/reach_descriptor1.z80 b/zx_scroller/generated_code/reach_descriptor1.z80
+index 3afedeb..76fec76 100644
+Binary files a/zx_scroller/generated_code/reach_descriptor1.z80 and b/zx_scroller/generated_code/reach_descriptor1.z80 differ
+diff --git a/zx_scroller/generated_code/reach_descriptor2.z80 b/zx_scroller/generated_code/reach_descriptor2.z80
+index 8fa3763..76292ad 100644
+Binary files a/zx_scroller/generated_code/reach_descriptor2.z80 and b/zx_scroller/generated_code/reach_descriptor2.z80 differ
+diff --git a/zx_scroller/generated_code/reach_descriptor3.z80 b/zx_scroller/generated_code/reach_descriptor3.z80
+index ced38e2..0a4dd43 100644
+Binary files a/zx_scroller/generated_code/reach_descriptor3.z80 and b/zx_scroller/generated_code/reach_descriptor3.z80 differ
+diff --git a/zx_scroller/generated_code/sp_delta_descriptors.dat b/zx_scroller/generated_code/sp_delta_descriptors.dat
+index 802b4df..da92b2d 100644
+--- a/zx_scroller/generated_code/sp_delta_descriptors.dat
++++ b/zx_scroller/generated_code/sp_delta_descriptors.dat
+@@ -1 +1 @@
+-J\M^XXX]P_Q\RVBSFZR^PXT\PbT`P^J\PbTdTb\bUfUbS`T`R`ZcX`^`ZbZdQcNdRb\dSd\b^`VdT_R`\^^dVd`d^`Z]XYRYZX^^Y]b]bY]HRXRHXR\\V]^bbRZPRPRH\R^ZXZ]^_V\LVGSDZP^WXV\^bL`>^L\BbNdObNbXfJbD`M`F`PcV`L`Rb@dBcRdNbVdVdLbP`BdB_S`Q^VdRdPdT`F]LYUYTXV^U]R]RYLHNXXHPRX\V]VbVRTPTPVHVRYZWZZ^\VWLVGWD\PYW[V]^]Lc>]L^B^N^O_N`X`JgDgM]F_P]V`L`Rg@kBgR`N^V^V`L`PjBjB`S`Q\VZR`P`T`F^L`UbT\V^UbR`R`LbNbXfP[XdVbV_V`TbTbV^V\Y`W^Z_\\W_V[W\\\YZ[[]`]`cb]c^_^_^`_b`b`dgbgb]X_^]``b`bgbk]g``S^Y^^```\j\jV`X`R\YZ^`]`\`]^S`ZbT\Y^^b\`Y`UbSbWfP[Xd\b^_V`YbWbX^R\V`^^W_X\X_U[X\T\ZZZ[Z`^`^b\cZ_X_\``bbbbd`b`b]X[^]`fbcbfb`]``^S\YZ^[`Z\[\[VYXURVYR^Z]Y\Y]TSTZPTTYN^S\NYOUMSTWOPPXD\L^GVLYDWSXPRRV@^KWIXLXHURXNTRZHZLZJ^P^K\TZTXZ\L`MbQbT`P`Z]V[W]JfKcWfV`T`^^T\WZR[NZX[W[TYWURVURQZPYVYVTTTXPRTXNNSONWORMTT\OTPZDRLVGVLVDXS]PVRX@XKXIXL]H[R]N]R]H\L[J\P]K^TdT]ZdLdMeQ^TgPfZeVcW^JfKcWdVeTd^dT`W_RdNbXbWeTdWdRXUXQ\PXVbVXTdXXRTX\NTOQW\RXTT\UTSZXRRVRV\VNXR]PVNXTXLXPXZ]N[V]R]P]T\N[H\]]R^TdT]NdRdJeJ^`gWfYeXcP^YfNcTd^e]dZdY`X_XdVbVb`e`d\d\XUXW\TXSbVX\dVXYT^\RTTQR\VXUTVUWS_XQRURS\UNWR[PYN`TQLWPTZXN\V[RRP]TPNVHO]XRVTRTNNYRMJSJT`\WSYUXLP\YNN\TW^S]2ZEY2X1XKVJV9`<`-\+\(U(W4T:S0V2\,V*Y'^(R3T1R.V/U*V,W+_*Q7U5S0U/W,[*Y+`*Q:W8T6X4\0[,R2]2P@V?O;X5VCR>NDY;MHSLTJ\DSSUNLT\MNT\PWPSL2XER2X1QKZJT9W<W-^+T([(Q4^:[0\2\,`*Z'^(Q3`1Z.[/^*f,\+\*\7]5U0Y/^,h*b+^*\:`8X6U4f0e,d2^2\@`?N;\5dC\>]DY;XHWLNJQDWS\N\TTMRTVPPPQL\X[RZXQQSZTTIWKW\^STZ[OQL^Z[L\L\P`RZV^PQT`VZH[N^RfT\Y\W\P]TUIYJ^WhNb^^R\Q`UXHUJfMeXdX^P\Q`RNB\FdR\P]TYPXTWPNJQPWT\T\\TURUVSPTQR\Z[XZ^QZSZTQINKR\\SSZ\O^LVZTLRL\P^RVV`P^TZVXHRNZR^TYYbWbP]TRIRJXW\NV^^RbQZURHRJ\M^XXX]P_Q\RVBSFZR^PXT\PbT`P^J\PbTdTb\bUfUbS`T`R`ZcX`^`ZbZdQcNdRb\dSd\b^`VdT_R`\^^dVd`d^`Z]XYRYZX^^Y]b]bY]HRXRHXR\\V]^bbRZPRPRH\R^ZXZ]^_V\LVGSDZP^WXV\^bL`>^L\BbNdObNbXfJbD`M`F`PcV`L`Rb@dBcRdNbVdVdLbP`BdB_S`Q^VdRdPdT`F]LYUYTXV^U]R]RYLHNXXHPRX\V]VbVRTPTPVHVRYZWZZ^\VWLVGWD\PYW[V]^]Lc>]
+\ No newline at end of file
++K^R^XXZ`N_QXTRDSJZT^R\T\P`X^LbN\TdWhTbZbZbSfSbV`TfZcX`b^Vf\fQcPfTb\db`\d^bXdV_Pb^^b^Rh`f^^\_\[RY^VZ^Ybb]dY`RRXXFVT\^V]^bhT\PRPNL^T^ZXZ`^_VXLRNSDZP^W\Y\``L^DbP\BdNhObNbXbNfHbK`@fRcV`L^TfBf@cRfNbVdT`PdTb@dL_UbQ^V^VhUfP^H_N[UYRVZ^WbP]TYNRPXVFPT^^T]VbXTTPTPXLZTYZYZ`^\VWLVNWDXP[W]Y]`]LcD]P^B^N^O`N`XgNiHiK[@eR]V`L`TiBm@gR^N`V^TfPfTh@jL^UhQ^V\V`U`P`H^NfUbRXZ`WbPbT]NgPjVfP]^dTbV\XgTgTbX^Z\Y`Y\`h\_W_V`WXX\[X]`]d]`cd]c^b^[^f`h`dgdibid[UeZ]d`d`bibm`gb^S`]^^f`f\h^jX^XhV^Y\^`]`^`]^Sf\bVX[`^b^bY]UgUjWfR]Xd\b`\VgYgWbZ^R\X``\YhZ_Z_Z`ZXZ\ZXZ`^d```d`c`bV[Zfbhddddcbed]U[Z[dfdfbhbh``b^S\]Z^f`f\j^[XYXUVZYX^\]]^Y]TSV\TVW[N^Y^NYOUMUVWORNXK\L`GVNYKWSZKRUX@`KYKZQZJZPZPZTZHZN^N`R`I`V`TVZZLbRdSdRcPeZ]V[U[OfNfUhVhV`^^R\TZRfJfXjW[VYUUPZZXO\R]XYVTRVVTVWXNPYQNUOPMPV`OTNZKTLVGTNRK\S]KXUX@XKXKVQ]J[P]P]T]H\NYN\R]I^VdT]ZhL^RgS^RgPfZeVhU[OjNcUdVeVd^fRfT_RbJbXdWcVfUfPXZbO\RXX\VXRfVXVVXZPTQQUcPZPT`XTSZZTMVVTdRN\T]RXNXTXLXTV]]R[X]R]P]V\PYK\`]R^TdW]NhR^EgP^`gWfYeZhT[WjPcTd^e]d^fYfV_ZbZbVdbc`f^fVX\b^\TXU\VX\fVXYVeZRTTQTcVZTTXXZSbZOMWVSdUNYT]R[N_TQLYTT]\R^X]RTP]VRPTKQ`ZRZTVWNN[REESPY`_WWYZZUT^WNP`TW^Q]E^LYEV1Z2ZNV9b<`3^1V+\(^,T4U1V2\1V,Y*e(R1T1T1V1T,X,Z-b-O3W3S5U/Y.],[/_,Q0Y:T6\6^2]1T6].R=T6Q;Z5ZFVCNB[;EMSLYJ_MWUZLUS^QNX`PWRQPEVLRE\1S2ZNX9W<S3^1X+^(V,^4^1V2\1d,\*`(X1_1X1Y1b,h,b-\-\3d3U5Y/^.h,b/`,\0`:Z6W6h2h1d6`.^=b6P;\5dF`C_B\;XM\LPJQM\U\L\SVQRXVPPRTP\V]RZ\SSSZVXJWSS\^ZX\^PVN^\^JVN\WdX\X`PXT_TXHYNbRhVb\\Y\SdRUIYJ^YhNb``T\O`OZHWKhRhXdZ`N^QbTPD\JdT`R_T\PXX\LPNQT\W\T\ZVZRSVSPVTT\Z]XZbSVS\VQJPST\\Zb\\P^NX\VJPN^WbXRX`P^T\T\HRN^RZVY\bYdS`RRIXJVY\NV`^ThO\ORHNK^R^XXZ`N_QXTRDSJZT^R\T\P`X^LbN\TdWhTbZbZbSfSbV`TfZcX`b^Vf\fQcPfTb\db`\d^bXdV_Pb^^b^Rh`f^^\_\[RY^VZ^Ybb]dY`RRXXFVT\^V]^bhT\PRPNL^T^ZXZ`^_VXLRNSDZP^W\Y\``L^DbP\BdNhObNbXbNfHbK`@fRcV`L^TfBf@cRfNbVdT`PdTb@dL_UbQ^V^VhUfP^H_N[UYRVZ^WbP]TYNRPXVFPT^^T]VbXTTPTPXLZTYZYZ`^\VWLVNWDXP[W]Y]`]LcD]
+\ No newline at end of file
+diff --git a/zx_scroller/generated_code/timings0.dat b/zx_scroller/generated_code/timings0.dat
+index 13cd019..a88007e 100644
+Binary files a/zx_scroller/generated_code/timings0.dat and b/zx_scroller/generated_code/timings0.dat differ
+diff --git a/zx_scroller/generated_code/timings1.dat b/zx_scroller/generated_code/timings1.dat
+index 6b42f1b..4c4d79c 100644
+Binary files a/zx_scroller/generated_code/timings1.dat and b/zx_scroller/generated_code/timings1.dat differ
+diff --git a/zx_scroller/generated_code/timings2.dat b/zx_scroller/generated_code/timings2.dat
+index cc78a36..660ee27 100644
+Binary files a/zx_scroller/generated_code/timings2.dat and b/zx_scroller/generated_code/timings2.dat differ
+diff --git a/zx_scroller/generated_code/timings3.dat b/zx_scroller/generated_code/timings3.dat
+index c7fc9c2..352f672 100644
+Binary files a/zx_scroller/generated_code/timings3.dat and b/zx_scroller/generated_code/timings3.dat differ

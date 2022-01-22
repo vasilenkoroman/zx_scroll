@@ -4037,6 +4037,7 @@ int serializeTimingDataForRun(
     const CompressedData& multicolor,
     int flags,
     const std::vector<int>& musicTimings,
+    int& worseMcLineTicks,
     int& worseLineTicks,
     int& worseLineNum,
     int& minSpecialTicks,
@@ -4104,7 +4105,7 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7148 + 9 - 10-121-18;
+            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418;
             if (line == 0)
             {
                 kZ80CodeDelay -= 43-26;    // new jpix_helper
@@ -4126,6 +4127,7 @@ int serializeTimingDataForRun(
         {
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 10;
+            kZ80CodeDelay -= 54;
         }
         
         // offscreen drawing branches has different length
@@ -4194,10 +4196,11 @@ int serializeTimingDataForRun(
         }
 
         int freeTicks = totalTicksPerFrame - ticks;
-        if (freeTicks < kMinDelay)
+        const int minDelay = kMinDelay;
+        if (freeTicks < minDelay)
         {
-            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks << ". minDelay=" << kMinDelay
-                << ". Not enough " << kMinDelay - freeTicks << " ticks. "
+            std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks << ". minDelay=" << minDelay
+                << ". Not enough " << minDelay - freeTicks << " ticks. "
                 << "Color=" << colorTicks
                 << ". preambula=" << offscreenTicks.preambulaTicks
                 << ". offRastr=" << offscreenTicks.payloadTicks
@@ -4217,6 +4220,11 @@ int serializeTimingDataForRun(
         {
             worseLineTicks = freeTicks;
             worseLineNum = line + runNumber * imageHeight;
+        }
+        if (line % 8 == 0)
+        {
+            if (freeTicks < worseMcLineTicks)
+                worseMcLineTicks = freeTicks;
         }
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
         outputData.push_back(freeTicks16);
@@ -4261,6 +4269,8 @@ int serializeTimingData(
 
 
     int worseLineTicks = std::numeric_limits<int>::max();
+    int worseMcLineTicks = std::numeric_limits<int>::max();
+
     int worseLineNum = 0;
     int minSpecialTicks = std::numeric_limits<int>::max();
     std::vector<uint16_t> delayTicks;
@@ -4278,6 +4288,7 @@ int serializeTimingData(
             multicolor,
             flags,
             musicPage,
+            worseMcLineTicks,
             worseLineTicks,
             worseLineNum,
             minSpecialTicks,
@@ -4285,11 +4296,13 @@ int serializeTimingData(
             runNumber);
     }
 
-    std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";
-    if (kMinDelay - worseLineTicks > 0)
-        std::cout << "Not enough ticks:" << kMinDelay - worseLineTicks;
-    std::cout << std::endl;
     std::cout << "worse ticks for effects=" << minSpecialTicks << std::endl;
+    std::cout << "worse MC line free ticks=" << worseMcLineTicks << std::endl;
+    std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";
+    const int minDelay = kMinDelay;
+    if (worseLineTicks < minDelay)
+        std::cout << "Not enough ticks:" << minDelay - worseLineTicks;
+    std::cout << std::endl;
 
 
     std::vector<std::vector<int>> musicPages;

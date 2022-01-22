@@ -851,6 +851,31 @@ finish_draw_colors0
         pop hl: ld (RASTR0_17+1), hl: ld (RASTR_17+1), hl
         pop hl: ld (RASTR0_16+1), hl: //ld (RASTR_16+1), hl
 
+        // mc_rastr_descriptors_top
+
+        ld hl, mc_rastr_descriptors_top-7*2
+        add hl, bc
+        ld sp, hl
+        pop hl: ld (upd_rastr_1_0+1), hl
+        pop hl: ld (upd_rastr_2_0+1), hl
+        pop hl: ld (upd_rastr_3_0+1), hl
+        pop hl: ld (upd_rastr_4_0+1), hl
+        pop hl: ld (upd_rastr_5_0+1), hl
+        pop hl: ld (upd_rastr_6_0+1), hl
+        pop hl: ld (upd_rastr_7_0+1), hl
+
+        ld hl, mc_rastr_descriptors_top-7*2 + 64*2
+        add hl, bc
+        ld sp, hl
+        pop hl: ld (upd_rastr_1_1+1), hl
+        pop hl: ld (upd_rastr_2_1+1), hl
+        pop hl: ld (upd_rastr_3_1+1), hl
+        pop hl: ld (upd_rastr_4_1+1), hl
+        pop hl: ld (upd_rastr_5_1+1), hl
+        pop hl: ld (upd_rastr_6_1+1), hl
+        pop hl: ld (upd_rastr_7_1+1), hl
+
+
         ld hl, finish_non_mc_drawing_cont
         ld (stack_top), hl
 
@@ -885,6 +910,7 @@ finish_off_drawing_0
         DRAW_ONLY_RASTR_LINE 20
         DRAW_ONLY_RASTR_LINE 21
 
+        //ld hl, after_delay
         ld hl, bank_drawing_common2
         DRAW_ONLY_RASTR_LINE_22
 
@@ -966,7 +992,7 @@ finish_non_mc_drawing_cont:
 
 bank_drawing_common:
         exa             ; save current value for the next_step_first_bank
-bank_drawing_common2:
+bank_drawing_common2:        
         ; delay
 
         ASSERT (timings_data % 32 == 0)
@@ -975,9 +1001,10 @@ load_timings_data
         add hl, bc
         ld sp, hl
         pop hl
-
         DO_DELAY
+        //10+11+6+10=37 + delayTiming
 
+after_delay
         ld sp, stack_top
         IF (HAS_PLAYER == 1)
 player_pg       SET_PAGE 7
@@ -1344,6 +1371,7 @@ off_rastr_sp_delta
         INCBIN "generated_code/sp_delta_descriptors.dat"
 mc_rastr_descriptors_bottom
         INCBIN "generated_code/mc_rastr_bottom_descriptors.dat"
+        INCBIN "generated_code/mc_rastr_top_descriptors.dat", (imageHeight-7)*2, 7*2
 mc_rastr_descriptors_top
         INCBIN "generated_code/mc_rastr_top_descriptors.dat"
 mc_rastr_descriptors_next

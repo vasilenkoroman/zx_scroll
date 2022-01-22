@@ -165,8 +165,9 @@ L142:           DRAW_OFFSCREEN_LINES 7, 0,  L142
 it1_end:        ex de,hl
                 jp hl
 
-        MACRO update_rastr L1?, L2?, L3?
+        MACRO update_rastr itr?, L1?, L2?, L3?
 
+                /*
                 ld hl, mc_rastr_descriptors_top
                 add hl, bc      // *2
                 ld sp, hl
@@ -178,6 +179,15 @@ it1_end:        ex de,hl
                 ld sp, hl
                 pop hl: ld (L2?+1), hl
                 // 10+11+6+10+16=53
+                */
+
+upd_rastr_itr?_0
+                ld hl,0
+                ld (L1?+1), hl
+upd_rastr_itr?_1
+                ld hl,0
+                ld (L2?+1), hl
+                 
 
                 ld hl, mc_rastr_descriptors_next + 127 * 2
                 add hl, bc
@@ -209,7 +219,7 @@ draw_off_rastr_7
                 SET_NEXT_STEP draw_off_rastr_6
                 UPDATE_JPIX_HELPER -2
 
-                update_rastr RASTR_8, RASTR_0, RASTR_16
+                update_rastr 7, RASTR_8, RASTR_0, RASTR_16
 
                 UPDATE_SP2 OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP,   RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16
                 UPDATE_SP1 OFF_0_14_SP, OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,    RASTRS_1,  RASTRS_2,  RASTRS_3,  RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0
@@ -222,7 +232,7 @@ draw_off_rastr_7
 draw_off_rastr_6
                 SET_NEXT_STEP draw_off_rastr_5
                 UPDATE_JPIX_HELPER 2
-                update_rastr RASTR_9, RASTR_1, RASTR_17
+                update_rastr 6, RASTR_9, RASTR_1, RASTR_17
 
                 LD A, 0X7C      // LD a, iyh 2-ND BYTE
                 ld (RASTRS_17 - 3), A
@@ -237,7 +247,7 @@ draw_off_rastr_6
 draw_off_rastr_5
                 SET_NEXT_STEP draw_off_rastr_4
                 UPDATE_JPIX_HELPER -2
-                update_rastr RASTR_10, RASTR_2, RASTR_18
+                update_rastr 5, RASTR_10, RASTR_2, RASTR_18
 
                 UPDATE_SP2 OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP,   RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18
                 UPDATE_SP1 OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,    RASTRS_3,  RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2
@@ -252,7 +262,7 @@ draw_off_rastr_5
 draw_off_rastr_4
                 SET_NEXT_STEP draw_off_rastr_3
                 UPDATE_JPIX_HELPER 2
-                update_rastr RASTR_11, RASTR_3, RASTR_19
+                update_rastr 4, RASTR_11, RASTR_3, RASTR_19
 
                 ld A, 0xFD      // (0x51 -> 0x53)
                 ld (RASTRS_19 - 4), A
@@ -267,7 +277,7 @@ draw_off_rastr_4
 draw_off_rastr_3
                 SET_NEXT_STEP draw_off_rastr_2
                 UPDATE_JPIX_HELPER -2
-                update_rastr RASTR_12, RASTR_4, RASTR_20
+                update_rastr 3, RASTR_12, RASTR_4, RASTR_20
 
                 UPDATE_SP2 OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP,   RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20
                 UPDATE_SP1 OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP, OFF_2_8_SP,   OFF_3_8_SP,  OFF_4_8_SP,    RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3,  RASTRS_4
@@ -281,7 +291,7 @@ draw_off_rastr_3
 draw_off_rastr_2
                 SET_NEXT_STEP draw_off_rastr_1
                 UPDATE_JPIX_HELPER 2
-                update_rastr RASTR_13, RASTR_5, RASTR_21
+                update_rastr 2, RASTR_13, RASTR_5, RASTR_21
 
                 ld A, 0x7D      // (0x50 -> 0x51)
                 ld (RASTRS_21 - 3), A
@@ -296,7 +306,7 @@ draw_off_rastr_2
 draw_off_rastr_1
                 SET_NEXT_STEP draw_off_rastr_7
                 UPDATE_JPIX_HELPER -2
-                update_rastr RASTR_14, RASTR_6, RASTR_22
+                update_rastr 1, RASTR_14, RASTR_6, RASTR_22
 
                 UPDATE_SP2 OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP, OFF_6_16_SP,   RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22
                 UPDATE_SP1 OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,  OFF_4_8_SP,  OFF_5_8_SP,  OFF_6_8_SP,    RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3,  RASTRS_4, RASTRS_5, RASTRS_6
