@@ -657,8 +657,6 @@ loop1:
         jr z, non_mc_draw_step
         
 mc_step_drawing:
-        //ld e,a
-
         IF (HAS_PLAYER == 1)
                 and 2
 check_for_page7_effect
