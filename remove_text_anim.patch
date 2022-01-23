@@ -1,0 +1,132 @@
+diff --git a/pc_compressor/main.cpp b/pc_compressor/main.cpp
+index e184d64..1da512e 100644
+--- a/pc_compressor/main.cpp
++++ b/pc_compressor/main.cpp
+@@ -3951,7 +3951,7 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
+             result.push_back(6107 + 11);
+             result.push_back(6109 + 11);
+         }
+-        result.push_back(6170 + 10);
++        result.push_back(6170 + 10+22);
+     }
+ 
+ 
+@@ -3961,7 +3961,7 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
+ std::vector<int> getEffectDelayInternalForRun2(int imageHeight)
+ {
+     std::vector<int> result;
+-    while (result.size() < imageHeight / 2)
++    while (result.size() < imageHeight / 2 -8)
+     {
+         result.push_back(6162 + 11);
+         for (int k = 0; k < 3; ++k)
+@@ -3969,8 +3969,12 @@ std::vector<int> getEffectDelayInternalForRun2(int imageHeight)
+             result.push_back(6107+11);
+             result.push_back(6109+11);
+         }
+-        result.push_back(6170+10);
++        result.push_back(6170+10 + 22);
+     }
++    *result.rbegin() += 30;
++
++    while (result.size() < imageHeight / 2)
++        result.push_back(436+10);
+ 
+     return result;
+ }
+@@ -4105,7 +4109,7 @@ int serializeTimingDataForRun(
+ 
+         if (line % 8 == 0)
+         {
+-            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418;
++            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2;
+             if (line == 0)
+             {
+                 kZ80CodeDelay -= 43-26;    // new jpix_helper
+@@ -4229,7 +4233,7 @@ int serializeTimingDataForRun(
+         const uint16_t freeTicks16 = (uint16_t)freeTicks;
+         outputData.push_back(freeTicks16);
+ 
+-        if (specialTicks < 0)
++        if (specialTicks != 0 && specialTicks != 11)
+             minSpecialTicks = std::min(freeTicks, minSpecialTicks);
+ 
+     }
+diff --git a/zx_scroller/draw_image.asm b/zx_scroller/draw_image.asm
+index 85869cb..a88e36c 100644
+--- a/zx_scroller/draw_image.asm
++++ b/zx_scroller/draw_image.asm
+@@ -981,7 +981,7 @@ finish_non_mc_drawing_cont:
+         ld sp, jpix_h_pos+2
+         pop hl
+         dec hl
+-        dec hl
++        dec l
+         push hl
+         // 10+10+6+6+11=43
+ 
+diff --git a/zx_scroller/effects_by_run.asm b/zx_scroller/effects_by_run.asm
+index 0b6f5df..d77bb59 100644
+--- a/zx_scroller/effects_by_run.asm
++++ b/zx_scroller/effects_by_run.asm
+@@ -137,4 +137,39 @@ ch_loop     ld a,8
+             inc hl
+             ld (ef4+1),hl
+ 
++            ld hl,char_counter
++            dec(hl)
++            ret nz
++
++            ld hl,ef5
++            ld (ef_x+1),hl
++            ret
++            //10+16+10-6=30
++
++ef5
++ef5_data    ld sp,#c000+6144+512
++            ld de,#1b1b
++            ld b,16
++1           push de
++            djnz 1b
++            ld (ef5_data+1),sp
++            ld sp,stack_top-8
+             ret
++
++/*            
++ef5_data    ld hl, clear_value
++            ld e,(hl)
++            ld d,e
++            ld b,32
++1           .32 push de
++            djnz 1b
++            inc hl
++            ld (ef5_data+1),hl
++            ld sp,stack_top-8
++            ret
++*/            
++
++
++char_counter            DB 71
++//clear_value             DB #71, #33, #17, #0
++//clear_value             DB #0f, #0f, #0f, #0f, #8e, #cc, #e8, #f0
+diff --git a/zx_scroller/generated_code/ram0.zx0 b/zx_scroller/generated_code/ram0.zx0
+index 37f906e..c2465a0 100644
+Binary files a/zx_scroller/generated_code/ram0.zx0 and b/zx_scroller/generated_code/ram0.zx0 differ
+diff --git a/zx_scroller/generated_code/ram1.zx0 b/zx_scroller/generated_code/ram1.zx0
+index 77cb033..c5fd6f6 100644
+Binary files a/zx_scroller/generated_code/ram1.zx0 and b/zx_scroller/generated_code/ram1.zx0 differ
+diff --git a/zx_scroller/generated_code/ram3.zx0 b/zx_scroller/generated_code/ram3.zx0
+index 963fddd..1a51747 100644
+Binary files a/zx_scroller/generated_code/ram3.zx0 and b/zx_scroller/generated_code/ram3.zx0 differ
+diff --git a/zx_scroller/generated_code/timings0.dat b/zx_scroller/generated_code/timings0.dat
+index b3e82db..a3016af 100644
+Binary files a/zx_scroller/generated_code/timings0.dat and b/zx_scroller/generated_code/timings0.dat differ
+diff --git a/zx_scroller/generated_code/timings1.dat b/zx_scroller/generated_code/timings1.dat
+index 0fbcd13..d936f42 100644
+Binary files a/zx_scroller/generated_code/timings1.dat and b/zx_scroller/generated_code/timings1.dat differ
+diff --git a/zx_scroller/generated_code/timings2.dat b/zx_scroller/generated_code/timings2.dat
+index c25f911..85938e5 100644
+Binary files a/zx_scroller/generated_code/timings2.dat and b/zx_scroller/generated_code/timings2.dat differ
+diff --git a/zx_scroller/generated_code/timings3.dat b/zx_scroller/generated_code/timings3.dat
+index 4e138d8..5110100 100644
+Binary files a/zx_scroller/generated_code/timings3.dat and b/zx_scroller/generated_code/timings3.dat differ

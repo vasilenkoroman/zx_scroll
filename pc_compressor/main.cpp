@@ -45,14 +45,14 @@ static const uint16_t kColorDataStartAddr = 0xc000;
 
 enum Flags
 {
-    interlineRegisters = 1,     //< Experimental. Keep registers between lines.
+    interlineRegisters = 1,     //< Keep registers between lines.
     verticalCompressionL = 2,   //< Skip drawing data if it exists on the screen from the previous step.
     verticalCompressionH = 4,   //< Skip drawing data if it exists on the screen from the previous step.
     oddVerticalCompression = 8, //< can skip odd drawing bytes.
-    inverseColors = 16,         //< Try to inverse data blocks for better compression.
+    inverseColors = 16,         //< Experimental. Try to inverse data blocks for better compression.
     skipInvisibleColors = 32,   //< Don't draw invisible colors.
     optimizeLineEdge = 128,     //< merge two line borders with single SP moving block.
-    updateViaHl = 512,          //< use ld(hl),reg8 after stack moving
+    updateViaHl = 512,          //< use ld(hl),reg8 after stack moving.
     OptimizeMcTicks = 1024,     //< Allow multicolor lines became shorter or longer than 224t in case of timing of the current line allows it.
     threeStackPos = 2048,       //< Draw multicolor line in 3 pieces with two intermediate stack moving.
     twoRastrDescriptors = 4096, //< Generate 3 descriptor tables instead of 1 to reduce wait ticks. More memory usage.
@@ -67,7 +67,7 @@ static const int kTicksOnScreenPerByte = 4;
 
 /**
  * The last drawing line is imageHeight-1. But the last drawing line is the imageHeight-1 + kmaxDescriptorOffset
- * Because of descriptor number calculation code doesn't do "line%imageHeight" for perfomance reason. So, just create a bit more descriptors
+ * Because of descriptor number calculation code doesn't do "line%imageHeight" for performance reason. So, just create a bit more descriptors
  */
 static const int kmaxDescriptorOffset = 128 + 7;
 
