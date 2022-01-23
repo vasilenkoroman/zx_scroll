@@ -4229,7 +4229,7 @@ int serializeTimingDataForRun(
         const uint16_t freeTicks16 = (uint16_t)freeTicks;
         outputData.push_back(freeTicks16);
 
-        if (specialTicks < 0)
+        if (specialTicks != 0 && specialTicks != 11)
             minSpecialTicks = std::min(freeTicks, minSpecialTicks);
 
     }
