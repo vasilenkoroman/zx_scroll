@@ -1,2 +1,2 @@
 # zx_scroll
-Vertical per pixel full screen scroll for ZX spectrum
+Vertical 50 fps full screen multicolor scroller for ZX spectrum (Pentagon).
