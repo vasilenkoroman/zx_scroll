@@ -438,12 +438,12 @@ main_entry_point
 1               halt
                 jr 1b
         ELSE
-                ld hl, align_path_delay
+                ld hl, after_interrupt_no_player
                 ld   (#BFBF+1), hl
                 ei
                 halt
-align_path_delay                
-                ld sp, stack_top
+after_interrupt_no_player
+                pop af
         ENDIF                
 after_play_intro
 
@@ -981,9 +981,9 @@ finish_non_mc_drawing_cont:
         ld sp, jpix_h_pos+2
         pop hl
         dec hl
-        dec hl
+        dec l
         push hl
-        // 10+10+6+6+11=43
+        // 10+10+6+4+11=41
 
         ld (saved_bc_value), bc
         jp loop                        ; 12 ticks

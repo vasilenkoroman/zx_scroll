@@ -4105,10 +4105,10 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418;
+            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2;
             if (line == 0)
             {
-                kZ80CodeDelay -= 43-26;    // new jpix_helper
+                kZ80CodeDelay -= 41-26;    // new jpix_helper
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page
