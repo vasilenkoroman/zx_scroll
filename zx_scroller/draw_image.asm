@@ -473,7 +473,7 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32035 + 6
+fixed_startup_delay     equ 32035-39+406 + 6
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + (83186-71680)
         ELSE
@@ -521,6 +521,13 @@ fill_rep
                 dec c
                 ld sp,#c000+2048
                 jr nz, fill_start
+
+                ld sp,#c000+2048
+                ld de, #0000
+                ld b,16
+1               push de
+                djnz 1b
+
         ENDIF                
 
                 ld hl, start_mc_drawing
@@ -530,11 +537,15 @@ max_scroll_offset equ imageHeight - 1
 
                 ; Prepare data
                 xor a
+                //  Fixed const in AF' is currently unused for colors. It uses af/bc/de/hl instead
+                /*
+                ld sp,stack_top
                 ld hl, COLOR_REG_AF2
                 push hl
                 ex af, af'
                 pop af
                 ex af, af'
+                */
 
                 ld b,a: ld c,a
                 ld a, 3                         ; 7 ticks
