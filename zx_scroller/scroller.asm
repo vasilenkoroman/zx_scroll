@@ -473,9 +473,9 @@ ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32035-39+406 + 6
+fixed_startup_delay     equ 32035-39 + 6
         IF HAS_PLAYER == 1
-pl_delay                equ 29432 + (83186-71680)
+pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
 pl_delay                equ -202 -171
         ENDIF
@@ -484,7 +484,7 @@ pl_delay                equ -202 -171
 
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ first_timing_in_interrupt + fixed_startup_delay + pl_delay + create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
@@ -1383,8 +1383,8 @@ page7_end
 
 /*************** Commands to SJ asm ******************/
 
-                SAVESNA "build/draw_image.sna", start
-                savetap "build/draw_image.tap", start
+                SAVESNA "build/scroller.sna", start
+                savetap "build/scroller.tap", start
 
                 EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
