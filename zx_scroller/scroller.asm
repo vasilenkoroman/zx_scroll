@@ -1403,7 +1403,7 @@ page7_end
                 SAVETRD "build/scroller.trd","ram7.C", $C000, page7_end - $C000
 
                 ; Just a fake address to load files into TRD
-                ORG #8000
+                ORG #4000
 fix128k_script
                 incbin "fix128k.C"
 boot_start
@@ -1413,8 +1413,6 @@ boot_end
                 SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 0
 
                 // Save tap
-                savetap "build/scroller.tap", start
-/*
 tap_boot_start
                 incbin "scroller.B"
 tap_boot_end        
@@ -1434,4 +1432,3 @@ tap_boot_end
                 PAGE 7
                 SAVETAP "build/scroller.tap", CODE, "ram7", $C000, page7_end - $C000
                 SAVETAP "build/scroller.tap", CODE, "main", start, $C000 - start
-*/
