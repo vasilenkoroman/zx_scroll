@@ -1384,7 +1384,6 @@ page7_end
 /*************** Commands to SJ asm ******************/
 
                 SAVESNA "build/scroller.sna", start
-                savetap "build/scroller.tap", start
 
                 EMPTYTRD "build/scroller.trd" ;create empty TRD image
 
@@ -1411,4 +1410,28 @@ boot_start
                 incbin "boot.B"
 boot_end        
                 SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, boot_start - fix128k_script
-                SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 1
+                SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 0
+
+                // Save tap
+                savetap "build/scroller.tap", start
+/*
+tap_boot_start
+                incbin "scroller.B"
+tap_boot_end        
+                EMPTYTAP "build/scroller.tap" ;create empty TAP image
+                SAVETAP "build/scroller.tap", BASIC, "scroller", tap_boot_start, tap_boot_end - tap_boot_start, 1
+                SAVETAP "build/scroller.tap", CODE, "fix128k", fix128k_script, boot_start - fix128k_script
+                PAGE 0
+                SAVETAP "build/scroller.tap", CODE, "ram0", $C000, page0_end - $C000
+                PAGE 1
+                SAVETAP "build/scroller.tap", CODE, "ram1",$C000, page1_end - $C000
+                PAGE 3
+                SAVETAP "build/scroller.tap", CODE, "ram3",$C000, page3_end - $C000
+                PAGE 4
+                SAVETAP "build/scroller.tap", CODE, "ram4",$C000, page4_end - $C000
+                PAGE 6
+                SAVETAP "build/scroller.tap", CODE, "ram6", $C000, page6_end - $C000
+                PAGE 7
+                SAVETAP "build/scroller.tap", CODE, "ram7", $C000, page7_end - $C000
+                SAVETAP "build/scroller.tap", CODE, "main", start, $C000 - start
+*/
