@@ -447,8 +447,6 @@ after_play_intro
                 ld a, 7                         ; 7 ticks
                 out #fe,a                      ; 11 ticks
 
-                ; 224-47 = 177t longer than final ret in align int.
-                ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
         IF (HAS_PLAYER == 1)        
                 ld sp, stack_top
                 ld hl, music_main
@@ -465,26 +463,31 @@ after_play_intro
 
 
         ; Pentagon timings
-first_timing_in_interrupt       equ 19 + 22 + 47
 screen_ticks                    equ 71680
-first_rastr_line_tick           equ  17920
 screen_start_tick               equ  17988
-ticks_per_line                  equ  224
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32035-39 + 6
+fixed_startup_delay     equ 32084 + 6
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
 pl_delay                equ -202 -171
         ENDIF
 
-;40998
+
+                IF HAS_PLAYER == 1
+                        ; 202 - (76-19-10) = 155t longer than final ret in align int.
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
+INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
+                ELSE
+                        ; 0 - (76-19-10) = -47t longer than final ret in align int.
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680
+INTERRUPT_PHASE         EQU 0   ; The value in range [0..3].
+                ENDIF
 
 create_jpix_delay       equ 1058 * (imageHeight/64)
-initial_delay           equ first_timing_in_interrupt + fixed_startup_delay + pl_delay + create_jpix_delay + mc_preambula_delay
-INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
+initial_delay           equ fixed_startup_delay + pl_delay + create_jpix_delay + mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
 
         DISPLAY	"sync_tick ", /D, sync_tick
@@ -1012,10 +1015,9 @@ player_pg       SET_PAGE 7
         ENDIF                                
 
 start_mc_drawing:
-                ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 22) - 20 = 162631-6=162625
-                ; timing here on first frame: 162625+12 - 202 = 162435 + 71680=234115
+                ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 10) - 20 = 162643-6=162637 (-phase)
+                ; timing here on first frame: 162637 - 202 = 162435 + 71680=234115 (-phase)
                 ; after non-mc frame: 144704, between regular lines: 71680-224 = 71456. double frames=142912
-                ; Pure scroller timing: 162435+202=162637
         IF (DIRECT_PLAYER_JUMP  != 1)
 first_mc_line   JP 00
         ENDIF
