@@ -4558,7 +4558,9 @@ int main(int argc, char** argv)
 
     if (argc < 3)
     {
-        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_file_name> [<.sld file name>]";
+        std::cerr << "scroll_image_compress v.1.0";
+        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_folder_name> [<.csv file name>]";
+        std::cerr << ".csv file should contains music timings from psg_compressor. Parameter is optional. Without this parameter it will be compiled in pure scroll mode";
         return -1;
     }
 
