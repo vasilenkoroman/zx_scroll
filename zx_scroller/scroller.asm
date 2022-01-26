@@ -479,7 +479,7 @@ pl_delay                equ -202 -171
                 IF HAS_PLAYER == 1
                         ; 202 - (76-19-10) = 155t longer than final ret in align int.
                         ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
-INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
                 ELSE
                         ; 0 - (76-19-10) = -47t longer than final ret in align int.
                         ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680
@@ -1412,7 +1412,7 @@ boot_start
                 incbin "boot.B"
 boot_end        
                 SAVETRD "build/scroller.trd","fix128k.C", fix128k_script, boot_start - fix128k_script
-                SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 0
+                SAVETRD "build/scroller.trd","boot.B", boot_start, boot_end - boot_start, 1
 
                 // Save tap
 tap_boot_start
