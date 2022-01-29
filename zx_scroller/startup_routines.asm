@@ -1,11 +1,8 @@
 move_screen
 next_line
-                ld bc, 8*256 + 255
+                ld bc, 2*256 + 255
                 push hl
-1               ldi
-                ldi
-                ldi
-                ldi
+1               .16 ldi
                 djnz 1b
                 pop hl
                 ld de,hl
@@ -63,7 +60,7 @@ draw_to_page5
                 call move_screen
 
                 ; copy_last_line to page 5
-                SET_PAGE 1
+                SET_PAGE 1+8
 i1              ld hl, init_screen_i0
                 ld bc,32
                 ldir
