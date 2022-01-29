@@ -1,11 +1,8 @@
 move_screen
 next_line
-                ld bc, 8*256 + 255
+                ld bc, 2*256 + 255
                 push hl
-1               ldi
-                ldi
-                ldi
-                ldi
+1               .16 ldi
                 djnz 1b
                 pop hl
                 ld de,hl
