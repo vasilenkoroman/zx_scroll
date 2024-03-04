@@ -475,14 +475,17 @@ pl_delay                equ 29432 + 406 + (83186-71680)
 pl_delay                equ -202 -171
         ENDIF
 
-
+                        ; TODO: Now alignInt is called before image unpack.
+                        ; so, INTERRUPT_PHASE depend on a image and needs to be updated
+                        ; when image list is changed. To avoid this it is needed
+                        ; to call alignInt  after image unpack.
                 IF HAS_PLAYER == 1
                         ; 202 - (76-19-10) = 155t longer than final ret in align int.
-                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680
-INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680 % 4
+INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
                 ELSE
                         ; 0 - (76-19-10) = -47t longer than final ret in align int.
-                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680 % 4
 INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
                 ENDIF
 

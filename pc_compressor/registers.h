@@ -387,6 +387,69 @@ public:
                     l.loadFromReg(line, *regL);
                 }
             }
+
+            else if (h.hasValue(hiByte - 1) && lowByte == hiByte)
+            {
+                h.incValue(line);
+                l.loadFromReg(line, h);
+            }
+            else if (h.hasValue(hiByte + 1) && lowByte == hiByte)
+            {
+                h.decValue(line);
+                l.loadFromReg(line, h);
+            }
+            else if (l.hasValue(lowByte + 1) && lowByte == hiByte)
+            {
+                l.decValue(line);
+                h.loadFromReg(line, l);
+            }
+            else if (l.hasValue(lowByte - 1) && lowByte == hiByte)
+            {
+                l.incValue(line);
+                h.loadFromReg(line, l);
+            }
+
+            else if (h.hasValue(hiByte - 1) && l.hasValue(lowByte - 1))
+            {
+                h.incValue(line);
+                l.incValue(line);
+            }
+            else if (h.hasValue(hiByte - 1) && l.hasValue(lowByte + 1))
+            {
+                h.incValue(line);
+                l.decValue(line);
+            }
+            else if (h.hasValue(hiByte + 1) && l.hasValue(lowByte - 1))
+            {
+                h.decValue(line);
+                l.incValue(line);
+            }
+            else if (h.hasValue(hiByte + 1) && l.hasValue(lowByte + 1))
+            {
+                h.decValue(line);
+                l.decValue(line);
+            }
+
+            else if (regL && h.hasValue(hiByte - 1))
+            {
+                l.loadFromReg(line, *regL);
+                h.incValue(line);
+            }
+            else if (regL && h.hasValue(hiByte + 1))
+            {
+                l.loadFromReg(line, *regL);
+                h.decValue(line);
+            }
+            else if (regH && l.hasValue(lowByte - 1))
+            {
+                h.loadFromReg(line, *regH);
+                l.incValue(line);
+            }
+            else if (regH && l.hasValue(lowByte + 1))
+            {
+                h.loadFromReg(line, *regH);
+                l.decValue(line);
+            }
             else
             {
                 loadXX(line, value);

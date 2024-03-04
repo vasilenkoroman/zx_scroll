@@ -1117,7 +1117,7 @@ int Z80Parser::removeStartStackMoving(Z80CodeInfo& codeInfo)
 
 void serializeAdHlSp(CompressedLine& line, int value)
 {
-    static Register16 sp("sp");
+    static Register16 sp("sp", 0);
     static Register16 hl("hl");
     if (abs(value) >= 5)
     {
@@ -1172,10 +1172,10 @@ std::pair<CompressedLine, bool> Z80Parser::prolongCodeForDelay(const CompressedL
         abort();
     }
 
-    std::vector<Register16> emptyRegs = { 
+    std::vector<Register16> emptyRegs = {
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'") };
-    
+
     int canProlong1Tick = 0;
     int canProlong3Tick = 0;
 
@@ -1201,46 +1201,46 @@ std::pair<CompressedLine, bool> Z80Parser::prolongCodeForDelay(const CompressedL
                 }
 
                 case 0x40:
-                case 0x41: 
-                case 0x42: 
-                case 0x43: 
-                case 0x44: 
-                case 0x45: 
-                case 0x47: 
-                case 0x48: 
-                case 0x49: 
-                case 0x4a: 
-                case 0x4b: 
-                case 0x4c: 
-                case 0x4d: 
-                case 0x4f: 
-                case 0x50: 
-                case 0x51: 
-                case 0x52: 
-                case 0x53: 
-                case 0x54: 
-                case 0x55: 
-                case 0x57: 
-                case 0x58: 
-                case 0x59: 
-                case 0x5a: 
-                case 0x5b: 
-                case 0x5c: 
-                case 0x5d: 
-                case 0x5f: 
-                case 0x60: 
-                case 0x61: 
-                case 0x62: 
-                case 0x63: 
-                case 0x64: 
-                case 0x65: 
-                case 0x67: 
-                case 0x68: 
-                case 0x69: 
-                case 0x6a: 
-                case 0x6b: 
-                case 0x6c: 
-                case 0x6d: 
+                case 0x41:
+                case 0x42:
+                case 0x43:
+                case 0x44:
+                case 0x45:
+                case 0x47:
+                case 0x48:
+                case 0x49:
+                case 0x4a:
+                case 0x4b:
+                case 0x4c:
+                case 0x4d:
+                case 0x4f:
+                case 0x50:
+                case 0x51:
+                case 0x52:
+                case 0x53:
+                case 0x54:
+                case 0x55:
+                case 0x57:
+                case 0x58:
+                case 0x59:
+                case 0x5a:
+                case 0x5b:
+                case 0x5c:
+                case 0x5d:
+                case 0x5f:
+                case 0x60:
+                case 0x61:
+                case 0x62:
+                case 0x63:
+                case 0x64:
+                case 0x65:
+                case 0x67:
+                case 0x68:
+                case 0x69:
+                case 0x6a:
+                case 0x6b:
+                case 0x6c:
+                case 0x6d:
                     ++canProlong3Tick;
                     break;
                 default:

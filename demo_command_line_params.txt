@@ -1,1 +1,1 @@
-c:\zx\scroll\zx_scroller\resources\sunset.scr c:\zx\scroll\zx_scroller\resources\jorg.scr c:\zx\scroll\zx_scroller\resources\witch14.scr c:\zx\scroll\zx_scroller\resources\castle.scr c:\zx\scroll\zx_scroller\generated_code c:\zx\scroll\zx_scroller\resources\main.mus.csv
+c:\zx\zx_scroll\zx_scroller\resources\sunset.scr c:\zx\zx_scroll\zx_scroller\resources\jorg.scr c:\zx\zx_scroll\zx_scroller\resources\witch14.scr c:\zx\zx_scroll\zx_scroller\resources\castle.scr c:\zx\zx_scroll\zx_scroller\generated_code c:\zx\zx_scroll\zx_scroller\resources\main.mus.csv
