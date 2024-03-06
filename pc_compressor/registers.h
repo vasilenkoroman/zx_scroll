@@ -358,21 +358,10 @@ public:
                     regL = &reg16.l;
             }
 
-#if 1
-            if (af.h.hasValue(hiByte) && af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
-            {
-                regH = &af.h;
-                regL = &af.h;
-                l.loadFromReg(line, af.h);
-                h.loadFromReg(line, af.h);
-                return true;
-            }
-#else
             if (af.h.hasValue(hiByte) && af.isAltAf == line.isAltAf)
                 regH = &af.h;
             if (af.h.hasValue(lowByte) && af.isAltAf == line.isAltAf)
                 regL = &af.h;
-#endif
 
             if (regH && regL)
             {
