@@ -324,25 +324,31 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
 
 /************** delay routine *************/
         MACRO DO_DELAY
-
-;d1      equ     17 + 15+21+11+15+14
-d1              equ     15+21+11+15+14 + 7 - 5
-d2              equ     16
-d3              equ     20+10+11+12
-
-base
+                ; HL: ticks to wait. min value: 71
 delay           xor     a               ; 4
-                or      h               ; 4
-                jr      nz,wait1        ; 12/7  20/15
-                ld      a,l             ; 4
-                sub     d1              ; 7
-                ld      hl,high(base)*256 + d2      ; 10    21
-wait2           sub     l               ; 4
-                jr      nc,wait2        ; 12/7  16/11
-                sub (256-16) - low(table)
-                ld      l,a             ; 4
-                ld      l,(hl)          ; 7
-                jp      (hl)            ; 4     15
+                or      h               ; 4     8
+                jr      nz, wait1       ; 7/12  15/20
+                ld      a,l             ; 4     19
+
+offset          EQU (256-table_size) - low(table)
+                ld      hl, high(table)*256 + offset                ; 7         26
+                sub     62 + 9 + table_size                         ; 10        36      
+                jr      nc,wait2                                    ; 12/7      43
+                sub     l                                           ; 7         47
+                ld      l,a                                         ; 4         51
+                ld      l,(hl)                                      ; 7         58
+                jp      (hl)                                        ; 4         62
+                ; min 62 + t09 = 71t
+wait2           sub 19                                              ; 7         
+                jr      nc,wait2                                    ; 12        19      
+                sub     l
+                ld      l,a                                         
+                ld      l,(hl)                                      
+                jp      (hl)                                        
+
+wait1           ld      de, -(20 + 33)          ; 10
+                add     hl,de                   ; 11    21
+                jr      delay                   ; 12    33
 
 table
         db      low(t09), low(t10), low(t11), low(t12)
@@ -351,10 +357,7 @@ table
         db      low(t21), low(t22), low(t23), low(t24)
         db      low(t25), low(t26), low(t27)
 table_end
-
-wait1           ld      de,-d3          ; 10
-                add     hl,de           ; 11
-                jr      delay           ; 12    33
+table_size      equ table_end - table
 
 t24             nop
 t20             nop
@@ -380,7 +383,7 @@ t17             nop
 t13             nop
 t09             ld a, r                         ;9
 delay_end
-                ASSERT high(delay_end) == high(base)
+                ASSERT high(delay_end) == high(table)
         ENDM
 /************** end delay routine *************/        
 
@@ -918,7 +921,6 @@ finish_off_drawing_0
                 DRAW_ONLY_RASTR_LINE 20
                 DRAW_ONLY_RASTR_LINE 21
 
-                ;ld hl, after_delay
                 ld hl, bank_drawing_common2
                 DRAW_ONLY_RASTR_LINE_22
 
@@ -1006,7 +1008,6 @@ load_timings_data
                 pop hl
                 DO_DELAY
                 ; 10+11+6+10=37 + delayTiming
-after_delay
                 ld sp, stack_top
         IF (HAS_PLAYER == 1)
 player_pg       SET_PAGE 7
