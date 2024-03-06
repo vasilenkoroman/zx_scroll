@@ -96,7 +96,6 @@ struct Context
 
         for (int x = maxX; x >= 0; --x)
         {
-            //if (line[x] == nextLine[x])
             if (sameBytesCount->at(y * 32 + x))
                 --maxX;
             else
@@ -1242,11 +1241,6 @@ void finalizeLine(
 
     // Calculate line min and max draw delay (point 0 is the ray in the begin of a line)
 
-    if (context.y == 5)
-    {
-        int gg = 4;
-    }
-
     std::vector<Register16> registers = {
         Register16("bc"), Register16("de"), Register16("hl"),
         Register16("bc'"), Register16("de'"), Register16("hl'")
@@ -1306,7 +1300,7 @@ void addSameByteToTable(std::vector<int8_t>& sameBytesCount, int y, int x)
     int rightBorder = x;
     while (rightBorder < 31 && sameBytesCount[y * 32 + rightBorder + 1] > 0)
         ++rightBorder;
-    
+
     int count = rightBorder - leftBorder + 1;
     for (int i = leftBorder; i <= rightBorder; ++i)
     {
@@ -1411,7 +1405,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
 
     CompressedLine result;
     Context context = srcContext;
-    
+
     std::vector<int8_t> sameBytesCopy;
     if (context.flags & threeStackPos)
     {
@@ -1481,10 +1475,6 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
     }
     else
     {
-        if (context.y == 5)
-        {
-            int gg = 4;
-        }
 
         if (drawTicks > t2)
         {
@@ -1496,7 +1486,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         *context.sameBytesCount = sameBytesCopy;
         pushLine.spPosHints[1] = pushLine.data.size();
         sp.loadXX(pushLine, 32);
-        
+
         Context context3 = context;
         context3.minX = 16;
         context3.maxX = context3.minX + kThirdSpPartSize - 1;
@@ -1505,7 +1495,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         context3.flags &= ~oddVerticalCompression;
         // Updating minX not supported now. Only maxX is supported here. It is because save ticks in non MC mode while preparing MC drawing.
         context3.minX = 16;
-        
+
         if (pushLine.isAltReg)
         {
             swapRegs(regCopy[0], regCopy[3]);
@@ -1533,7 +1523,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
         pushLine.mcStats.max = std::min(pushLine.mcStats.max, t3 - drawTicks2);
     }
 
-    
+
     finalizeLine(context, result, loadLine, pushLine);
     result.inputAf = std::make_shared<Register16>(context.af);
 
@@ -1951,7 +1941,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         while (borrowIndexRegStep(compressedData));
         while (rebalanceStep(compressedData));
 #endif
-        
+
     }
 
     int maxVirtualTicks = 0;
@@ -2163,7 +2153,7 @@ CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, 
             //abort();
         }
     }
-    
+
     if (flags & updateColorData)
     {
         context.y = imageHeight - 1;
@@ -2237,7 +2227,7 @@ struct DescriptorState
     int startSpDelta = 0;           //< Addition commands to decrement SP included to preambula.
     Register16 af{ "af" };
     std::optional<uint16_t> updatedHlValue;
-    
+
     const uint8_t* srcBuffer = 0;
     int srcLine = 0;
 
@@ -2521,7 +2511,7 @@ struct DescriptorState
 
         CompressedLine replaceLdHlData;
         int prevSpDelta = startSpDelta - 1;
-        
+
         int drawLine = srcLine + (startSpDelta / 32) * 8;
         drawLine = drawLine % imageHeight;
 
@@ -2551,7 +2541,7 @@ struct DescriptorState
             if (r2->l.hasValue(*r->l.value))
                 r2->l.value.reset();
         }
-        
+
 
         /** LD(HL), reg8 command after the descriptor.It refer to the current HL = SP value, but HL is not set when start to exec descriptor.
          * Replace it to:
@@ -2569,7 +2559,7 @@ struct DescriptorState
         int extraDelay)
     {
         const uint16_t lineStartOffset = lineStartPtr - codeOffset;
-        CompressedLine usedRegisters = expectedUsedRegisters 
+        CompressedLine usedRegisters = expectedUsedRegisters
             ? *expectedUsedRegisters
             : codeInfo.regUsage.getSerializedUsedRegisters(codeInfo.inputRegisters, af);
 
@@ -2619,7 +2609,7 @@ struct DescriptorState
         if (pageNum >= 2)
             ++pageNum; //< Pages are: 0,1, 3,4
         std::vector<uint8_t> data;
-        
+
         //data.push_back(0x3e);            // LD A, #50 + page_number
         //data.push_back(kPageNumPrefix + pageNum);  // LD A, #50 + page_number
         if (pageNum == 0)
@@ -2678,7 +2668,7 @@ struct DescriptorState
         {
             int ticks = 0;
             int* role = nullptr;;
-            
+
             bool operator<(const TicksInfo& other) const
             {
                 return ticks < other.ticks;
@@ -2695,7 +2685,7 @@ struct DescriptorState
         for (int i = alignTicks.size() - 1; i > 0; --i)
             alignTicks[i].ticks -= alignTicks[i-1].ticks;
         alignTicks[0].ticks = 0;
-        
+
         std::vector<uint8_t> extraDelayData;
         while (!alignTicks.empty())
         {
@@ -3479,7 +3469,7 @@ void serializeAsmFile(
         << std::endl;
     phaseFile << "RAM2_UNCOMPRESSED_SIZE   EQU    " << labels.mt_and_rt_reach_descriptor + labels.multicolor << std::endl;
 
-    phaseFile << "RAM0_UNCOMPRESSED_SIZE   EQU    " << 
+    phaseFile << "RAM0_UNCOMPRESSED_SIZE   EQU    " <<
         fileSizeSum(inputFileName, "jpix0.dat", "timings0.dat", "main0.z80", "reach_descriptor0.z80") << std::endl;
     phaseFile << "RAM1_UNCOMPRESSED_SIZE   EQU    " <<
         fileSizeSum(inputFileName, "jpix1.dat", "timings1.dat", "main1.z80", "reach_descriptor1.z80") << std::endl;
@@ -3670,11 +3660,11 @@ int serializeRastrDescriptors(
     {
         int line = i % imageHeight;
         const auto& descriptor = descriptors[line];
-        
+
         uint16_t locationBottom = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.bottomMcOffset;
         uint16_t locationTop = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.topMcOffset;
         uint16_t locationNext = descriptor.rastrForMulticolor.descriptorLocationPtr + descriptor.rastrForMulticolor.nextMcOffset;
-        
+
         mcRastrFileBottom.write((const char*) &locationBottom, 2);
         mcRastrFileTop.write((const char*) &locationTop, 2);
         mcRastrFileNext.write((const char*)&locationNext, 2);
@@ -3920,7 +3910,7 @@ std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
     result.push_back(3718+10);
     for (int i = imageHeight/4 - 35 - 1; i > 0; --i)
         result.push_back(51);
-    
+
     // Last step Effect1 delay
     result.push_back(71 + 1441);
 
@@ -3991,7 +3981,7 @@ int effectRegularStepDelay(
     const CompressedData& data,
     const CompressedData& color,
     const CompressedData& multicolor,
-    int runNumber, 
+    int runNumber,
     int line,
     std::vector<int>* effectDelay)
 {
@@ -4129,7 +4119,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 10;
             kZ80CodeDelay -= 54;
         }
-        
+
         // offscreen drawing branches has different length
         switch (line % 8)
         {
@@ -4499,7 +4489,7 @@ std::vector<uint8_t> interlaceBuffer(const std::vector<uint8_t>& buffer)
     return result;
 }
 
-std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction, 
+std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int screenHeight, int direction,
     const std::vector<uint8_t>* colorData,
     const std::vector<LineDescriptor>* descriptors)
 {
