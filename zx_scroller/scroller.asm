@@ -323,8 +323,9 @@ RASTR_N?        jp 00 ; rastr for multicolor ( up to 8 lines)          ; 10
         ENDM
 
 /************** delay routine *************/
-        MACRO DO_DELAY
+        MACRO DO_DELAY_FROM_71
                 ; HL: ticks to wait. min value: 71
+                ; macro size 74 bytes
 delay           xor     a               ; 4
                 or      h               ; 4     8
                 jr      nz, wait1       ; 7/12  15/20
@@ -385,6 +386,82 @@ t09             ld a, r                         ;9
 delay_end
                 ASSERT high(delay_end) == high(table)
         ENDM
+
+        MACRO DO_DELAY_FROM_70
+                ; HL: ticks to wait. min value: 70
+                ; macro size 91 bytes
+                ld a, low(table_end)            ; 7     
+                ld de, -(70 + table_size)       ; 10    17
+                add hl, de                      ; 11    28
+                jr c, wait                      ; 7     35
+
+                ld h, high(table)               ; 7     42
+                add     l                       ; 4     46                   
+                ld      l,a                     ; 4     50                   
+                ld      l,(hl)                  ; 7     57                                   
+                jp      (hl)                    ; 4     61              
+
+wait            ld  e, -30                      ; 7    
+                add hl, de                      ; 11    18
+                jr c, wait                      ; 12    30
+
+                ld h, high(table)               ; 7     
+                add     l                       ; 4                        
+                ld      l,a                     ; 4                        
+                ld      l,(hl)                  ; 7                                        
+                jp      (hl)                    ; 4                   
+table
+        db      low(t09), low(t10), low(t11), low(t12)
+        db      low(t13), low(t14), low(t15), low(t16)
+        db      low(t17), low(t18), low(t19), low(t20)
+        db      low(t21), low(t22), low(t23), low(t24)
+        db      low(t25), low(t26), low(t27), low(t28)
+        db      low(t29), low(t30), low(t31), low(t32)
+        db      low(t33), low(t34), low(t35), low(t36)
+        db      low(t37), low(t38)
+
+table_end
+table_size      equ table_end - table
+
+t36             nop
+t32             nop
+t28             nop
+t24             nop
+t20             nop
+t16             nop
+t12             jr delay_end                    ; 12
+
+t35             nop
+t31             nop
+t27             nop
+t23             nop
+t19             nop
+t15             nop
+t11             ld l, low(delay_end)
+                jp (hl)                         ; 11
+
+t38             nop
+t34             nop
+t30             nop
+t26             nop
+t22             nop
+t18             nop
+t14             nop
+t10             jp delay_end                    ; 10
+
+t37             nop
+t33             nop
+t29             nop
+t25             nop
+t21             nop
+t17             nop
+t13             nop
+t09             ld a, r                         ;9
+delay_end
+
+                ASSERT high(delay_end) == high(table)
+        ENDM
+
 /************** end delay routine *************/        
 
                 org start
@@ -1006,8 +1083,9 @@ load_timings_data
                 add hl, bc
                 ld sp, hl
                 pop hl
-                DO_DELAY
-                ; 10+11+6+10=37 + delayTiming
+
+                DO_DELAY_FROM_70
+
                 ld sp, stack_top
         IF (HAS_PLAYER == 1)
 player_pg       SET_PAGE 7
