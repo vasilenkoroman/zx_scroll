@@ -462,6 +462,85 @@ delay_end
                 ASSERT high(delay_end) == high(table)
         ENDM
 
+        MACRO DO_DELAY_FROM_59
+                ; HL: ticks to wait. min value: 59
+                ; macro size 87 + align bytes
+delay_start                
+table_size      equ 30
+                ld de, -(59 + table_size)       ; 10    
+                add hl, de                      ; 11    21
+                jr c, wait                      ; 7     28
+
+                ld h, high(table)               ; 7     35
+                ld l,(hl)                       ; 7     42                                   
+                inc h                           ; 4     46
+                jp (hl)                         ; 4     50              
+
+wait            ld  e, -30                      ; 7    
+                add hl, de                      ; 11    18
+                jr c, wait                      ; 12    30
+
+                ld h, high(table)               ; 7     
+                ld l,(hl)                       ; 7       
+                inc h                           ; 4                                 
+                jp  (hl)                        ; 4                   
+
+        IF (low($) <= 256 - table_size)
+                DISPLAY "losed bytes on delay align: ", /D, 256 - table_size - low($) 
+                defs 256 - table_size - low($), 0
+        ELSE
+                assert(0)
+        ENDIF        
+
+table
+        db      low(t09), low(t10), low(t11), low(t12)
+        db      low(t13), low(t14), low(t15), low(t16)
+        db      low(t17), low(t18), low(t19), low(t20)
+        db      low(t21), low(t22), low(t23), low(t24)
+        db      low(t25), low(t26), low(t27), low(t28)
+        db      low(t29), low(t30), low(t31), low(t32)
+        db      low(t33), low(t34), low(t35), low(t36)
+        db      low(t37), low(t38)
+table_end
+
+t36             nop
+t32             nop
+t28             nop
+t24             nop
+t20             nop
+t16             nop
+t12             jr delay_end                    ; 12
+
+t35             nop
+t31             nop
+t27             nop
+t23             nop
+t19             nop
+t15             nop
+t11             ld l, low(delay_end)
+                jp (hl)                         ; 11
+
+t38             nop
+t34             nop
+t30             nop
+t26             nop
+t22             nop
+t18             nop
+t14             nop
+t10             jp delay_end                    ; 10
+
+t37             nop
+t33             nop
+t29             nop
+t25             nop
+t21             nop
+t17             nop
+t13             nop
+t09             ld a, r                         ;9
+delay_end
+                DISPLAY "Delay macro size: ", /D, delay_end - delay_start 
+        ENDM
+
 /************** end delay routine *************/        
 
                 org start
@@ -472,6 +551,57 @@ BEGIN           DISP code_after_moving
         INCLUDE "draw_off_rastr.asm"
 
 /** ----------- Routines -------------- */
+
+JP_VIA_HL_CODE          equ #e9d9
+jpix_table              EQU #c000
+jp_ix_record_size       equ 12
+jp_write_data_offset    equ 8
+data_page_count         equ 4
+jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
+
+write_initial_jp_ix_table
+                xor a
+page_loop:
+                ld c, a
+                srl a
+                jr c, continue_page        
+                ld sp, jpix_table + jp_write_data_offset
+continue_page:
+                ld b, 3
+
+                cp 2
+                ccf
+                adc #58
+                out (#fd), a
+
+                ld a, c
+
+                ld de, JP_VIA_HL_CODE
+.rep:           write_jp_ix_data_via_de
+                write_jp_ix_data_via_de
+                ld hl, jp_ix_record_size - 4
+                add hl, sp
+                ld sp, hl
+                djnz .rep
+
+                ld sp, jpix_table + jp_ix_bank_size + jp_write_data_offset
+
+                inc a
+                cp 8
+                jr nz, page_loop
+
+                ; write initial color data to restore
+                SET_PAGE 6+8
+
+                ld hl, color_descriptor + 4                     ; 10
+                ld sp, hl                                       ; 6
+                pop hl                                          ; 10
+                ld sp, hl
+                pop hl
+                ld (color_data_to_restore), hl                  ; 16
+
+                ld sp, stack_top - 2
+                ret
 
 create_jpix_helper
                 ASSERT(imageHeight / 4 < 256)
@@ -1084,7 +1214,8 @@ load_timings_data
                 ld sp, hl
                 pop hl
 
-                DO_DELAY_FROM_70
+                DO_DELAY_FROM_59
+
 
                 ld sp, stack_top
         IF (HAS_PLAYER == 1)
@@ -1222,58 +1353,6 @@ upd_de_anim2    res 7,d
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.
  */
-
-
-JP_VIA_HL_CODE          equ #e9d9
-jpix_table              EQU #c000
-jp_ix_record_size       equ 12
-jp_write_data_offset    equ 8
-data_page_count         equ 4
-jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
-
-write_initial_jp_ix_table
-                xor a
-page_loop:
-                ld c, a
-                srl a
-                jr c, continue_page        
-                ld sp, jpix_table + jp_write_data_offset
-continue_page:
-                ld b, 3
-
-                cp 2
-                ccf
-                adc #58
-                out (#fd), a
-
-                ld a, c
-
-                ld de, JP_VIA_HL_CODE
-.rep:           write_jp_ix_data_via_de
-                write_jp_ix_data_via_de
-                ld hl, jp_ix_record_size - 4
-                add hl, sp
-                ld sp, hl
-                djnz .rep
-
-                ld sp, jpix_table + jp_ix_bank_size + jp_write_data_offset
-
-                inc a
-                cp 8
-                jr nz, page_loop
-
-                ; write initial color data to restore
-                SET_PAGE 6+8
-
-                ld hl, color_descriptor + 4                     ; 10
-                ld sp, hl                                       ; 6
-                pop hl                                          ; 10
-                ld sp, hl
-                pop hl
-                ld (color_data_to_restore), hl                  ; 16
-
-                ld sp, stack_top - 2
-                ret
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret
