@@ -459,7 +459,7 @@ screen_start_tick               equ  17988
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32084 + 6
+fixed_startup_delay     equ 32084 + 9
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
@@ -960,11 +960,11 @@ finish_non_mc_drawing_cont:
         ENDIF                
 
                 ; update ports [50..54] for the next step 7
-                LD a, #7D      ; LD a, iyl (value #54 -> #53)
+                LD a, #7D               ; LD a, iyl (value #54 -> #53)
                 ld (RASTRS_17 - 3), a
-                LD a, #7C      ; LD a, ixh (value #51 -> #50)
+                dec a                   ; LD a, ixh (value #51 -> #50)
                 ld (RASTRS_21 - 3), a
-                LD a, #DD      ; LD a, IX prefix (value #53 -> #51)
+                LD a, #DD               ; LD a, IX prefix (value #53 -> #51)
                 ld (RASTRS_19 - 4), a
 
                 dec bc
