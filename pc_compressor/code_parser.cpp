@@ -476,7 +476,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 // ADD HL, SP. The current value is not known after this
                 int16_t delta = (int16_t) hl->value16();
                 result.spOffset += delta;
-                info.useReg(*h, *l);
+                info.useReg(h->reg8Mask, l->reg8Mask);
                 hl->reset();
                 break;
             }
@@ -576,124 +576,124 @@ Z80CodeInfo Z80Parser::parseCode(
             case 0x6f: l->loadFromReg(info, a);
                 break;
             case 0x70:
-                info.useReg(*b);  // LD (HL), B
-                info.selfReg(*h, *l);
+                info.useReg(b->reg8Mask);  // LD (HL), B
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x71:
-                info.useReg(*c);  // LD (HL), C
-                info.selfReg(*h, *l);
+                info.useReg(c->reg8Mask);  // LD (HL), C
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x72:
-                info.useReg(*d);
-                info.selfReg(*h, *l);
+                info.useReg(d->reg8Mask);
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x73:
-                info.useReg(*e);
-                info.selfReg(*h, *l);
+                info.useReg(e->reg8Mask);
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x74:
-                info.useReg(*h);
-                info.selfReg(*h, *l);
+                info.useReg(h->reg8Mask);
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x75:
-                info.useReg(*l);
-                info.selfReg(*h, *l);
+                info.useReg(l->reg8Mask);
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0x77:
-                info.useReg(a);
-                info.selfReg(*h, *l);
+                info.useReg(a.reg8Mask);
+                info.selfReg(h->reg8Mask, l->reg8Mask);
                 break;
-            case 0x78: a.loadFromReg(info, *b);
+            case 0x78: a.loadFromReg(info, b->reg8Mask);
                 break;
-            case 0x79: a.loadFromReg(info, *c);
+            case 0x79: a.loadFromReg(info, c->reg8Mask);
                 break;
-            case 0x7a: a.loadFromReg(info, *d);
+            case 0x7a: a.loadFromReg(info, d->reg8Mask);
                 break;
-            case 0x7b: a.loadFromReg(info, *e);
+            case 0x7b: a.loadFromReg(info, e->reg8Mask);
                 break;
-            case 0x7c: a.loadFromReg(info, *h);
+            case 0x7c: a.loadFromReg(info, h->reg8Mask);
                 break;
-            case 0x7d: a.loadFromReg(info, *l);
+            case 0x7d: a.loadFromReg(info, l->reg8Mask);
                 break;
-            case 0x7f: a.loadFromReg(info, a);
+            case 0x7f: a.loadFromReg(info, a.reg8Mask);
                 break;
-            case 0x80: a.addReg(info, *b);
+            case 0x80: a.addReg(info, b->reg8Mask);
                 break;
-            case 0x81: a.addReg(info, *c);
+            case 0x81: a.addReg(info, c->reg8Mask);
                 break;
-            case 0x82: a.addReg(info, *d);
+            case 0x82: a.addReg(info, d->reg8Mask);
                 break;
-            case 0x83: a.addReg(info, *e);
+            case 0x83: a.addReg(info, e->reg8Mask);
                 break;
-            case 0x84: a.addReg(info, *h);
+            case 0x84: a.addReg(info, h->reg8Mask);
                 break;
-            case 0x85: a.addReg(info, *l);
+            case 0x85: a.addReg(info, l->reg8Mask);
                 break;
-            case 0x87: a.addReg(info, a);
+            case 0x87: a.addReg(info, a.reg8Mask);
                 break;
-            case 0x88: a.addReg(info, *b);
+            case 0x88: a.addReg(info, b->reg8Mask);
                 break;
-            case 0x89: a.addReg(info, *c);
+            case 0x89: a.addReg(info, c->reg8Mask);
                 break;
-            case 0x8a: a.addReg(info, *d);
+            case 0x8a: a.addReg(info, d->reg8Mask);
                 break;
-            case 0x8b: a.addReg(info, *e);
+            case 0x8b: a.addReg(info, e->reg8Mask);
                 break;
-            case 0x90: a.subReg(info, *b);
+            case 0x90: a.subReg(info, b->reg8Mask);
                 break;
-            case 0x91: a.subReg(info, *c);
+            case 0x91: a.subReg(info, c->reg8Mask);
                 break;
-            case 0x92: a.subReg(info, *d);
+            case 0x92: a.subReg(info, d->reg8Mask);
                 break;
-            case 0x93: a.subReg(info, *e);
+            case 0x93: a.subReg(info, e->reg8Mask);
                 break;
-            case 0x94: a.subReg(info, *h);
+            case 0x94: a.subReg(info, h->reg8Mask);
                 break;
-            case 0x95: a.subReg(info, *l);
+            case 0x95: a.subReg(info, l->reg8Mask);
                 break;
-            case 0x97: a.subReg(info, a);
+            case 0x97: a.subReg(info, a.reg8Mask);
                 break;
-            case 0xa0: a.andReg(info, *b);
+            case 0xa0: a.andReg(info, b->reg8Mask);
                 break;
-            case 0xa1: a.andReg(info, *c);
+            case 0xa1: a.andReg(info, c->reg8Mask);
                 break;
-            case 0xa2: a.andReg(info, *d);
+            case 0xa2: a.andReg(info, d->reg8Mask);
                 break;
-            case 0xa3: a.andReg(info, *e);
+            case 0xa3: a.andReg(info, e->reg8Mask);
                 break;
-            case 0xa4: a.andReg(info, *h);
+            case 0xa4: a.andReg(info, h->reg8Mask);
                 break;
-            case 0xa5: a.andReg(info, *l);
+            case 0xa5: a.andReg(info, l->reg8Mask);
                 break;
-            case 0xa7: a.andReg(info, a);
+            case 0xa7: a.andReg(info, a.reg8Mask);
                 break;
-            case 0xa8: a.xorReg(info, *b);
+            case 0xa8: a.xorReg(info, b->reg8Mask);
                 break;
-            case 0xa9: a.xorReg(info, *c);
+            case 0xa9: a.xorReg(info, c->reg8Mask);
                 break;
-            case 0xaa: a.xorReg(info, *d);
+            case 0xaa: a.xorReg(info, d->reg8Mask);
                 break;
-            case 0xab: a.xorReg(info, *e);
+            case 0xab: a.xorReg(info, e->reg8Mask);
                 break;
-            case 0xac: a.xorReg(info, *h);
+            case 0xac: a.xorReg(info, h->reg8Mask);
                 break;
-            case 0xad: a.xorReg(info, *l);
+            case 0xad: a.xorReg(info, l->reg8Mask);
                 break;
-            case 0xaf: a.xorReg(info, a);
+            case 0xaf: a.xorReg(info, a.reg8Mask);
                 break;
-            case 0xb0: a.orReg(info, *b);
+            case 0xb0: a.orReg(info, b->reg8Mask);
                 break;
-            case 0xb1: a.orReg(info, *c);
+            case 0xb1: a.orReg(info, c->reg8Mask);
                 break;
-            case 0xb2: a.orReg(info, *d);
+            case 0xb2: a.orReg(info, d->reg8Mask);
                 break;
-            case 0xb3: a.orReg(info, *e);
+            case 0xb3: a.orReg(info, e->reg8Mask);
                 break;
-            case 0xb4: a.orReg(info, *h);
+            case 0xb4: a.orReg(info, h->reg8Mask);
                 break;
-            case 0xb5: a.orReg(info, *l);
+            case 0xb5: a.orReg(info, l->reg8Mask);
                 break;
-            case 0xb7: a.orReg(info, a);
+            case 0xb7: a.orReg(info, a.reg8Mask);
                 break;
             case 0xc3:
             {
@@ -738,7 +738,7 @@ Z80CodeInfo Z80Parser::parseCode(
                 if (isIndexReg)
                     result.spOffset = result.iySpOffset;
                 else
-                    info.useReg(*h, *l);
+                    info.useReg(h->reg8Mask, l->reg8Mask);
                 break;
             case 0xdd: // IX
             case 0xfd: // IY

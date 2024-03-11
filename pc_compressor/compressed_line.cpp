@@ -4,30 +4,6 @@
 #include "registers.h"
 #include "code_parser.h"
 
-void RegUsageInfo::useReg(const Register8& reg)
-{
-    regUseMask |= 1 << reg.reg8Index;
-}
-
-void RegUsageInfo::selfReg(const Register8& reg)
-{
-    uint8_t mask = 1 << reg.reg8Index;
-    if ((regUseMask & mask) == 0)
-        selfRegMask |= mask;
-}
-
-void RegUsageInfo::useReg(const Register8& reg1, const Register8& reg2)
-{
-    useReg(reg1);
-    useReg(reg2);
-}
-
-void RegUsageInfo::selfReg(const Register8& reg1, const Register8& reg2)
-{
-    selfReg(reg1);
-    selfReg(reg2);
-}
-
 std::vector<Register16> RegUsageInfo::getUsedRegisters(const std::vector<Register16>& inputRegisters) const
 {
     std::vector<Register16> result;

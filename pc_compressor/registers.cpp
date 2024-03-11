@@ -104,8 +104,8 @@ void Register8::addReg(RegUsageInfo& info, const Register8& reg)
     assert(name == 'a');
     assert(!isEmpty() && !reg.isEmpty());
     value = *value + *reg.value;
-    info.useReg(reg);
-    info.useReg(*this);
+    info.useReg(reg.reg8Mask);
+    info.useReg(reg8Mask);
 }
 
 void Register8::addValue(RegUsageInfo& info, uint8_t v)
@@ -113,7 +113,7 @@ void Register8::addValue(RegUsageInfo& info, uint8_t v)
     assert(name == 'a');
     assert(isEmpty());
     value = *value + v;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::subValue(RegUsageInfo& info, uint8_t v)
@@ -121,7 +121,7 @@ void Register8::subValue(RegUsageInfo& info, uint8_t v)
     assert(name == 'a');
     assert(isEmpty());
     value = *value - v;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 
@@ -134,13 +134,13 @@ void Register8::pushViaHL(CompressedLine& line) const
 
 void Register8::pushViaHL(RegUsageInfo& info) const
 {
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::loadX(RegUsageInfo& info, uint8_t byte)
 {
     value = byte;
-    info.selfReg(*this);
+    info.selfReg(reg8Mask);
 }
 
 void Register8::loadX(CompressedLine& line, uint8_t byte)
@@ -193,8 +193,8 @@ void Register8::xorReg(RegUsageInfo& info, const Register8& reg)
     {
         value = 0;
     }
-    info.useReg(*this);
-    info.useReg(reg);
+    info.useReg(reg8Mask);
+    info.useReg(reg.reg8Mask);
 }
 
 void Register8::xorValue(RegUsageInfo& info, uint8_t v)
@@ -202,7 +202,7 @@ void Register8::xorValue(RegUsageInfo& info, uint8_t v)
     assert(name == 'a');
     assert(isEmpty());
     value = *value ^ v;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::orReg(CompressedLine& line, const Register8& reg)
@@ -218,8 +218,8 @@ void Register8::orReg(RegUsageInfo& info, const Register8& reg)
     assert(name == 'a');
     assert(!isEmpty() && !reg.isEmpty());
     value = *value | *reg.value;
-    info.useReg(*this);
-    info.useReg(reg);
+    info.useReg(reg8Mask);
+    info.useReg(reg.reg8Mask);
 }
 
 void Register8::orValue(RegUsageInfo& info, uint8_t v)
@@ -227,7 +227,7 @@ void Register8::orValue(RegUsageInfo& info, uint8_t v)
     assert(name == 'a');
     assert(isEmpty());
     value = *value | v;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::andReg(CompressedLine& line, const Register8& reg)
@@ -250,8 +250,8 @@ void Register8::andReg(RegUsageInfo& info, const Register8& reg)
     {
         value = 0;
     }
-    info.useReg(*this);
-    info.useReg(reg);
+    info.useReg(reg8Mask);
+    info.useReg(reg.reg8Mask);
 }
 
 void Register8::andValue(RegUsageInfo& info, uint8_t v)
@@ -259,7 +259,7 @@ void Register8::andValue(RegUsageInfo& info, uint8_t v)
     assert(name == 'a');
     assert(isEmpty());
     value = *value & v;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::subReg(CompressedLine& line, const Register8& reg)
@@ -281,8 +281,8 @@ void Register8::subReg(RegUsageInfo& info, const Register8& reg)
     {
         value = 0;
     }
-    info.useReg(*this);
-    info.useReg(reg);
+    info.useReg(reg8Mask);
+    info.useReg(reg.reg8Mask);
 }
 
 void Register8::loadFromReg(CompressedLine& line, const Register8& reg)
@@ -308,8 +308,8 @@ void Register8::loadFromReg(RegUsageInfo& info, const Register8& reg)
     assert(!reg.isEmpty());
     value = reg.value;
 
-    info.useReg(reg);
-    info.selfReg(*this);
+    info.useReg(reg.reg8Mask);
+    info.selfReg(reg8Mask);
 }
 
 void Register8::incValue(CompressedLine& line)
@@ -330,7 +330,7 @@ void Register8::incValue(CompressedLine& line)
 void Register8::incValue(RegUsageInfo& info)
 {
     value = *value + 1;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::decValue(CompressedLine& line)
@@ -351,7 +351,7 @@ void Register8::decValue(CompressedLine& line)
 void Register8::decValue(RegUsageInfo& info)
 {
     value = *value - 1;
-    info.useReg(*this);
+    info.useReg(reg8Mask);
 }
 
 void Register8::setBit(CompressedLine& line, uint8_t bit)
@@ -381,7 +381,7 @@ void Register16::loadFromReg16(CompressedLine& line, const Register16& reg) cons
     if (h.name == 's' && (reg.h.name == 'h' || reg.h.name == 'i'))
     {
         line.data.push_back(0xf9); //< LD SP, HL
-        line.regUsage.useReg(reg.h, reg.l);
+        line.regUsage.useReg(reg.h.reg8Mask, reg.l.reg8Mask);
         line.drawTicks += 6;
     }
     else
@@ -397,34 +397,11 @@ void Register16::exxHl(CompressedLine& line)
     line.drawTicks += 4;
 }
 
-void Register16::loadXX(RegUsageInfo& info, uint16_t value)
-{
-    h.value = value >> 8;
-    l.value = (uint8_t)value;
-    info.selfReg(h, l);
-}
-
-void Register16::loadXX(CompressedLine& line, uint16_t value)
-{
-    loadXX(line.regUsage, value);
-    line.drawTicks += 10;
-
-    if (h.name == 'i')
-    {
-        line.data.push_back(l.indexRegPrefix);
-        line.drawTicks += 4;
-    }
-
-    line.data.push_back(uint8_t(0x01 + reg16Index() * 8));
-    line.data.push_back(*l.value);
-    line.data.push_back(*h.value);
-}
-
 void Register16::addSP(CompressedLine& line, Register8* f)
 {
     if (h.name != 'h' && h.name != 'i')
         assert(0);
-    line.regUsage.useReg(h, l);
+    line.regUsage.useReg(h.reg8Mask, l.reg8Mask);
     h.value.reset();
     l.value.reset();
 
@@ -446,9 +423,9 @@ void Register16::addSP(CompressedLine& line, Register8* f)
 void Register16::push(RegUsageInfo& info) const
 {
     if (!h.isEmpty())
-        info.useReg(h);
+        info.useReg(h.reg8Mask);
     if (!l.isEmpty())
-        info.useReg(l);
+        info.useReg(l.reg8Mask);
 }
 
 void Register16::push(CompressedLine& line) const
@@ -489,7 +466,7 @@ void Register16::decValue(RegUsageInfo& info)
 
     assert(!isEmpty());
     setValue(value16() - 1);
-    info.useReg(h, l);
+    info.useReg(h.reg8Mask, l.reg8Mask);
 }
 
 void Register16::addValue(uint16_t value)
@@ -503,7 +480,7 @@ void Register16::incValue(RegUsageInfo& info)
 {
     assert(!isEmpty());
     setValue(value16() + 1);
-    info.useReg(h, l);
+    info.useReg(h.reg8Mask, l.reg8Mask);
 }
 
 void Register16::incValue(CompressedLine& line, int repeat)

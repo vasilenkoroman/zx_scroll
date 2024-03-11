@@ -44,12 +44,14 @@ public:
     char name;
     std::optional<uint8_t> value;
     int reg8Index;
+    uint8_t reg8Mask;
     bool isAlt = false;
     uint8_t indexRegPrefix = 0;
 
     Register8(const char name) : name(name)
     {
         reg8Index = calculateIndex();
+        reg8Mask = 1 << reg8Index;
         if (name == 'x')
             indexRegPrefix = IX_REG_PREFIX;
         else if (name == 'y')
@@ -163,8 +165,29 @@ public:
     }
     void addValue(uint16_t value);
 
-    void loadXX(CompressedLine& line, uint16_t value);
-    void loadXX(RegUsageInfo& info, uint16_t value);
+    void loadXX(CompressedLine& line, uint16_t value)
+    {
+        loadXX(line.regUsage, value);
+        line.drawTicks += 10;
+
+        if (h.name == 'i')
+        {
+            line.data.push_back(l.indexRegPrefix);
+            line.drawTicks += 4;
+        }
+
+        line.data.push_back(uint8_t(0x01 + reg16Index() * 8));
+        line.data.push_back(*l.value);
+        line.data.push_back(*h.value);
+    }
+
+    void loadXX(RegUsageInfo& info, uint16_t value)
+    {
+        h.value = value >> 8;
+        l.value = (uint8_t)value;
+        info.selfReg(h.reg8Mask, l.reg8Mask);
+    }
+
     void addSP(CompressedLine& line, Register8* f = nullptr);
 
     inline bool isEmpty() const
@@ -311,7 +334,7 @@ public:
     {
         if (hasValue16(value))
         {
-            line.regUsage.useReg(h, l);
+            line.regUsage.useReg(h.reg8Mask, l.reg8Mask);
             return true;
         }
 
@@ -323,12 +346,12 @@ public:
 
         if (h.hasValue(hiByte))
         {
-            line.regUsage.useReg(h);
+            line.regUsage.useReg(h.reg8Mask);
             l.updateToValue(line, lowByte, registers, af);
         }
         else if (l.hasValue(lowByte))
         {
-            line.regUsage.useReg(l);
+            line.regUsage.useReg(l.reg8Mask);
             h.updateToValue(line, hiByte, registers, af);
         }
         else if (hasValue16(value + 1))

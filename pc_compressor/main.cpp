@@ -430,7 +430,7 @@ void choiseNextRegister(
         if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
             continue;
 
-        bool useNextLine = choisedLine.data.empty() || newLine.drawTicks <= choisedLine.drawTicks;
+        bool useNextLine = choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks;
         if (useNextLine)
         {
             chosedRegisters = regCopy;
@@ -749,16 +749,6 @@ bool compressLine(
             continue;
         }
 
-        if (registers[0].isEmpty())
-        {
-            if (result.isAltReg != registers[0].isAlt)
-                result.exx();
-            registers[0].updateToValue(result, word, registers, context.af);
-            registers[0].push(result);
-            x += 2;
-            continue;
-        }
-
         CompressedLine choisedLine;
         auto chosedRegisters = registers;
 
@@ -890,7 +880,7 @@ std::vector<CompressedLine> compressLines(
 
 std::vector<CompressedLine> compressLines(const Context& context, const std::vector<int>& lines, int transitiveDepth)
 {
-    std::array<Register16, 3> registers = { Register16("bc"), Register16("de"), Register16("hl") };
+    std::array<Register16, 3> registers = { Register16("hl"), Register16("de"), Register16("bc") };
     return compressLines(registers, context, lines, transitiveDepth);
 }
 
@@ -1149,6 +1139,8 @@ CompressedData compressRastr(int flags, uint8_t* buffer, uint8_t* colorBuffer, i
 
     if (!(flags & inverseColors))
         return result;
+
+    return result;
 
     std::cout << "rastr ticks = " << result.ticks() << std::endl;
 
@@ -1901,7 +1893,7 @@ void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
     }
 }
 
-int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData& compressedData)
+int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData& compressedData, bool silenceMode)
 {
     const int imageHeight = compressedData.data.size();
 
@@ -1927,8 +1919,12 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         }
         regularTicks += line.drawTicks;
     }
-    std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
-    std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * imageHeight - regularTicks << std::endl;
+
+    if (!silenceMode)
+    {
+        std::cout << "INFO: max multicolor ticks line #" << maxTicksLine << ", ticks=" << maxTicks << ". Min ticks line #" << minTicksLine << ", ticks=" << minTicks << std::endl;
+        std::cout << "INFO: align multicolor to ticks to " << maxTicks << " losed ticks=" << maxTicks * imageHeight - regularTicks << std::endl;
+    }
 
 
     if (flags & OptimizeMcTicks)
@@ -1958,11 +1954,14 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
             maxVirtualTicks = std::max(maxVirtualTicks, line.mcStats.virtualTicks + (line.mcStats.min - line.mcStats.pos));
     }
 
-    for (int i = 0; i < imageHeight; ++i)
+    if (!silenceMode)
     {
-        int endLine = (i + 23) % imageHeight;
-        std::cout << i << ": " << compressedData.data[i].mcStats.pos << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
-            << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
+        for (int i = 0; i < imageHeight; ++i)
+        {
+            int endLine = (i + 23) % imageHeight;
+            std::cout << i << ": " << compressedData.data[i].mcStats.pos << "[" << compressedData.data[i].mcStats.min << ".." << compressedData.data[i].mcStats.max
+                << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
+        }
     }
 
     for (int i = 0; i < imageHeight; ++i)
@@ -1975,7 +1974,9 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
             break;
         }
     }
-    std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
+
+    if (!silenceMode)
+        std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
 
 
     int idealSum = 0;
@@ -1984,7 +1985,8 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         int next = (i + 1) % imageHeight;
         idealSum += std::abs(compressedData.data[next].mcStats.virtualTicks - compressedData.data[i].mcStats.virtualTicks);
     }
-    std::cout << "INFO:  ideal losed ticks=" << idealSum << std::endl;
+    if (!silenceMode)
+        std::cout << "INFO:  ideal losed ticks=" << idealSum << std::endl;
 
     // 1. Calculate extra delay for begin of the line if it draw too fast
     int i = 0;
@@ -2036,7 +2038,8 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         int totalTicks = 0;
         for (int i = 0; i < imageHeight; ++i)
             totalTicks += compressedData.data[i].mcStats.virtualTicks;
-        std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
+        if (!silenceMode)
+            std::cout << "After align to 4 losed ticks=" << totalTicks - prevTotalTicks << std::endl;
     }
     else
     {
@@ -2186,7 +2189,8 @@ CompressedData  compressColors(uint8_t* buffer, int imageHeight)
 
     CompressedData compressedData;
 #if 1
-    std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+    //std::array<Register16, 4> registers = { Register16("bc"), Register16("de"), Register16("hl"), Register16("af") };
+    std::array<Register16, 4> registers = { Register16("af"), Register16("hl"), Register16("de"), Register16("bc") };
     compressedData.data = compressLines(registers, context, lines, /*maxTransitiveDepth*/ 24);
 #else
 	compressedData.data = compressLines(context, lines, /*maxTransitiveDepth*/ 24);
@@ -2832,75 +2836,6 @@ int lineNumToPageNum(int y, int height)
 }
 
 #pragma pack(pop)
-
-#if 0
-std::vector<JpIxDescriptor> createWholeFrameJpIxDescriptors(
-    const std::vector<LineDescriptor>& descriptors)
-{
-    std::array<std::vector<JpIxDescriptor>, 4> jpIxDescriptors;
-
-    int imageHeight = descriptors.size();
-    const int bankSize = imageHeight / 8;
-    const int colorsHeight = imageHeight / 8;
-
-    // . Create delta for JP_IX when shift to 1 line
-    for (int screenLine = 0; screenLine < imageHeight; ++screenLine)
-    {
-        int line = screenLine % imageHeight;
-        for (int i : { 1, 2, 0 })
-        {
-            int l = (line + i * 64) % imageHeight;
-
-            JpIxDescriptor d;
-            d.pageNum = descriptors[l].pageNum;
-            if (i == 1)
-                d.line = line; //< restore off rastr mid on update
-
-            d.address = descriptors[l].rastrForOffscreen.lineEndPtr;
-            d.originData = descriptors[l].rastrForOffscreen.endBlock;
-            jpIxDescriptors[d.pageNum].push_back(d);
-            if (i == 0)
-                d.line = line;
-        }
-
-        // 3 rastr for MC descriptors
-        for (int i = 0; i < 3; ++i)
-        {
-            int l = (line + i * 64) % imageHeight;
-
-            JpIxDescriptor d;
-            d.pageNum = descriptors[l].pageNum;
-            if (i == 2)
-                d.line = line; //< write MC top on update
-
-            if (i == 2)
-            {
-                // Shift to the next frame
-                int line1 = line > 0 ? line - 1 : imageHeight - 1;
-                int l1 = (line1 + i * 64) % imageHeight;
-                d.address = descriptors[l1].rastrForMulticolor.lineEndPtr;
-                d.originData = descriptors[l1].rastrForMulticolor.endBlock;
-
-            }
-            else
-            {
-                d.address = descriptors[l].rastrForMulticolor.lineEndPtr;
-                d.originData = descriptors[l].rastrForMulticolor.endBlock;
-            }
-            jpIxDescriptors[d.pageNum].push_back(d);
-        }
-    }
-
-    std::vector<JpIxDescriptor> result;
-    for (const auto& descriptors: jpIxDescriptors)
-    {
-        for (const auto& d : descriptors)
-            result.push_back(d);
-    }
-
-    return result;
-}
-#endif
 
 std::vector<JpIxLineData> createWholeFrameJpIxDescriptors(
     const std::vector<LineDescriptor>& descriptors)
@@ -4032,7 +3967,8 @@ int serializeTimingDataForRun(
     int& worseLineNum,
     int& minSpecialTicks,
     std::vector<uint16_t>& outputData,
-    int runNumber)
+    int runNumber,
+    bool silenceMode)
 {
     using namespace std;
 
@@ -4187,7 +4123,7 @@ int serializeTimingDataForRun(
 
         int freeTicks = totalTicksPerFrame - ticks;
         const int minDelay = kMinDelay;
-        if (freeTicks < minDelay)
+        if (freeTicks < minDelay && !silenceMode)
         {
             std::cout << "WARNING: Low free ticks. line #" << line << ". free=" << freeTicks << ". minDelay=" << minDelay
                 << ". Not enough " << minDelay - freeTicks << " ticks. "
@@ -4235,7 +4171,8 @@ int serializeTimingData(
     const CompressedData& multicolor,
     const std::string& inputFileName,
     int flags,
-    std::vector<int> musicTimings)
+    std::vector<int> musicTimings,
+    bool silenceMode)
 {
     const int imageHeight = data.data.size();
 
@@ -4283,17 +4220,22 @@ int serializeTimingData(
             worseLineNum,
             minSpecialTicks,
             delayTicks,
-            runNumber);
+            runNumber,
+            silenceMode);
     }
 
-    std::cout << "worse ticks for effects=" << minSpecialTicks << std::endl;
-    std::cout << "worse MC line free ticks=" << worseMcLineTicks << std::endl;
-    std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";
+    if (!silenceMode)
+    {
+        std::cout << "worse ticks for effects=" << minSpecialTicks << std::endl;
+        std::cout << "worse MC line free ticks=" << worseMcLineTicks << std::endl;
+        std::cout << "worse line free ticks=" << worseLineTicks << " at pos=" << worseLineNum << ". ";
+    }
     const int minDelay = kMinDelay;
-    if (worseLineTicks < minDelay)
+    if (worseLineTicks < minDelay && !silenceMode)
+    {
         std::cout << "Not enough ticks:" << minDelay - worseLineTicks;
-    std::cout << std::endl;
-
+        std::cout << std::endl;
+    }
 
     std::vector<std::vector<int>> musicPages;
     musicPages.resize(4);
@@ -4337,7 +4279,7 @@ int serializeTimingData(
         }
     }
 
-    return 0;
+    return worseLineTicks;
 }
 
 int serializeJpIxDescriptors(
@@ -4540,6 +4482,105 @@ std::vector<uint8_t> getDeltaForFirstScreen(std::vector<uint8_t> buffer, int scr
     return result;
 }
 
+int
+    packAll(
+        int flags,
+        int codeOffset,
+        std::vector<uint8_t>& buffer,
+        std::vector<uint8_t>& colorBuffer,
+        const std::vector<int>& musicTimings,
+        const std::string& outputFileName,
+        bool silenceMode)
+{
+    const int imageHeight = buffer.size() / 32;
+
+    const auto t1 = std::chrono::system_clock::now();
+
+    CompressedData multicolorData = compressMultiColors(flags, colorBuffer.data(), imageHeight / 8, buffer.data());
+
+    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
+    alignMulticolorTimings(mcToRastrTimings, flags, multicolorData, silenceMode);
+
+    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
+    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
+
+    const auto t2 = std::chrono::system_clock::now();
+
+    if (!silenceMode)
+        std::cout << "compression time= " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
+
+    static const int uncompressedTicks = 21 * 16 * imageHeight;
+    static const int uncompressedColorTicks = uncompressedTicks / 8;
+    if (!silenceMode)
+    {
+        std::cout << "uncompressed ticks: " << uncompressedTicks << " compressed ticks: "
+            << data.ticks() << ", ratio: " << (data.ticks() / float(uncompressedTicks))
+            << ", data size:" << data.size() << std::endl;
+
+        std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
+            << colorData.ticks() << ", ratio: " << colorData.ticks() / (float)uncompressedColorTicks << std::endl;
+        std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks: "
+            << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float)uncompressedColorTicks << std::endl;
+        std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
+    }
+
+    // put JP to the latest line for every bank
+    for (int bank = 0; bank < 8; ++bank)
+    {
+        int bankSize = imageHeight / 8;
+        int line = bank * bankSize + bankSize - 1;
+        int firstLineInBank = bank * bankSize;
+
+        int pageNum = lineNumToPageNum(line, imageHeight);
+        int firstLineOffset = 0;
+        for (int i = 0; i < firstLineInBank; ++i)
+        {
+            int page = lineNumToPageNum(i, imageHeight);
+            if (page == pageNum)
+                firstLineOffset += data.size(i, 1);
+        }
+
+        data.data[line].jp(firstLineOffset + getRastrCodeStartAddr(imageHeight));
+    }
+
+    std::vector<LineDescriptor> descriptors;
+    std::vector<ColorDescriptor> colorDescriptors;
+
+    Labels labels;
+
+    labels.mt_and_rt_reach_descriptor = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
+    labels.multicolor = serializeMultiColorData(multicolorData, outputFileName, codeOffset + labels.mt_and_rt_reach_descriptor);
+
+    // put JP to the latest line of colors
+    colorData.data[colorData.data.size() - 1].jp(kColorDataStartAddr);
+    int colorDataSize = serializeColorData(colorDescriptors, colorData, outputFileName, kColorDataStartAddr);
+
+    int worseTiming = serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName, flags, musicTimings, silenceMode);
+
+    serializeRastrDescriptors(descriptors, outputFileName);
+    serializeJpIxDescriptors(descriptors, outputFileName);
+
+    serializeAsmFile(outputFileName, data, colorData, multicolorData, flags, labels, !musicTimings.empty());
+
+    auto colorBufferCopy = colorBuffer;
+    mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
+    std::ofstream firstScreenFile;
+    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
+
+    auto deinterlacedRastr = buffer;
+    mirrorBuffer8(deinterlacedRastr.data(), imageHeight);
+
+    auto firstScreenDelta = getDeltaForFirstScreen(deinterlacedRastr, 192, -1, &colorBufferCopy, &descriptors);
+    firstScreenDelta = interlaceBuffer(firstScreenDelta);
+    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
+
+    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, nullptr, nullptr);
+    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
+    firstScreenFile.close();
+
+    return worseTiming;
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
@@ -4661,91 +4702,71 @@ int main(int argc, char** argv)
 
     deinterlaceBuffer(buffer);
     writeTestBitmap(256, imageHeight, buffer.data(), outputFileName + "image.bmp");
-    const auto deinterlacedRastr = buffer;
-
-    const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
 
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
     int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump; // | inverseColors;
 
-    const auto t1 = std::chrono::system_clock::now();
+    bool silenceMode = flags & inverseColors;
 
-    CompressedData multicolorData = compressMultiColors(flags, colorBuffer.data(), imageHeight / 8, buffer.data());
+    if (silenceMode)
+        std::cout << "Perform initial pack at pos [0, 0]" << std::endl;
 
-    auto colorBufferCopy = colorBuffer;
-    mirrorBuffer8(colorBufferCopy.data(), imageHeight / 8);
+    int bestWorseTiming = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
 
-    alignMulticolorTimings(mcToRastrTimings, flags, multicolorData);
-
-    CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
-    CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
-
-    const auto t2 = std::chrono::system_clock::now();
-
-    std::cout << "compression time= " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
-
-    static const int uncompressedTicks = 21 * 16 * imageHeight;
-    static const int uncompressedColorTicks = uncompressedTicks / 8;
-    std::cout << "uncompressed ticks: " << uncompressedTicks << " compressed ticks: "
-        << data.ticks() << ", ratio: " << (data.ticks() / float(uncompressedTicks))
-        << ", data size:" << data.size() << std::endl;
-
-    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " compressed color ticks: "
-        << colorData.ticks() << ", ratio: " << colorData.ticks() / (float)uncompressedColorTicks << std::endl;
-    std::cout << "uncompressed color ticks: " << uncompressedColorTicks << " multi color ticks: "
-        << multicolorData.ticks() << ", ratio: " << multicolorData.ticks() / (float)uncompressedColorTicks << std::endl;
-    std::cout << "total ticks: " << data.ticks() + colorData.ticks() + multicolorData.ticks() << std::endl;
-
-    // put JP to the latest line for every bank
-    for (int bank = 0; bank < 8; ++bank)
+    if (flags & inverseColors)
     {
-        int bankSize = imageHeight / 8;
-        int line = bank * bankSize + bankSize - 1;
-        int firstLineInBank = bank * bankSize;
+        std::cout << "Worse ticks = " << bestWorseTiming << std::endl;
 
-        int pageNum = lineNumToPageNum(line, imageHeight);
-        //int firstLineOffset = data.size(0, firstLineInBank);
-        int firstLineOffset = 0;
-        for (int i = 0; i < firstLineInBank; ++i)
+        for (int y = 0; y < imageHeight / 8; ++y)
         {
-            int page = lineNumToPageNum(i, imageHeight);
-            if (page == pageNum)
-                firstLineOffset += data.size(i, 1);
+            for (int x = 0; x < 32; x += 2)
+            {
+                std::cout << "Check block " << y << ":" << x << std::endl;
+
+                int lineNum = y * 8;
+
+                inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                int candidateLeft = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+
+                inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                int candidateBoth = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+
+                inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                int candidateRight = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+
+                inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+
+                if (candidateLeft > bestWorseTiming
+                    && candidateLeft >= candidateBoth
+                    && candidateLeft >= candidateRight)
+                {
+                    std::cout << "(L) Improve worse ticks from " << bestWorseTiming << " to " << candidateLeft << std::endl;
+                    inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                    bestWorseTiming = candidateLeft;
+                }
+                else if (candidateBoth > bestWorseTiming
+                    && candidateBoth >= candidateLeft
+                    && candidateBoth >= candidateRight)
+                {
+                    std::cout << "(B) Improve worse ticks from " << bestWorseTiming << " to " << candidateBoth << std::endl;
+                    inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                    bestWorseTiming = candidateBoth;
+                }
+                else if (candidateRight > bestWorseTiming
+                    && candidateRight >= candidateLeft
+                    && candidateRight >= candidateBoth)
+                {
+                    std::cout << "(R) Improve worse ticks from " << bestWorseTiming << " to = " << candidateRight << std::endl;
+                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                    bestWorseTiming = candidateRight;
+                }
+            }
         }
-
-        data.data[line].jp(firstLineOffset + getRastrCodeStartAddr(imageHeight));
+        packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false);
     }
-
-    std::vector<LineDescriptor> descriptors;
-    std::vector<ColorDescriptor> colorDescriptors;
-
-    Labels labels;
-
-    labels.mt_and_rt_reach_descriptor = serializeMainData(buffer.data(), data, multicolorData, descriptors, outputFileName, codeOffset, flags, mcToRastrTimings);
-    labels.multicolor = serializeMultiColorData(multicolorData, outputFileName, codeOffset + labels.mt_and_rt_reach_descriptor);
-
-
-    std::ofstream firstScreenFile;
-    firstScreenFile.open(outputFileName + "first_screen.scr", std::ios::binary);
-    auto firstScreenDelta = getDeltaForFirstScreen(deinterlacedRastr, 192, -1, &colorBufferCopy, &descriptors);
-    firstScreenDelta = interlaceBuffer(firstScreenDelta);
-    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
-
-    firstScreenDelta = getDeltaForFirstScreen(colorBufferCopy, 24, 1, nullptr, nullptr);
-    firstScreenFile.write((const char*)firstScreenDelta.data(), firstScreenDelta.size());
-    firstScreenFile.close();
-
-    // put JP to the latest line of colors
-    colorData.data[colorData.data.size() - 1].jp(kColorDataStartAddr);
-    int colorDataSize = serializeColorData(colorDescriptors, colorData, outputFileName, kColorDataStartAddr);
-
-    serializeRastrDescriptors(descriptors, outputFileName);
-    serializeJpIxDescriptors(descriptors, outputFileName);
-
-    serializeTimingData(descriptors, colorDescriptors, data, colorData, multicolorData, outputFileName,  flags, musicTimings);
-    serializeAsmFile(outputFileName, data, colorData, multicolorData, flags, labels, !musicTimings.empty());
 
     runCompressor(outputFileName);
 

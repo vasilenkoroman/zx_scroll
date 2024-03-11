@@ -6,17 +6,34 @@
 #include <memory>
 #include <optional>
 
-class Register8;
 class Register16;
 class CompressedLine;
 class z80Command;
 
 struct RegUsageInfo
 {
-    void useReg(const Register8& reg);
-    void selfReg(const Register8& reg);
-    void useReg(const Register8& reg1, const Register8& reg2);
-    void selfReg(const Register8& reg1, const Register8& reg2);
+    void useReg(uint8_t reg8Mask)
+    {
+        regUseMask |= reg8Mask;
+    }
+
+    void selfReg(uint8_t reg8Mask)
+    {
+        if ((regUseMask & reg8Mask) == 0)
+            selfRegMask |= reg8Mask;
+    }
+
+    void useReg(uint8_t reg1, uint8_t reg2)
+    {
+        useReg(reg1);
+        useReg(reg2);
+    }
+
+    void selfReg(uint8_t reg1, uint8_t reg2)
+    {
+        selfReg(reg1);
+        selfReg(reg2);
+    }
 
 
     std::vector<Register16> getUsedRegisters(const std::vector<Register16>& inputRegisters) const;
@@ -150,11 +167,6 @@ struct CompressedLine
         regUsage.regUseMask |= other.regUsage.regUseMask;
         regUsage.selfRegMask |= other.regUsage.selfRegMask;
     }
-
-    //void useReg(const Register8& reg);
-    //void selfReg(const Register8& reg);
-    //void useReg(const Register8& reg1, const Register8& reg2);
-    //void selfReg(const Register8& reg1, const Register8& reg2);
 
     // Return first 'size' bytes of the line.
     // It round size up to not break Z80 instruction.
