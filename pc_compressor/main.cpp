@@ -1893,7 +1893,7 @@ void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
             {
                 align3Lines(multicolor, lines[0].lineNum, lines[1].lineNum, lines[2].lineNum);
             }
-            else if (data.size() == 2)
+            else if (lines.size() == 2)
             {
                 align2Lines(multicolor, lines[0].lineNum, lines[1].lineNum);
             }
