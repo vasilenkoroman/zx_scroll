@@ -26,6 +26,7 @@ code_after_moving       equ screen_end
 
 effects_by_run          equ #bfc2
 effects_by_run_end      equ effects_by_run + 8
+timings_data            equ #c000
 
 STACK_SIZE:             equ 12  ; in words
 stack_bottom            equ effects_by_run_end
@@ -38,7 +39,7 @@ stack_top               equ stack_bottom + STACK_SIZE * 2
 EXX_DE_JP_HL_CODE       EQU #eb + #e9 * 256
 
         MACRO DRAW_ONLY_RASTR_LINE N?
-
+.prevHl         equ $
                 IF (N? < 16)
                         IF (N? % 8 == 0)
                                 ld a, #54
@@ -70,7 +71,12 @@ EXX_DE_JP_HL_CODE       EQU #eb + #e9 * 256
                 ENDIF
 
                 ld sp, 16384 + ((N? + 8) % 24) * 256 + 256       ; 10
-                ld hl, $ + 7
+.newHl          equ $ + 7
+                IF N? == 0 || high(.newHl) != high(.prevHl)
+                        ld hl, $ + 7
+                ELSE
+                        ld l, low($ + 6)
+                ENDIF
                 exx
 RASTR0_N?       jp 00 ; rastr for multicolor ( up to 8 lines)       
         ENDM                
@@ -334,7 +340,6 @@ BEGIN           DISP code_after_moving
 /** ----------- Routines -------------- */
 
 JP_VIA_HL_CODE          equ #e9d9
-jpix_table              EQU #c000
 jp_ix_record_size       equ 12
 jp_write_data_offset    equ 8
 data_page_count         equ 4
@@ -387,7 +392,7 @@ continue_page:
 create_jpix_helper
                 ASSERT(imageHeight / 4 < 256)
                 ld hl, update_jpix_helper
-                ld iy, #c000
+                ld iy, jpix_table
                 ld ixl, imageHeight / 64
 .loop2          ld a, 16
                 push iy
@@ -881,7 +886,7 @@ finish_draw_colors0
                 ld de, finish_off_drawing_0
                 jp it0_start
 finish_off_drawing_0
-                ; MC part rastr
+                ; non-MC part rastr
                 exa
                 scf
                 DRAW_ONLY_RASTR_LINE 0
@@ -1239,8 +1244,8 @@ update_jpix_helper   EQU #c000 - 512
 
                 ORG #c000
                 PAGE 0
-                ;INCBIN "generated_code/jpix0.dat"
                 ;INCBIN "generated_code/timings0.dat"
+                ;INCBIN "generated_code/jpix0.dat"
                 ;INCBIN "generated_code/main0.z80"
                 ;INCBIN "generated_code/reach_descriptor0.z80"
                 INCBIN "generated_code/ram0.zx0"
@@ -1253,8 +1258,8 @@ page0_end
 
                 ORG #c000
                 PAGE 1
-                ;INCBIN "generated_code/jpix1.dat"
                 ;INCBIN "generated_code/timings1.dat"
+                ;INCBIN "generated_code/jpix1.dat"
                 ;INCBIN "generated_code/main1.z80"
                 ;INCBIN "generated_code/reach_descriptor1.z80"
                 INCBIN "generated_code/ram1.zx0"
@@ -1267,8 +1272,8 @@ page1_end
 
                 ORG #c000
                 PAGE 3
-                ;INCBIN "generated_code/jpix2.dat"
                 ;INCBIN "generated_code/timings2.dat"
+                ;INCBIN "generated_code/jpix2.dat"
                 ;INCBIN "generated_code/main2.z80"
                 ;INCBIN "generated_code/reach_descriptor2.z80"
                 INCBIN "generated_code/ram3.zx0"
@@ -1281,8 +1286,9 @@ page3_end
 
                 ORG #c000
                 PAGE 4
-                INCBIN "generated_code/jpix3.dat"
                 INCBIN "generated_code/timings3.dat"
+jpix_table      
+                INCBIN "generated_code/jpix3.dat"
                 INCBIN "generated_code/main3.z80"
                 INCBIN "generated_code/reach_descriptor3.z80"
 final_mus        

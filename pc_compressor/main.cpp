@@ -3415,7 +3415,7 @@ void serializeAsmFile(
 
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
-    phaseFile << "timings_data   EQU    " << getTimingsStartAddress(imageHeight) << std::endl;
+
     phaseFile << "DIRECT_PLAYER_JUMP  EQU    " << ((rastrFlags & directPlayerJump) ? 1 : 0) << std::endl;
 }
 
@@ -4031,7 +4031,7 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2 - 3;
+            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2 - 3 - 60;
             if (line == 0)
             {
                 kZ80CodeDelay -= 41-26;    // new jpix_helper
