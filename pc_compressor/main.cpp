@@ -4027,11 +4027,11 @@ int serializeTimingDataForRun(
                 ticks -= 14;
         }
 
-        int kZ80CodeDelay = 2459;
+        int kZ80CodeDelay = 2459 - 4;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2 - 3 - 60;
+            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2 - 3 - 60 + 17;
             if (line == 0)
             {
                 kZ80CodeDelay -= 41-26;    // new jpix_helper

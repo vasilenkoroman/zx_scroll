@@ -464,7 +464,7 @@ screen_start_tick               equ  17988
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32084 + 9
+fixed_startup_delay     equ 32084 + 9 + 13
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
@@ -634,8 +634,6 @@ saved_bc_value  EQU $ +1
                 ld bc, 0        ;saved_bc_value here
                 dec c
                 dec c
-                ld a, c
-                ld (saved_bc_value), a
 loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
                 ; --------------------- update_jp_ix_table --------------------------------
@@ -661,8 +659,9 @@ jpix_h_pos
                 DRAW_RASTR_LINE_S 23
 loop1:
                 SET_PAGE 6
-                ld a, 15
-                and c
+                ld a, c
+                ld (saved_bc_value), a
+                and 15
                 jr z, non_mc_draw_step
         
 mc_step_drawing:
