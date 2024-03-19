@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <vector>
 #include <utility>
@@ -4581,39 +4582,62 @@ int
     return worseTiming;
 }
 
+void showHelp()
+{
+    std::cerr << "scroll_image_compress v.1.1";
+    std::cerr << "Usage: scroll_image_compress \n";
+    std::cerr << "    -i <file_name>    Argument can be repeated several times or several files can be provided via ';' delimiter\n";
+    std::cerr << "    -o <out_folder_name> Folder with generated files for scroller.asm\n";
+    std::cerr << "    [-csv <.csv file name>]  Optional parameter. Use audio player if provided.\n";
+    std::cerr << "        csv file should contains music timings from psg_compressor. Parameter is optional. \n";
+    std::cerr << "        Without this parameter it will be compiled in pure scroll mode.\n";
+    std::cerr << "    [-sld <.sld file name>] Optional. Can read generated code start address from scroller.asm instead of constant.\n";
+    std::cerr << "        For developer purpose only.\n";
+    std::cerr << "\n";
+    std::cerr << "Example: scroll_image_compress -i image1.scr;image2.scr -o ./generated_folder -csv music_timings.csv\n";
+}
+
+void addInputFiles(std::vector<std::string>* result, const std::string& value)
+{
+    std::string tmp;
+    std::stringstream ss(value);
+    while (getline(ss, tmp, ';'))
+        result->push_back(tmp);
+}
+
 int main(int argc, char** argv)
 {
     using namespace std;
 
     ifstream fileIn;
 
-    if (argc < 3)
-    {
-        std::cerr << "scroll_image_compress v.1.0";
-        std::cerr << "Usage: scroll_image_compress <file_name> [<file_name>] <out_folder_name> [<.csv file name>]";
-        std::cerr << ".csv file should contains music timings from psg_compressor. Parameter is optional. Without this parameter it will be compiled in pure scroll mode";
-        return -1;
-    }
-
     std::string sldFileName;
     std::string musTimingsFileName;
-    int argCount = argc;
-    for (int i = argc - 1; i > 0; --i)
+    std::string outputFileName;
+    std::vector<std::string> inputFileNames;
+
+    for (int i = 1; i < argc; i += 2)
     {
-        std::string specialFileName = argv[i];
-        if (ends_with(specialFileName, ".sld"))
+        std::string paramName = argv[i];
+        if (i + 1 >= argc)
         {
-            sldFileName = specialFileName;
-            --argCount;
+            showHelp();
+            return -1;
         }
-        else if (ends_with(specialFileName, ".csv"))
-        {
-            musTimingsFileName = specialFileName;
-            --argCount;
-        }
+        std::string paramValue = argv[i+1];
+
+        if (paramName == "-i")
+            addInputFiles(&inputFileNames, paramValue);
+        else if (paramName == "-o")
+            outputFileName = paramValue;
+        else if (paramName == "-csv" || paramName == "-c")
+            musTimingsFileName = paramValue;
+        else if (paramName == "-sld" || paramName == "-s")
+            sldFileName = paramValue;
         else
         {
-            break;
+            showHelp();
+            return -1;
         }
     }
 
@@ -4649,22 +4673,17 @@ int main(int argc, char** argv)
         }
     }
 
-
-    std::string outputFileName = argv[argCount - 1];
-    int fileCount = argCount - 2;
-
     if (!ends_with(outputFileName, "\\") && !ends_with(outputFileName, "/"))
         outputFileName += "/";
 
-
+    int fileCount = inputFileNames.size();
     int imageHeight = 192 * fileCount;
 
     std::vector<uint8_t> buffer;
     std::vector<uint8_t> colorBuffer;
 
-    for (int i = 1; i <= fileCount; ++i)
+    for (const auto& inputFileName: inputFileNames)
     {
-        std::string inputFileName = argv[i];
         fileIn.open(inputFileName, std::ios::binary);
         if (!fileIn.is_open())
         {
