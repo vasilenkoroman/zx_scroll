@@ -553,7 +553,7 @@ max_scroll_offset equ imageHeight - 1
                 ld a, 3                         ; 7 ticks
                 out #fe,a                      ; 11 ticks
 
-                jp loop1
+                jp non_mc_draw_step
 lower_limit_reached:
                 ld bc,  max_scroll_offset*2     ; 10 ticks
                 ld (saved_bc_value), bc
@@ -639,7 +639,8 @@ jp_ix_line_delta_in_bank EQU 2 * 6*4
                 ; --------------------- update_jp_ix_table --------------------------------
                 ; between frames: 73248/71456
 
-                ld hl, loop1
+before_update_jpix
+                ld hl, mc_drawing_step
                 exx
 
                 ;next_step_first_bank
@@ -657,12 +658,12 @@ jpix_h_pos
                 ; total: 465 (with switching page)
                 ; ------------------------- update jpix table end
                 DRAW_RASTR_LINE_S 23
-loop1:
+mc_drawing_step:
                 SET_PAGE 6
                 ld a, c
                 ld (saved_bc_value), a
-                and 15
-                jr z, non_mc_draw_step
+                ;and 15
+                ;jr z, non_mc_draw_step
         
 mc_step_drawing:
         IF (HAS_PLAYER == 1)
@@ -713,6 +714,14 @@ ef_x            call effect_step
 
         /************************* no-mc step drawing *********************************************/
 non_mc_draw_step
+                SET_PAGE 6
+                ld a, c
+                ld (saved_bc_value), a
+
+                SET_NEXT_STEP draw_off_rastr_7  ; update mc offrastr jump addr
+                ld hl, mc_drawing_step
+                ld (before_update_jpix+1),hl    ; update drawing to mc branch
+
                 update_colors_jpix        
 
                 ld sp, color_addr + 768                         ; 10
