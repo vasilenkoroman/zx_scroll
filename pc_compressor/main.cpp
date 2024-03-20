@@ -4761,16 +4761,25 @@ int main(int argc, char** argv)
                 Position pos{ y,x };
                 if (processedCells[pos] != InverseResult::notProcessed && processedCells[pos] != InverseResult::none)
                 {
+                    std::cout << "Check block " << y << ":" << x << std::endl;
+
                     hasSomeToRepack = true;
                     if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
                         inversBlock(buffer.data(), colorBuffer.data(), x, y);
 
                     if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
                         inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+
+#if 0
+                    int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                    std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
+                    bestWorseTiming = newTicks;
+#endif
                 }
             }
         }
 
+#if 1
         if (hasSomeToRepack)
         {
             int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
@@ -4778,6 +4787,7 @@ int main(int argc, char** argv)
                 << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
             bestWorseTiming = newTicks;
         }
+#endif
 
         for (int y = 0; y < imageHeight / 8; ++y)
         {

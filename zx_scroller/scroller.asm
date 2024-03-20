@@ -478,7 +478,7 @@ pl_delay                equ -202 -171
                 IF HAS_PLAYER == 1
                         ; 202 - (76-19-10) = 155t longer than final ret in align int.
                         ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680 % 4
-INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
                 ELSE
                         ; 0 - (76-19-10) = -47t longer than final ret in align int.
                         ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680 % 4
@@ -664,8 +664,7 @@ mc_drawing_step:
                 ld (saved_bc_value), a
                 ;and 15
                 ;jr z, non_mc_draw_step
-        
-mc_step_drawing:
+;mc_step_drawing:
         IF (HAS_PLAYER == 1)
                 and 2
 check_for_page7_effect
