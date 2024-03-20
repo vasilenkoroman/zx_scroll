@@ -157,6 +157,7 @@
   <ItemGroup>
     <ClCompile Include="code_parser.cpp" />
     <ClCompile Include="compressed_line.cpp" />
+    <ClCompile Include="inverse_colors_helper.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="registers.cpp" />
     <ClCompile Include="timings_helper.cpp" />
@@ -164,6 +165,7 @@
   <ItemGroup>
     <ClInclude Include="code_parser.h" />
     <ClInclude Include="compressed_line.h" />
+    <ClInclude Include="inverse_colors_helper.h" />
     <ClInclude Include="registers.h" />
     <ClInclude Include="timings_helper.h" />
   </ItemGroup>

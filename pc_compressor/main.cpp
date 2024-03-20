@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -17,6 +18,7 @@
 #include "registers.h"
 #include "code_parser.h"
 #include "timings_helper.h"
+#include "inverse_colors_helper.h"
 
 #define LOG_INFO
 //#define LOG_DEBUG
@@ -4593,6 +4595,8 @@ void showHelp()
     std::cerr << "        Without this parameter it will be compiled in pure scroll mode.\n";
     std::cerr << "    [-sld <.sld file name>] Optional. Can read generated code start address from scroller.asm instead of constant.\n";
     std::cerr << "        For developer purpose only.\n";
+    std::cerr << "    [-inv <temp_log_file>] Use inverse color addition step. It is very slow. \n";
+    std::cerr << "        While it is compressing temporary file <temp_log_file> is used to continue after compressor restart.\n";
     std::cerr << "\n";
     std::cerr << "Example: scroll_image_compress -i image1.scr;image2.scr -o ./generated_folder -csv music_timings.csv\n";
 }
@@ -4615,6 +4619,7 @@ int main(int argc, char** argv)
     std::string musTimingsFileName;
     std::string outputFileName;
     std::vector<std::string> inputFileNames;
+    std::string inverseColorsTmpFile;
 
     for (int i = 1; i < argc; i += 2)
     {
@@ -4634,6 +4639,8 @@ int main(int argc, char** argv)
             musTimingsFileName = paramValue;
         else if (paramName == "-sld" || paramName == "-s")
             sldFileName = paramValue;
+        else if (paramName == "-inv")
+            inverseColorsTmpFile = paramValue;
         else
         {
             showHelp();
@@ -4725,7 +4732,9 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump; // | inverseColors;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump;
+    if (!inverseColorsTmpFile.empty())
+        flags |= inverseColors;
 
     bool silenceMode = flags & inverseColors;
 
@@ -4738,53 +4747,100 @@ int main(int argc, char** argv)
     {
         std::cout << "Worse ticks = " << bestWorseTiming << std::endl;
 
+        auto tmpOutputFolder = outputFileName + "tmp/";
+        std::filesystem::create_directory(tmpOutputFolder);
+
+        auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
+        saveInverseColorsState(inverseColorsTmpFile, processedCells);
+
+        bool hasSomeToRepack = false;
         for (int y = 0; y < imageHeight / 8; ++y)
         {
             for (int x = 0; x < 32; x += 2)
             {
+                Position pos{ y,x };
+                if (processedCells[pos] != InverseResult::notProcessed && processedCells[pos] != InverseResult::none)
+                {
+                    hasSomeToRepack = true;
+                    if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
+                        inversBlock(buffer.data(), colorBuffer.data(), x, y);
+
+                    if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
+                        inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                }
+            }
+        }
+
+        if (hasSomeToRepack)
+        {
+            int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+            std::cout << "Improve worse ticks from "
+                << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
+            bestWorseTiming = newTicks;
+        }
+
+        for (int y = 0; y < imageHeight / 8; ++y)
+        {
+            for (int x = 0; x < 32; x += 2)
+            {
+                Position pos{y,x};
+
                 std::cout << "Check block " << y << ":" << x << std::endl;
 
                 int lineNum = y * 8;
 
-                inversBlock(buffer.data(), colorBuffer.data(), x, y);
-                int candidateLeft = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
-
-                inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
-                int candidateBoth = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
-
-                inversBlock(buffer.data(), colorBuffer.data(), x, y);
-                int candidateRight = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
-
-                inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
-
-                if (candidateLeft > bestWorseTiming
-                    && candidateLeft >= candidateBoth
-                    && candidateLeft >= candidateRight)
+                if (processedCells[pos] == InverseResult::notProcessed)
                 {
-                    std::cout << "(L) Improve worse ticks from " << bestWorseTiming << " to " << candidateLeft << std::endl;
                     inversBlock(buffer.data(), colorBuffer.data(), x, y);
-                    bestWorseTiming = candidateLeft;
-                }
-                else if (candidateBoth > bestWorseTiming
-                    && candidateBoth >= candidateLeft
-                    && candidateBoth >= candidateRight)
-                {
-                    std::cout << "(B) Improve worse ticks from " << bestWorseTiming << " to " << candidateBoth << std::endl;
+                    int candidateLeft = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+
+                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                    int candidateBoth = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+
                     inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                    int candidateRight = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+
                     inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
-                    bestWorseTiming = candidateBoth;
-                }
-                else if (candidateRight > bestWorseTiming
-                    && candidateRight >= candidateLeft
-                    && candidateRight >= candidateBoth)
-                {
-                    std::cout << "(R) Improve worse ticks from " << bestWorseTiming << " to = " << candidateRight << std::endl;
-                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
-                    bestWorseTiming = candidateRight;
+
+                    if (candidateLeft > bestWorseTiming
+                        && candidateLeft >= candidateBoth
+                        && candidateLeft >= candidateRight)
+                    {
+                        std::cout << "(L) Improve worse ticks from " << bestWorseTiming << " to " << candidateLeft << std::endl;
+                        processedCells[pos] = InverseResult::left;
+                        inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                        bestWorseTiming = candidateLeft;
+                        packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                    }
+                    else if (candidateBoth > bestWorseTiming
+                        && candidateBoth >= candidateLeft
+                        && candidateBoth >= candidateRight)
+                    {
+                        std::cout << "(B) Improve worse ticks from " << bestWorseTiming << " to " << candidateBoth << std::endl;
+                        processedCells[pos] = InverseResult::both;
+                        inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                        inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                        bestWorseTiming = candidateBoth;
+                        packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                    }
+                    else if (candidateRight > bestWorseTiming
+                        && candidateRight >= candidateLeft
+                        && candidateRight >= candidateBoth)
+                    {
+                        std::cout << "(R) Improve worse ticks from " << bestWorseTiming << " to = " << candidateRight << std::endl;
+                        processedCells[pos] = InverseResult::right;
+                        inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                        bestWorseTiming = candidateRight;
+                        packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                    }
+                    else
+                    {
+                        processedCells[pos] = InverseResult::none;
+                    }
+                    saveInverseColorsState(inverseColorsTmpFile, processedCells);
                 }
             }
         }
-        packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false);
     }
 
     runCompressor(outputFileName);
