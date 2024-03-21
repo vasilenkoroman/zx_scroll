@@ -13,17 +13,13 @@ OFF_Iteration?_Step?_JP
         ENDM          
 
         MACRO START_OFF_DRAWING label?
-            ld h, high(label?)
-            jp label?
+            ld hl, label?        ; 10
+            jp (hl)              ; 14
         ENDM
 
         MACRO RESTORE_OFF_END labelName?, value16?
                 ld hl, value16?
                 ld (labelName?), hl
-        ENDM
-
-        MACRO RESTORE_OFF_END_via_ix labelName?
-                ld (labelName?), ix
         ENDM
 
         MACRO UPDATE_SP2 l23?, l22?, l21?, l20?, l19?, l18?, l17?,   r0?, r1?, r2?, r3?, r4?, r5?, r6?
@@ -316,7 +312,6 @@ draw_off_rastr_1
                 UPDATE_SP0 OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP,    RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14
 
                 RESTORE_OFF_END it2_end, 0xd3 + 0xfd * 256
-                //RESTORE_OFF_END_via_ix it2_end
                 ld a, ixh
                 out (0xfd), a
                 START_OFF_DRAWING it1_start
