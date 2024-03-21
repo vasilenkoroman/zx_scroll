@@ -163,20 +163,6 @@ it1_end:        ex de,hl
 
         MACRO update_rastr itr?, L1?, L2?, L3?
 
-                /*
-                ld hl, mc_rastr_descriptors_top
-                add hl, bc      // *2
-                ld sp, hl
-                pop hl: ld (L1?+1), hl
-                // 10+11+6+10+16=53
-
-                ld hl, (64-1) * 2
-                add hl, sp
-                ld sp, hl
-                pop hl: ld (L2?+1), hl
-                // 10+11+6+10+16=53
-                */
-
 upd_rastr_itr?_0
                 ld hl,0
                 ld (L1?+1), hl
@@ -196,14 +182,14 @@ upd_rastr_itr?_1
 
         MACRO   UPDATE_JPIX_HELPER value
                 ld hl, jpix_h_pos+2
+                ld a,(hl)
                 IF (value > 0)
-                        inc (hl)
-                        inc (hl)
+                        add 2
                 ELSE                        
-                        dec (hl)
-                        dec (hl)
+                        sub 2
                 ENDIF
-                 // total: 32
+                ld (hl),a
+                 // total: 31
         ENDM
 
         MACRO SET_NEXT_STEP value
