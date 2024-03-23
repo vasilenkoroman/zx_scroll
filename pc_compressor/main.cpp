@@ -4078,7 +4078,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -4 + 20;
 
-                kZ80CodeDelay -= 4+1+4;
+                kZ80CodeDelay -= 4+1+4+1;
                 break;
             case 3:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4091,7 +4091,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -8 + 20;
 
-                kZ80CodeDelay -= 4+4+1;
+                kZ80CodeDelay -= 4+4+1+1;
                 break;
             case 5:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4104,7 +4104,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -12 + 20;
 
-                kZ80CodeDelay -= 1+4+4;
+                kZ80CodeDelay -= 1+4+4+1;
                 break;
             case 7:
                 kZ80CodeDelay -= 36;    // new jpix_helper
