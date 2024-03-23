@@ -4030,7 +4030,7 @@ int serializeTimingDataForRun(
                 ticks -= 14;
         }
 
-        int kZ80CodeDelay = 2459 - 4 - 14 - 3 - 1;
+        int kZ80CodeDelay = 2459 - 4 - 14 - 3 - 1 - 1;
 
         if (line % 8 == 0)
         {
@@ -4064,39 +4064,55 @@ int serializeTimingDataForRun(
         {
             case 0:
                 kZ80CodeDelay -= 23;    // new jpix_helper
+
+                kZ80CodeDelay -= 1 + 4+4;
                 break;
             case 1:
                 kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 4;
                 kZ80CodeDelay += 13;
+
+                kZ80CodeDelay -= 4+1+4;
                 break;
             case 2:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -4 + 20;
+
+                kZ80CodeDelay -= 4+1+4;
                 break;
             case 3:
                 kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 8;
                 kZ80CodeDelay += 13;
+
+                kZ80CodeDelay -= 4+4+1;
                 break;
             case 4:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -8 + 20;
+
+                kZ80CodeDelay -= 4+4+1;
                 break;
             case 5:
                 kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 12;
                 kZ80CodeDelay += 13;
+
+                kZ80CodeDelay -= 1+4+4;
                 break;
             case 6:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -12 + 20;
+
+                kZ80CodeDelay -= 1+4+4;
                 break;
             case 7:
                 kZ80CodeDelay -= 36;    // new jpix_helper
                 kZ80CodeDelay -= 16;
                 kZ80CodeDelay += 13;
                 kZ80CodeDelay -= 3;
+
+                kZ80CodeDelay -= 1 + 4+4;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
@@ -4597,6 +4613,7 @@ void showHelp()
     std::cerr << "        For developer purpose only.\n";
     std::cerr << "    [-inv <temp_log_file>] Use inverse color addition step. It is very slow. \n";
     std::cerr << "        While it is compressing temporary file <temp_log_file> is used to continue after compressor restart.\n";
+    std::cerr << "    [-inv2 <temp_log_file>] Save to -inv but continue to update file. -inv uses existing data only.\n";
     std::cerr << "\n";
     std::cerr << "Example: scroll_image_compress -i image1.scr;image2.scr -o ./generated_folder -csv music_timings.csv\n";
 }
@@ -4620,6 +4637,7 @@ int main(int argc, char** argv)
     std::string outputFileName;
     std::vector<std::string> inputFileNames;
     std::string inverseColorsTmpFile;
+    bool updateInverseColors = false;
 
     for (int i = 1; i < argc; i += 2)
     {
@@ -4641,6 +4659,11 @@ int main(int argc, char** argv)
             sldFileName = paramValue;
         else if (paramName == "-inv")
             inverseColorsTmpFile = paramValue;
+        else if (paramName == "-inv2")
+        {
+            inverseColorsTmpFile = paramValue;
+            updateInverseColors = true;
+        }
         else
         {
             showHelp();
@@ -4743,52 +4766,57 @@ int main(int argc, char** argv)
 
     int bestWorseTiming = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
 
-    if (flags & inverseColors)
+    if (!(flags & inverseColors))
     {
-        std::cout << "Worse ticks = " << bestWorseTiming << std::endl;
+        runCompressor(outputFileName);
+        return 0;
+    }
 
-        auto tmpOutputFolder = outputFileName + "tmp/";
-        std::filesystem::create_directory(tmpOutputFolder);
+    std::cout << "Worse ticks = " << bestWorseTiming << std::endl;
 
-        auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
-        saveInverseColorsState(inverseColorsTmpFile, processedCells);
+    auto tmpOutputFolder = outputFileName + "tmp/";
+    std::filesystem::create_directory(tmpOutputFolder);
 
-        bool hasSomeToRepack = false;
-        for (int y = 0; y < imageHeight / 8; ++y)
+    auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
+    saveInverseColorsState(inverseColorsTmpFile, processedCells);
+
+    bool hasSomeToRepack = false;
+    for (int y = 0; y < imageHeight / 8; ++y)
+    {
+        for (int x = 0; x < 32; x += 2)
         {
-            for (int x = 0; x < 32; x += 2)
+            Position pos{ y,x };
+            if (processedCells[pos] != InverseResult::notProcessed && processedCells[pos] != InverseResult::none)
             {
-                Position pos{ y,x };
-                if (processedCells[pos] != InverseResult::notProcessed && processedCells[pos] != InverseResult::none)
-                {
-                    std::cout << "Check block " << y << ":" << x << std::endl;
+                std::cout << "Check block " << y << ":" << x << std::endl;
 
-                    hasSomeToRepack = true;
-                    if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
-                        inversBlock(buffer.data(), colorBuffer.data(), x, y);
+                hasSomeToRepack = true;
+                if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
+                    inversBlock(buffer.data(), colorBuffer.data(), x, y);
 
-                    if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
-                        inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
+                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
 
 #if 0
-                    int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
-                    std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
-                    bestWorseTiming = newTicks;
+                int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
+                bestWorseTiming = newTicks;
 #endif
-                }
             }
         }
+    }
 
 #if 1
-        if (hasSomeToRepack)
-        {
-            int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
-            std::cout << "Improve worse ticks from "
-                << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
-            bestWorseTiming = newTicks;
-        }
+    if (hasSomeToRepack)
+    {
+        int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+        std::cout << "Improve worse ticks from "
+            << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
+        bestWorseTiming = newTicks;
+    }
 #endif
-
+    if (updateInverseColors)
+    {
         for (int y = 0; y < imageHeight / 8; ++y)
         {
             for (int x = 0; x < 32; x += 2)
@@ -4854,6 +4882,5 @@ int main(int argc, char** argv)
     }
 
     runCompressor(outputFileName);
-
     return 0;
 }

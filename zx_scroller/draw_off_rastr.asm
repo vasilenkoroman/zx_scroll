@@ -63,7 +63,7 @@ OFF_Iteration?_Step?_JP
 
                 //ALIGN 32
 
-it0_start:      ld a, #54
+it0_start:      ld a, 0x54
                 out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 23,  0
 L01:            DRAW_OFFSCREEN_LINES 0, 15,  L01
@@ -75,8 +75,9 @@ it7_start:      //ld a, 0x54
 L11:            DRAW_OFFSCREEN_LINES 0, 14, L11
 L12:            DRAW_OFFSCREEN_LINES 0, 6,  L12
 
-it6_start:      ld a, iyl
-                out (0xfd), a
+                //ld a, 0x53                                           
+                dec a                                           ; 54->53
+it6_start:      out (0xfd), a                                           
                 DRAW_OFFSCREEN_LINES 0, 21, it6_start
 L21:            DRAW_OFFSCREEN_LINES 0, 13, L21
 L22:            DRAW_OFFSCREEN_LINES 0, 5,  L22
@@ -87,8 +88,9 @@ it5_start:      //ld a, 0x53
 L31:            DRAW_OFFSCREEN_LINES 0, 12, L31
 L32:            DRAW_OFFSCREEN_LINES 0, 4, L32
 
-it4_start:      ld a, ixl
-                out (0xfd), a
+                //ld a, 0x51
+                add  -2                                         ; 53->51
+it4_start:      out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 19, it4_start
 L41:            DRAW_OFFSCREEN_LINES 0, 11, L41
 L42:            DRAW_OFFSCREEN_LINES 0, 3,  L42
@@ -99,8 +101,8 @@ it3_start:      //ld a, 0x51
 L51:            DRAW_OFFSCREEN_LINES 0, 10, L51
 L52:            DRAW_OFFSCREEN_LINES 0, 2,  L52
 
-it2_start:      ld a, ixh
-                out (0xfd), a
+                dec a                                           ; 51->50
+it2_start:      out (0xfd), a
                 DRAW_OFFSCREEN_LINES 0, 17, it2_start
 L61:            DRAW_OFFSCREEN_LINES 0, 9,  L61
 L62:            DRAW_OFFSCREEN_LINES 0, 1,  L62
@@ -113,7 +115,7 @@ L72:            DRAW_OFFSCREEN_LINES 0, 0,  L72
 
                 // negative values (next 7 steps)
 
-L80:            ld a, iyh
+L80:            sub -4                                          ; 50->54
 it0_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 1, 16, L80
 L81:            DRAW_OFFSCREEN_LINES 1, 8,  L81
@@ -126,7 +128,7 @@ it7_end:        //ld a, 0x54
 L91:            DRAW_OFFSCREEN_LINES 2, 8,  L91
 L92:            DRAW_OFFSCREEN_LINES 2, 0,  L92
 
-L100            ld a, iyl
+L100            dec a                                           ; 54->53
 it6_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 3, 16, L100
 L101:           DRAW_OFFSCREEN_LINES 3, 8,  L101
@@ -139,7 +141,7 @@ it5_end:        //ld a, 0x53
 L111:           DRAW_OFFSCREEN_LINES 4, 8,  L111
 L112:           DRAW_OFFSCREEN_LINES 4, 0,  L112
 
-L120:           ld a, ixl
+L120:           add -2                                          ; 53->51
 it4_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 5, 16, L120
 L121:           DRAW_OFFSCREEN_LINES 5, 8,  L121
@@ -152,7 +154,7 @@ it3_end:        //ld a, 0x51
 L131:           DRAW_OFFSCREEN_LINES 6, 8,  L131
 L132:           DRAW_OFFSCREEN_LINES 6, 0,  L132
 
-L140:           ld a, ixh
+L140:           dec a                                           ; 51->50
 it2_end:        out (0xfd), a
                 DRAW_OFFSCREEN_LINES 7, 16, L140
 L141:           DRAW_OFFSCREEN_LINES 7, 8,  L141
@@ -201,6 +203,7 @@ draw_off_rastr_7
                 SET_NEXT_STEP draw_off_rastr_6
                 UPDATE_JPIX_HELPER -2
 
+                
                 update_rastr 7, RASTR_8, RASTR_0, RASTR_16
 
                 UPDATE_SP2 OFF_0_22_SP, OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP,   RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16
@@ -224,6 +227,7 @@ draw_off_rastr_6
                 UPDATE_SP0 OFF_0_5_SP,  OFF_0_4_SP,  OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,    RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8, RASTRS_9
 
                 RESTORE_OFF_END it7_end, 0x31 * 256
+                ld a, iyl
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
@@ -254,6 +258,7 @@ draw_off_rastr_4
                 UPDATE_SP0 OFF_0_3_SP,  OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,    RASTRS_12, RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11
 
                 RESTORE_OFF_END it5_end,  0x31 * 256
+                ld a, ixl
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
@@ -283,6 +288,7 @@ draw_off_rastr_2
                 UPDATE_SP0 OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,    RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13
 
                 RESTORE_OFF_END it3_end, 0x31 * 256
+                ld a, ixh
                 START_OFF_DRAWING it2_start
 
 draw_off_rastr_1

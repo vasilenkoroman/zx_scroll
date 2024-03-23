@@ -662,9 +662,6 @@ mc_drawing_step:
                 SET_PAGE 6
                 ld a, c
                 ld (saved_bc_value), a
-                ;and 15
-                ;jr z, non_mc_draw_step
-;mc_step_drawing:
         IF (HAS_PLAYER == 1)
                 and 2
 check_for_page7_effect
