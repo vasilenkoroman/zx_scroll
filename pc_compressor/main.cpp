@@ -3942,7 +3942,7 @@ int effectRegularStepDelay(
             result -= 42; // Call draw color ticks
             result -= getMulticolorOnlyTicks(line/8, multicolor);
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
-            result += 205+77+18+21-22+4+29+10; // page 7 branch itself is longer
+            result += 205+77+18+21-22+4+29+10 + 33; // page 7 branch itself is longer
             if (rastrFlags & directPlayerJump)
                 result += 10;
             result += *effectDelay->rbegin();
@@ -4027,7 +4027,7 @@ int serializeTimingDataForRun(
             ticks += kLineDurationInTicks;  //< Draw next frame faster in  1 lines
 
             if (!hasPlayer)
-                ticks -= 14;
+                ticks -= 7;
         }
 
         int kZ80CodeDelay = 2459 - 4 - 14 - 3 - 1 - 1;
@@ -4056,7 +4056,7 @@ int serializeTimingDataForRun(
         {
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 10;
-            kZ80CodeDelay -= 54;
+            kZ80CodeDelay -= 54 + 7;
         }
 
         // offscreen drawing branches has different length
@@ -4780,6 +4780,8 @@ int main(int argc, char** argv)
     auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
     saveInverseColorsState(inverseColorsTmpFile, processedCells);
 
+//#define UPDATE_IMIDIATLY
+
     bool hasSomeToRepack = false;
     for (int y = 0; y < imageHeight / 8; ++y)
     {
@@ -4797,7 +4799,7 @@ int main(int argc, char** argv)
                 if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
                     inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
 
-#if 0
+#if defined(UPDATE_IMIDIATLY)
                 int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
                 std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
                 bestWorseTiming = newTicks;
@@ -4806,7 +4808,7 @@ int main(int argc, char** argv)
         }
     }
 
-#if 1
+#if not defined(UPDATE_IMIDIATLY)
     if (hasSomeToRepack)
     {
         int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
@@ -4823,12 +4825,11 @@ int main(int argc, char** argv)
             {
                 Position pos{y,x};
 
-                std::cout << "Check block " << y << ":" << x << std::endl;
-
                 int lineNum = y * 8;
 
                 if (processedCells[pos] == InverseResult::notProcessed)
                 {
+                    std::cout << "Check block " << y << ":" << x << std::endl;
                     inversBlock(buffer.data(), colorBuffer.data(), x, y);
                     int candidateLeft = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
 
@@ -4865,7 +4866,7 @@ int main(int argc, char** argv)
                         && candidateRight >= candidateLeft
                         && candidateRight >= candidateBoth)
                     {
-                        std::cout << "(R) Improve worse ticks from " << bestWorseTiming << " to = " << candidateRight << std::endl;
+                        std::cout << "(R) Improve worse ticks from " << bestWorseTiming << " to " << candidateRight << std::endl;
                         processedCells[pos] = InverseResult::right;
                         inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
                         bestWorseTiming = candidateRight;

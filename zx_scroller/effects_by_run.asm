@@ -1,20 +1,20 @@
             ; Effects by run (perform on step 0)
 
 effect0
-                ld a, #3e                   ; make JR xx to LD A, XX
-                ld (check_for_page7_effect),a
+                ld a, 0xc3                  ; make JP, XX
+                ld (start_draw_colors),a
                 jp loop
 effect1
-                ld a, #20                   ; JR nz
-                ld (check_for_page7_effect),a
+                ld a, 0xca                  ; make JP z, xx
+                ld (start_draw_colors),a
                 jp loop
 effect2
-                ld a, #20                   ; JR nz
-                ld (check_for_page7_effect),a
+                ld a, 0xca                  ; make JP z, xx
+                ld (start_draw_colors),a
                 jp loop
 effect3
-                ld a, #3e                   ; make JR xx to LD A, XX
-                ld (check_for_page7_effect),a
+                ld a, 0xc3                  ; make JP, XX
+                ld (start_draw_colors),a
                 jp loop
 
 ef2_counter DB 8

@@ -186,9 +186,9 @@ upd_rastr_itr?_1
                 ld hl, jpix_h_pos+2
                 ld a,(hl)
                 IF (value > 0)
-                        add 2
+                        sub -value
                 ELSE                        
-                        sub 2
+                        add value
                 ENDIF
                 ld (hl),a
                  // total: 31

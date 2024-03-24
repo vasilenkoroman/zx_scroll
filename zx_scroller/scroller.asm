@@ -664,8 +664,6 @@ mc_drawing_step:
                 ld (saved_bc_value), a
         IF (HAS_PLAYER == 1)
                 and 2
-check_for_page7_effect
-                jr nz, page7_effect
         ENDIF
 
                 ld sp, color_addr + 768                         
@@ -679,6 +677,7 @@ start_draw_colors:
 ;*************************************************************************************
         IF (HAS_PLAYER == 1)
 page7_effect
+                exx
                 ld sp, stack_top
                 ld hl,finish_page7_drawing_cont
                 ex (sp),hl
@@ -703,7 +702,7 @@ ef_x            call effect_step
                 ld iy, #5453 + #0808
 
 
-                ld de, bank_drawing_common
+                //ld de, bank_drawing_common
                 ld hl,(draw_off_x_step+1)
                 jp hl
         ENDIF
