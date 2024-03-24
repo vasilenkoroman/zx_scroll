@@ -1935,7 +1935,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         // 2. Use advanced ray model. MC line drawing could start when ray already inside line in case of enough ticks for drawing
         while (rebalanceStep(compressedData));
 
-#if 0
+#if LOG_DEBUG
         // 1. Sink LD IX,nn, LD IY,nn from fast lines to slow lines
         while (borrowIndexRegStep(compressedData));
         while (rebalanceStep(compressedData));
@@ -1957,6 +1957,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
             maxVirtualTicks = std::max(maxVirtualTicks, line.mcStats.virtualTicks + (line.mcStats.min - line.mcStats.pos));
     }
 
+#if LOG_DEBUG
     if (!silenceMode)
     {
         for (int i = 0; i < imageHeight; ++i)
@@ -1966,6 +1967,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
                 << "], ticks=" << compressedData.data[i].drawTicks << ", virtualTicks=" << compressedData.data[i].mcStats.virtualTicks << std::endl;
         }
     }
+#endif
 
     for (int i = 0; i < imageHeight; ++i)
     {
@@ -1981,13 +1983,13 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
     if (!silenceMode)
         std::cout << "INFO: reduce maxTicks after rebalance: " << maxVirtualTicks << " reduce losed ticks to=" << maxVirtualTicks * imageHeight - regularTicks << std::endl;
 
-
     int idealSum = 0;
     for (int i = 0; i < imageHeight; ++i)
     {
         int next = (i + 1) % imageHeight;
         idealSum += std::abs(compressedData.data[next].mcStats.virtualTicks - compressedData.data[i].mcStats.virtualTicks);
     }
+
     if (!silenceMode)
         std::cout << "INFO:  ideal losed ticks=" << idealSum << std::endl;
 
@@ -4764,7 +4766,7 @@ int main(int argc, char** argv)
     if (silenceMode)
         std::cout << "Perform initial pack at pos [0, 0]" << std::endl;
 
-    int bestWorseTiming = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+    int bestWorseTiming = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
 
     if (!(flags & inverseColors))
     {
@@ -4800,7 +4802,7 @@ int main(int argc, char** argv)
                     inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
 
 #if defined(UPDATE_IMIDIATLY)
-                int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+                int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
                 std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
                 bestWorseTiming = newTicks;
 #endif
@@ -4811,7 +4813,7 @@ int main(int argc, char** argv)
 #if not defined(UPDATE_IMIDIATLY)
     if (hasSomeToRepack)
     {
-        int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+        int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, true /*silenceMode*/);
         std::cout << "Improve worse ticks from "
             << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
         bestWorseTiming = newTicks;
