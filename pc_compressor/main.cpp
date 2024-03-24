@@ -350,7 +350,7 @@ struct CompressTry
     Context context;
     std::shared_ptr<std::array<Register16, N>> registers;
     CompressedLine line;
-    bool success = false;
+    std::future<bool> success;
 };
 
 template <int N>
@@ -363,15 +363,15 @@ bool compressLineMain(
     using TryN = CompressTry<N>;
     using RegistersN = std::array<Register16, N>;
 
-    std::vector<TryN> extraCompressOptions =
+    std::array<TryN, 3> extraCompressOptions =
     {
-        {0, context, std::make_shared<RegistersN>(registers)},  //< regular
-        {oddVerticalCompression, context, std::make_shared<RegistersN>(registers)},
-        {oddVerticalCompression | updateViaHl, context, std::make_shared<RegistersN>(registers)}
+        TryN{0, context, std::make_shared<RegistersN>(registers)},  //< regular
+        TryN{oddVerticalCompression, context, std::make_shared<RegistersN>(registers)},
+        TryN{oddVerticalCompression | updateViaHl, context, std::make_shared<RegistersN>(registers)}
     };
 
     int bestTicks = std::numeric_limits<int>::max();
-    TryN* bestTry = nullptr;
+    const TryN* bestTry = nullptr;
     for (auto& option : extraCompressOptions)
     {
         if (!useUpdateViaHlTry && (option.extraFlags & updateViaHl))
@@ -381,8 +381,20 @@ bool compressLineMain(
         option.line.flags = option.context.flags;
         if (!(option.context.flags & oddVerticalCompression))
             option.context.minX = option.context.minX & ~1;
-        option.success = compressLine(option.context, option.line, *option.registers,  /*x*/ option.context.minX);
-        if (option.success && option.line.drawTicks <= bestTicks)
+
+        option.success = std::async(
+                [&option]()
+                {
+                    return compressLine(option.context, option.line, *option.registers,  /*x*/ option.context.minX);
+                });
+    }
+    for (auto& option : extraCompressOptions)
+    {
+        if (!option.success.valid())
+            continue;
+
+        option.success.wait();
+        if (option.success.get() && option.line.drawTicks <= bestTicks)
         {
             bestTry = &option;
             bestTicks = option.line.drawTicks;

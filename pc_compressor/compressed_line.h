@@ -12,24 +12,24 @@ class z80Command;
 
 struct RegUsageInfo
 {
-    void useReg(uint8_t reg8Mask)
+    inline void useReg(uint8_t reg8Mask)
     {
         regUseMask |= reg8Mask;
     }
 
-    void selfReg(uint8_t reg8Mask)
+    inline void selfReg(uint8_t reg8Mask)
     {
         if ((regUseMask & reg8Mask) == 0)
             selfRegMask |= reg8Mask;
     }
 
-    void useReg(uint8_t reg1, uint8_t reg2)
+    inline void useReg(uint8_t reg1, uint8_t reg2)
     {
         useReg(reg1);
         useReg(reg2);
     }
 
-    void selfReg(uint8_t reg1, uint8_t reg2)
+    inline void selfReg(uint8_t reg1, uint8_t reg2)
     {
         selfReg(reg1);
         selfReg(reg2);
