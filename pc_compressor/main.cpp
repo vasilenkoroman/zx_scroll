@@ -119,7 +119,7 @@ void serialize(std::vector<uint8_t>& data, uint16_t value)
     data.push_back(value >> 8);
 }
 
-inline bool isHiddenData(const uint8_t* colorBuffer, int x, int y)
+__forceinline bool isHiddenData(const uint8_t* colorBuffer, int x, int y)
 {
     if (!colorBuffer)
         return false;
@@ -127,7 +127,7 @@ inline bool isHiddenData(const uint8_t* colorBuffer, int x, int y)
     return (colorData & 7) == ((colorData >> 3) & 7);
 }
 
-inline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
+__forceinline bool isHiddenData(const std::vector<bool>* hiddenData, int x, int y)
 {
     if (!hiddenData || hiddenData->empty())
         return false;
@@ -265,15 +265,16 @@ int sameVerticalWorlds(uint8_t* buffer, int x, int y)
     return result;
 }
 
-template <int N>
-bool compressLine(
+
+template <int N, int Nested = 0>
+__forceinline bool compressLine(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
     int x);
 
-template <int N>
-inline bool makeChoise(
+template <int N, int Nested>
+__forceinline bool makeChoise(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
@@ -303,7 +304,7 @@ inline bool makeChoise(
 
     reg.push(result);
 
-    return compressLine(context, result, registers, x + 2);
+    return compressLine<N, (Nested+1)%4>(context, result, registers, x + 2);
 }
 
 uint16_t swapBytes(uint16_t word)
@@ -385,7 +386,7 @@ bool compressLineMain(
         option.success = std::async(
                 [&option]()
                 {
-                    return compressLine(option.context, option.line, *option.registers,  /*x*/ option.context.minX);
+                    return compressLine<N, 0>(option.context, option.line, *option.registers,  /*x*/ option.context.minX);
                 });
     }
     for (auto& option : extraCompressOptions)
@@ -422,8 +423,8 @@ bool compressLineMain(
 
 static Register16 sp("sp");
 
-template <int N>
-void choiseNextRegister(
+template <int N, int Nested>
+__forceinline void choiseNextRegister(
     CompressedLine& choisedLine,
     std::array<Register16, N>& chosedRegisters,
     const Context& context,
@@ -442,7 +443,7 @@ void choiseNextRegister(
         newLine.isAltAf = currentLine.isAltAf;
         newLine.regUsage = currentLine.regUsage;
 
-        if (!makeChoise(context, newLine, regCopy, regIndex, word, x))
+        if (!makeChoise<N, Nested>(context, newLine, regCopy, regIndex, word, x))
             continue;
 
         bool useNextLine = choisedLine.data.empty() || newLine.drawTicks < choisedLine.drawTicks;
@@ -635,8 +636,8 @@ bool willWriteByteViaHl(
     return false;
 }
 
-template <int N>
-bool compressLine(
+template <int N, int Nested>
+__forceinline bool compressLine(
     const Context& context,
     CompressedLine& result,
     std::array<Register16, N>& registers,
@@ -767,14 +768,14 @@ bool compressLine(
         CompressedLine choisedLine;
         auto chosedRegisters = registers;
 
-        choiseNextRegister(choisedLine, chosedRegisters, context, result, registers, word, x);
+        choiseNextRegister<N, Nested>(choisedLine, chosedRegisters, context, result, registers, word, x);
 
         if ((context.flags & oddVerticalCompression) && choisedLine.data.empty() && x % 2 == 0)
         {
             // try to reset flags for the rest of the line
             Context contextCopy(context);
             contextCopy.flags &= ~oddVerticalCompression;
-            choiseNextRegister(choisedLine, chosedRegisters, contextCopy, result, registers, word, x);
+            choiseNextRegister<N, Nested>(choisedLine, chosedRegisters, contextCopy, result, registers, word, x);
             choisedLine.lastOddRepPosition = x;
         }
 
@@ -1453,7 +1454,7 @@ CompressedLine  compressMultiColorsLine(Context srcContext)
 
     CompressedLine pushLine;
     auto regCopy = registers6;
-    success = compressLine(context, pushLine, regCopy,  /*x*/ context.minX);
+    success = compressLine<regCopy.size(), 0>(context, pushLine, regCopy,  /*x*/ context.minX);
     if (!success)
     {
         std::cerr << "ERROR: unexpected error during compression multicolor line " << context.y
@@ -4432,7 +4433,7 @@ int parseSldFile(const std::string& sldFileName)
     return -1;
 }
 
-inline bool ends_with(std::string const& value, std::string const& ending)
+__forceinline bool ends_with(std::string const& value, std::string const& ending)
 {
     if (ending.size() > value.size()) return false;
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
@@ -4614,6 +4615,24 @@ int
     return worseTiming;
 }
 
+std::future<int> packAllAsync(
+    int flags,
+    int codeOffset,
+    std::vector<uint8_t>& buffer,
+    std::vector<uint8_t>& colorBuffer,
+    const std::vector<int>& musicTimings,
+    const std::string& outputFileName,
+    bool silenceMode)
+{
+    return std::async(
+        [&]()
+        {
+            return packAll(flags, codeOffset,
+                buffer, colorBuffer, musicTimings, outputFileName, silenceMode);
+        }
+    );
+}
+
 void showHelp()
 {
     std::cerr << "scroll_image_compress v.1.1";
@@ -4790,6 +4809,12 @@ int main(int argc, char** argv)
 
     auto tmpOutputFolder = outputFileName + "tmp/";
     std::filesystem::create_directory(tmpOutputFolder);
+    auto tmpOutputFolder1 = tmpOutputFolder + "tmp1/";
+    auto tmpOutputFolder2 = tmpOutputFolder + "tmp2/";
+    auto tmpOutputFolder3 = tmpOutputFolder + "tmp3/";
+    std::filesystem::create_directory(tmpOutputFolder1);
+    std::filesystem::create_directory(tmpOutputFolder2);
+    std::filesystem::create_directory(tmpOutputFolder3);
 
     auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
     saveInverseColorsState(inverseColorsTmpFile, processedCells);
@@ -4816,6 +4841,11 @@ int main(int argc, char** argv)
 #if defined(UPDATE_IMIDIATLY)
                 int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
                 std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
+                if (newTicks < bestWorseTiming)
+                {
+                    std::cerr << "================= Degradation! Repac it. ===================" << std::endl;
+                    abort();
+                }
                 bestWorseTiming = newTicks;
 #endif
             }
@@ -4843,17 +4873,38 @@ int main(int argc, char** argv)
 
                 if (processedCells[pos] == InverseResult::notProcessed)
                 {
-                    std::cout << "Check block " << y << ":" << x << std::endl;
-                    inversBlock(buffer.data(), colorBuffer.data(), x, y);
-                    int candidateLeft = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+                    std::cout << "Check block " << y << ":" << x << "   ";
+                    const auto t1 = std::chrono::system_clock::now();
 
-                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
-                    int candidateBoth = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+                    std::array<std::vector<uint8_t>,3> buffers;
+                    std::array < std::vector<uint8_t>,3> colorBuffers;
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        buffers[i] = buffer;
+                        colorBuffers[i] = colorBuffer;
+                    }
 
-                    inversBlock(buffer.data(), colorBuffer.data(), x, y);
-                    int candidateRight = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, tmpOutputFolder, silenceMode);
+                    inversBlock(buffers[0].data(), colorBuffers[0].data(), x, y);
+                    std::future<int> candidateLeftF = packAllAsync(flags, codeOffset, buffers[0], colorBuffers[0], musicTimings, tmpOutputFolder1, silenceMode);
 
-                    inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+                    inversBlock(buffers[1].data(), colorBuffers[1].data(), x, y);
+                    inversBlock(buffers[1].data(), colorBuffers[1].data(), x + 1, y);
+                    std::future<int> candidateBothF = packAllAsync(flags, codeOffset, buffers[1], colorBuffers[1], musicTimings, tmpOutputFolder2, silenceMode);
+
+                    inversBlock(buffers[2].data(), colorBuffers[2].data(), x + 1, y);
+                    std::future<int> candidateRightF = packAllAsync(flags, codeOffset, buffers[2], colorBuffers[2], musicTimings, tmpOutputFolder3, silenceMode);
+
+                    candidateLeftF.wait();
+                    candidateBothF.wait();
+                    candidateRightF.wait();
+
+                    int candidateLeft = candidateLeftF.get();
+                    int candidateBoth = candidateBothF.get();
+                    int candidateRight = candidateRightF.get();
+
+
+                    const auto t2 = std::chrono::system_clock::now();
+                    std::cout << "time= " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() / 1000.0 << "sec" << std::endl;
 
                     if (candidateLeft > bestWorseTiming
                         && candidateLeft >= candidateBoth

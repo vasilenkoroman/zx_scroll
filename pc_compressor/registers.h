@@ -58,12 +58,12 @@ public:
             indexRegPrefix = IY_REG_PREFIX;
     }
 
-    inline bool hasValue(uint8_t byte) const
+    __forceinline bool hasValue(uint8_t byte) const
     {
         return value && *value == byte;
     }
 
-    inline bool isEmpty() const
+    __forceinline bool isEmpty() const
     {
         return !value.has_value();
     }
@@ -109,7 +109,7 @@ public:
     void setBit(CompressedLine& line, uint8_t bit);
 
     template <int N>
-    inline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af);
+    __forceinline bool updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af);
 };
 
 class Register16
@@ -145,7 +145,7 @@ public:
         return std::string() + h.name + l.name;
     }
 
-    inline int reg16Index() const
+    __forceinline int reg16Index() const
     {
         return h.reg8Index;
     }
@@ -190,12 +190,12 @@ public:
 
     void addSP(CompressedLine& line, Register8* f = nullptr);
 
-    inline bool isEmpty() const
+    __forceinline bool isEmpty() const
     {
         return h.isEmpty() || l.isEmpty();
     }
 
-    inline bool hasValue16(uint16_t data) const
+    __forceinline bool hasValue16(uint16_t data) const
     {
         if (!h.value || !l.value)
             return false;
@@ -203,7 +203,7 @@ public:
         return value == data;
     }
 
-    inline bool hasValue16(uint16_t word, bool canAvoidFirst, bool canAvoidSecond) const
+    __forceinline bool hasValue16(uint16_t word, bool canAvoidFirst, bool canAvoidSecond) const
     {
         if (canAvoidFirst && canAvoidSecond)
             return true;
@@ -215,12 +215,12 @@ public:
             return hasValue16(word);
     }
 
-    inline uint16_t value16() const
+    __forceinline uint16_t value16() const
     {
         return *h.value * 256 + *l.value;
     }
 
-    inline bool hasValue8(uint8_t value) const
+    __forceinline bool hasValue8(uint8_t value) const
     {
         return h.hasValue(value) || l.hasValue(value);
     }
@@ -478,7 +478,7 @@ public:
 };
 
 template <int N>
-inline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af)
+__forceinline bool Register8::updateToValue(CompressedLine& line, uint8_t byte, std::array<Register16, N>& registers16, const Register16& af)
 {
     if (name == 'f')
         return false;

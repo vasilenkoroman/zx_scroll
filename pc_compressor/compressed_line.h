@@ -12,24 +12,24 @@ class z80Command;
 
 struct RegUsageInfo
 {
-    inline void useReg(uint8_t reg8Mask)
+    __forceinline void useReg(uint8_t reg8Mask)
     {
         regUseMask |= reg8Mask;
     }
 
-    inline void selfReg(uint8_t reg8Mask)
+    __forceinline void selfReg(uint8_t reg8Mask)
     {
         if ((regUseMask & reg8Mask) == 0)
             selfRegMask |= reg8Mask;
     }
 
-    inline void useReg(uint8_t reg1, uint8_t reg2)
+    __forceinline void useReg(uint8_t reg1, uint8_t reg2)
     {
         useReg(reg1);
         useReg(reg2);
     }
 
-    inline void selfReg(uint8_t reg1, uint8_t reg2)
+    __forceinline void selfReg(uint8_t reg1, uint8_t reg2)
     {
         selfReg(reg1);
         selfReg(reg2);
@@ -53,11 +53,11 @@ public:
     uint8_t* buffer() { return m_buffer; }
     const uint8_t* buffer() const { return m_buffer; }
 
-    inline bool empty() const { return m_size == 0; }
+    __forceinline bool empty() const { return m_size == 0; }
 
     uint8_t last() const { return m_buffer[m_size - 1]; }
 
-    inline void push_back(uint8_t value)
+    __forceinline void push_back(uint8_t value)
     {
         assert(m_size < sizeof(m_buffer));
         m_buffer[m_size++] = value;
@@ -69,7 +69,7 @@ public:
         m_size -= count;
     }
 
-    inline void push_front(uint8_t value)
+    __forceinline void push_front(uint8_t value)
     {
         assert(m_size < sizeof(m_buffer));
         memmove(m_buffer+1, m_buffer, m_size);
@@ -77,22 +77,22 @@ public:
         m_size++;
     }
 
-    inline void pop_back()
+    __forceinline void pop_back()
     {
         --m_size;
     }
 
-    inline void pop_front()
+    __forceinline void pop_front()
     {
         assert(m_size < sizeof(m_buffer));
         memmove(m_buffer, m_buffer + 1, m_size - 1);
         m_size--;
     }
 
-    inline int size() const { return m_size; }
-    inline const uint8_t* data() const { return m_buffer; }
+    __forceinline int size() const { return m_size; }
+    __forceinline const uint8_t* data() const { return m_buffer; }
 
-    inline void append(const ZxData& other)
+    __forceinline void append(const ZxData& other)
     {
         memcpy(m_buffer + m_size, other.m_buffer, other.m_size);
         m_size += other.m_size;
