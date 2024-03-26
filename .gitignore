@@ -15,5 +15,7 @@ scr_deinterlace/.vs
 encoding_convertor/x64/
 encoding_convertor/.vs
 
+zx_scroller/generated_code/tmp/
+
 file_truncate/x64/
 file_truncate/.vs
