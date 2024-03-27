@@ -467,6 +467,12 @@ bool loadWordFromExistingRegister(
     bool canAvoidFirst = isHiddenData(context.maskColor, x, context.y / 8);
     bool canAvoidSecond = isHiddenData(context.maskColor, x + 1, context.y / 8);
 
+    if (canAvoidFirst && canAvoidSecond)
+    {
+        context.af.push(result);
+        return true;
+    }
+
     for (int run = 0; run < 2; ++run)
     {
         for (auto& reg : registers)
@@ -481,7 +487,7 @@ bool loadWordFromExistingRegister(
             {
                 if (result.isAltReg != reg.isAlt)
                     result.exx();
-                reg.push(result);
+                reg.push(result, canAvoidFirst, canAvoidSecond);
                 return true;
             }
         }
@@ -723,6 +729,21 @@ __forceinline bool compressLine(
             }
         }
 
+        // push existing 16 bit value.
+        bool loadExistingChecked = false;
+        if (x < context.maxX
+            && (x % 2 == 0 || verticalRepCount > 1 && (x + verticalRepCount) % 2 == 0))
+        {
+            if (loadWordFromExistingRegister(context, result, registers, word, x))
+            {
+                if (awaitingLoadFromHl)
+                    abort();
+                x += 2;
+                continue;
+            }
+            loadExistingChecked = true;
+        }
+
         // Decrement stack if line has same value from previous step (vertical compression)
         if (verticalRepCount & 1)
         {
@@ -734,7 +755,7 @@ __forceinline bool compressLine(
         }
 
         // push existing 16 bit value.
-        if (x < 31 && x < context.maxX && loadWordFromExistingRegister(context, result, registers, word, x))
+        if (x < 31 && x < context.maxX && !loadExistingChecked && loadWordFromExistingRegister(context, result, registers, word, x))
         {
             if (awaitingLoadFromHl)
                 abort();

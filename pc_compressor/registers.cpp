@@ -443,6 +443,25 @@ void Register16::push(CompressedLine& line) const
     line.drawTicks += 11;
 }
 
+void Register16::push(CompressedLine& line, bool canAvoidFirst, bool canAvoidSecond) const
+{
+    assert(isAlt == line.isAltReg);
+
+    if (!h.isEmpty() && !canAvoidFirst)
+        line.regUsage.useReg(h.reg8Mask);
+    if (!l.isEmpty() && !canAvoidSecond)
+        line.regUsage.useReg(l.reg8Mask);
+
+    if (h.name == 'i')
+    {
+        line.data.push_back(l.indexRegPrefix);
+        line.drawTicks += 4;
+    }
+    const int index = h.name == 'a' ? 6 : reg16Index();
+    line.data.push_back(0xc5 + index * 8);
+    line.drawTicks += 11;
+}
+
 void Register16::decValue(CompressedLine& line, int repeat)
 {
     for (int i = 0; i < repeat; ++i)

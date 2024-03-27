@@ -227,6 +227,7 @@ public:
 
     void push(RegUsageInfo& line) const;
     void push(CompressedLine& line) const;
+    void push(CompressedLine& line, bool canAvoidFirst, bool canAvoidSecond) const;
 
     template <int N>
     bool updateToValueForAF(CompressedLine& line, uint16_t value, std::array<Register16, N>& registers)
