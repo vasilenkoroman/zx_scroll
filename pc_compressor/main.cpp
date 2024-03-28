@@ -4667,7 +4667,8 @@ void showHelp()
     std::cerr << "        For developer purpose only.\n";
     std::cerr << "    [-inv <temp_log_file>] Use inverse color addition step. It is very slow. \n";
     std::cerr << "        While it is compressing temporary file <temp_log_file> is used to continue after compressor restart.\n";
-    std::cerr << "    [-inv2 <temp_log_file>] Save to -inv but continue to update file. -inv uses existing data only.\n";
+    std::cerr << "    [-inv2 <temp_log_file>] Save to -inv but continue to update file till min required ticks are reached. -inv uses existing data only.\n";
+    std::cerr << "    [-inv3 <temp_log_file>] Save to -inv but continue to update file till end. -inv uses existing data only.\n";
     std::cerr << "\n";
     std::cerr << "Example: scroll_image_compress -i image1.scr;image2.scr -o ./generated_folder -csv music_timings.csv\n";
 }
@@ -4692,6 +4693,7 @@ int main(int argc, char** argv)
     std::vector<std::string> inputFileNames;
     std::string inverseColorsTmpFile;
     bool updateInverseColors = false;
+    bool breakOnMinTicks = false;
 
     for (int i = 1; i < argc; i += 2)
     {
@@ -4713,10 +4715,11 @@ int main(int argc, char** argv)
             sldFileName = paramValue;
         else if (paramName == "-inv")
             inverseColorsTmpFile = paramValue;
-        else if (paramName == "-inv2")
+        else if (paramName == "-inv2" || paramName == "-inv3")
         {
             inverseColorsTmpFile = paramValue;
             updateInverseColors = true;
+            breakOnMinTicks = paramName != "-inv3";
         }
         else
         {
@@ -4888,6 +4891,9 @@ int main(int argc, char** argv)
         {
             for (int x = 0; x < 32; x += 2)
             {
+                if (bestWorseTiming >= kMinDelay && breakOnMinTicks)
+                    break;
+
                 Position pos{y,x};
 
                 int lineNum = y * 8;
