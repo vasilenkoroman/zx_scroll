@@ -375,8 +375,13 @@ bool compressLineMain(
     const TryN* bestTry = nullptr;
     for (auto& option : extraCompressOptions)
     {
-        if (!useUpdateViaHlTry && (option.extraFlags & updateViaHl))
-            continue;
+        if (option.extraFlags & updateViaHl)
+        {
+            if (!useUpdateViaHlTry)
+                continue;
+            if (!hasHlTries(option.context, option.line, /*x*/ option.context.minX))
+                continue;
+        }
 
         option.context.flags |= option.extraFlags;
         option.line.flags = option.context.flags;
@@ -820,6 +825,22 @@ __forceinline bool compressLine(
     if (result.isAltAf)
         result.exAf();
     return true;
+}
+
+bool hasHlTries(
+    const Context& context,
+    CompressedLine& result,
+    int x)
+{
+    while (x < context.maxX)
+    {
+        const int index = context.y * 32 + x;
+        int verticalRepCount = context.sameBytesCount->at(index);
+        if (verticalRepCount > 4)
+            return true;
+        x += std::max(1, verticalRepCount);
+    }
+    return false;
 }
 
 template <int N>
@@ -4865,7 +4886,7 @@ int main(int argc, char** argv)
                 {
                     int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
                     std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
-                    if (newTicks < bestWorseTiming)
+                    if (newTicks <= bestWorseTiming)
                     {
                         std::cout << "================= Degradation! Rollback. ===================" << std::endl;
                         if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
