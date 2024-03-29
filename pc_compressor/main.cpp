@@ -4843,7 +4843,7 @@ int main(int argc, char** argv)
     auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
     saveInverseColorsState(inverseColorsTmpFile, processedCells);
 
-//#define UPDATE_IMIDIATLY
+    const bool updateImidiatly = updateInverseColors;
 
     bool hasSomeToRepack = false;
     for (int y = 0; y < imageHeight / 8; ++y)
@@ -4855,36 +4855,51 @@ int main(int argc, char** argv)
             {
                 std::cout << "Check block " << y << ":" << x << std::endl;
 
-                hasSomeToRepack = true;
                 if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
                     inversBlock(buffer.data(), colorBuffer.data(), x, y);
 
                 if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
                     inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
 
-#if defined(UPDATE_IMIDIATLY)
-                int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
-                std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
-                if (newTicks < bestWorseTiming)
+                if (updateImidiatly)
                 {
-                    std::cerr << "================= Degradation! Repac it. ===================" << std::endl;
-                    abort();
+                    int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, false /*silenceMode*/);
+                    std::cout << "(" << toString(processedCells[pos]) << ") Improve worse ticks from " << bestWorseTiming << " to " << newTicks << std::endl;
+                    if (newTicks < bestWorseTiming)
+                    {
+                        std::cout << "================= Degradation! Rollback. ===================" << std::endl;
+                        if (processedCells[pos] == InverseResult::left || processedCells[pos] == InverseResult::both)
+                            inversBlock(buffer.data(), colorBuffer.data(), x, y);
+
+                        if (processedCells[pos] == InverseResult::right || processedCells[pos] == InverseResult::both)
+                            inversBlock(buffer.data(), colorBuffer.data(), x + 1, y);
+
+                        processedCells[pos] = InverseResult::notProcessed;
+                        saveInverseColorsState(inverseColorsTmpFile, processedCells);
+                        hasSomeToRepack = true;
+                    }
+                    else
+                    {
+                        bestWorseTiming = newTicks;
+                    }
                 }
-                bestWorseTiming = newTicks;
-#endif
+                else
+                {
+                    hasSomeToRepack = true;
+                }
             }
         }
     }
 
-#if not defined(UPDATE_IMIDIATLY)
     if (hasSomeToRepack)
     {
         int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, true /*silenceMode*/);
+        saveInverseColorsState(inverseColorsTmpFile, processedCells);
         std::cout << "Improve worse ticks from "
             << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
         bestWorseTiming = newTicks;
     }
-#endif
+
     if (updateInverseColors)
     {
         for (int y = 0; y < imageHeight / 8; ++y)
