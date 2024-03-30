@@ -167,15 +167,45 @@ jpix_bank_size  EQU (imageHeight/64 + 2) * jp_ix_record_size
     MACRO DRAW_RASTR_LINE N?:
 RASTRJ_N?       ld hl, 0                                           ; 10
 RASTRB_N?
-                IF (N? % 8 < 2)
-                        ld a, iyh
-                ELSEIF (N? % 8 < 4)
-                        ld a, iyl
-                ELSEIF (N? % 8 < 6)
-                        ld a, ixl
-                ELSE 
-                        ld a, ixh
-                ENDIF
+
+                IF (N? == 17)
+                        ld a, iyh               ; 54->54, or 54->53 (ld a, iyl)
+                ELSEIF (N? == 18)
+                        ld a, iyl               ; 53
+                ELSEIF (N? == 19)
+                        set 1, a                ; 53->53  or 53->51 (res 1, a)
+                ELSEIF (N? == 20)
+                        res 1, a                ; 51
+                ELSEIF (N? == 21)
+                        set 0, a                ; 51->51 or 51->50 (res 0, a)
+                ELSEIF (N? == 22)
+                        res 0, a                ; 50
+                ELSEIF (N?  == 0)
+                        ld a, iyh               ; 54
+                ELSEIF (N? % 8 == 0)
+                        set 2, a
+                ELSEIF (N? % 8 == 1)
+                        nop                     ; 54. 
+                        nop
+                ELSEIF (N? % 8 == 2)
+                        nop                     
+                        dec a                   ; 53
+                ELSEIF (N? %8 == 3)
+                        nop                     ; 53
+                        nop
+                ELSEIF (N? %8 == 4)
+                        dec a                   ; 51
+                        dec a
+                ELSEIF (N? %8 == 5)
+                        nop                     ; 51
+                        nop
+                ELSEIF (N? %8 == 6)
+                        dec a                   ; 50
+                        nop
+                ELSEIF (N? %8 == 7)
+                        .2 nop                  ; 50
+                ENDIF                        
+
                 out (#fd), a
 
 RASTRS_N?       ld sp, screen_addr + ((N? + 8) % 24) * 256 + 256       ; 10
@@ -340,6 +370,7 @@ BEGIN           DISP code_after_moving
 /** ----------- Routines -------------- */
 
 JP_VIA_HL_CODE          equ #e9d9
+JP_VIA_IX_CODE          equ #e9dd
 jp_ix_record_size       equ 12
 jp_write_data_offset    equ 8
 data_page_count         equ 4
@@ -454,7 +485,6 @@ after_play_intro
 
                 call write_initial_jp_ix_table
                 call create_jpix_helper
-                ld ix, #5051
                 ld iy, #5453
 
 
@@ -464,7 +494,7 @@ screen_start_tick               equ  17988
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32084 + 9 + 13
+fixed_startup_delay     equ 32084 + 9 + 13 - 14
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
@@ -623,7 +653,12 @@ finish_page7_drawing_cont
                 add hl, bc: jp RASTRB_1
 pg7_0           add hl, bc: jp RASTRB_0
 page7_drawing_end
-                ld ix, #5051
+                ;ld ix, #5051                   ; before: 14t
+                ld a, 0x51
+                ld (page7_depend_1+1), a
+                dec a
+                ld (page7_depend_2+1), a          ; after: 40t, dt=26t
+
                 ld iy, #5453
                 ld a,#57
                 ld (player_pg+1),a
@@ -698,7 +733,12 @@ ef_x            call effect_step
 
                 SET_PAGE 6+8
 
-                ld ix, #5051 + #0808
+                ;ld ix, #5051 + #0808
+                ld a, 0x51 + 0x08
+                ld (page7_depend_1+1), a
+                dec a
+                ld (page7_depend_2+1), a          ; after: 37t, dt=23t
+
                 ld iy, #5453 + #0808
 
 
@@ -713,7 +753,6 @@ non_mc_draw_step
                 ld a, c
                 ld (saved_bc_value), a
 
-                SET_NEXT_STEP draw_off_rastr_7  ; update mc offrastr jump addr
                 ld hl, mc_drawing_step
                 ld (before_update_jpix+1),hl    ; update drawing to mc branch
 
@@ -727,6 +766,7 @@ start_draw_colors0:
 finish_draw_colors0        
 
                 ; Update off rastr drawing for then next 7 steps
+                SET_NEXT_STEP draw_off_rastr_7  ; update mc offrastr jump addr
                 ld hl, off_rastr_descriptors
                 add hl,bc       ; * 2
                 ld sp, hl
@@ -970,10 +1010,10 @@ finish_non_mc_drawing_cont:
                 ; update ports [50..54] for the next step 7
                 LD a, #7D               ; LD a, iyl (value #54 -> #53)
                 ld (RASTRS_17 - 3), a
-                dec a                   ; LD a, ixh (value #51 -> #50)
+                LD a, #8F               ; res 1, a (value #53 -> #51)
+                ld (RASTRS_19 - 3), a
+                LD A, #87               ; res 0, a (value #51 -> #50)
                 ld (RASTRS_21 - 3), a
-                LD a, #DD               ; LD a, IX prefix (value #53 -> #51)
-                ld (RASTRS_19 - 4), a
 
                 dec bc
                 dec c

@@ -166,6 +166,7 @@ wait            ld  e, -30                      ; 7
                 DISPLAY "losed bytes on delay align: ", /D, 256 - table_size - low($) 
                 defs 256 - table_size - low($), 0
         ELSE
+                DISPLAY "not enough bytes at this 256 block: ", /D, low($) - (256 - table_size)
                 assert(0)
         ENDIF        
 

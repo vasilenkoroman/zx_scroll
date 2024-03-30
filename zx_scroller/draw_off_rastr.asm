@@ -219,8 +219,8 @@ draw_off_rastr_6
                 UPDATE_JPIX_HELPER 2
                 update_rastr 6, RASTR_9, RASTR_1, RASTR_17
 
-                LD A, 0X7C      // LD a, iyh 2-ND BYTE
-                ld (RASTRS_17 - 3), A
+                LD A, 0X7C              // LD a, iyh (0x54->0x54)
+                ld (RASTRS_17 - 3), A                   
 
                 UPDATE_SP2 OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP,   RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17
                 UPDATE_SP1 OFF_0_13_SP, OFF_0_12_SP, OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,    RASTRS_2,  RASTRS_3,  RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1
@@ -250,8 +250,8 @@ draw_off_rastr_4
                 UPDATE_JPIX_HELPER 2
                 update_rastr 4, RASTR_11, RASTR_3, RASTR_19
 
-                ld A, 0xFD      // (0x51 -> 0x53)
-                ld (RASTRS_19 - 4), A
+                ld A, 0xCF      // set 1, a (0x51 -> 0x53)
+                ld (RASTRS_19 - 3), A
 
                 UPDATE_SP2 OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP,   RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19
                 UPDATE_SP1 OFF_0_11_SP, OFF_0_10_SP, OFF_0_9_SP,  OFF_0_8_SP,  OFF_1_8_SP,  OFF_2_8_SP,  OFF_3_8_SP,    RASTRS_4,  RASTRS_5,  RASTRS_6,  RASTRS_7,  RASTRS_0,  RASTRS_1,  RASTRS_2,  RASTRS_3
@@ -271,7 +271,7 @@ draw_off_rastr_3
                 UPDATE_SP0 OFF_0_2_SP,  OFF_0_1_SP,  OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,    RASTRS_13, RASTRS_14, RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12
 
                 RESTORE_OFF_END it4_end, 0xd3 + 0xfd * 256
-                ld a, ixl
+page7_depend_1  ld a, 0x51
                 out (0xfd), a
                 START_OFF_DRAWING it3_start
 
@@ -280,7 +280,7 @@ draw_off_rastr_2
                 UPDATE_JPIX_HELPER 2
                 update_rastr 2, RASTR_13, RASTR_5, RASTR_21
 
-                ld A, 0x7D      // (0x50 -> 0x51)
+                ld A, 0xC7      // set 0, a (0x50 -> 0x51)
                 ld (RASTRS_21 - 3), A
 
                 UPDATE_SP2 OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP, OFF_2_16_SP, OFF_3_16_SP, OFF_4_16_SP, OFF_5_16_SP,   RASTRS_22, RASTRS_16, RASTRS_17, RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21
@@ -304,6 +304,6 @@ draw_off_rastr_1
                 UPDATE_SP0 OFF_0_0_SP,  OFF_1_0_SP,  OFF_2_0_SP,  OFF_3_0_SP,  OFF_4_0_SP,  OFF_5_0_SP,  OFF_6_0_SP,    RASTRS_15, RASTRS_8,  RASTRS_9,  RASTRS_10, RASTRS_11, RASTRS_12, RASTRS_13, RASTRS_14
 
                 RESTORE_OFF_END it2_end, 0xd3 + 0xfd * 256
-                ld a, ixh
+page7_depend_2  ld a, 0x50
                 out (0xfd), a
                 START_OFF_DRAWING it1_start
