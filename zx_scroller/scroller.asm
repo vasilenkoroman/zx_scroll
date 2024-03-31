@@ -751,8 +751,9 @@ non_mc_draw_step
                 ld a, c
                 ld (saved_bc_value), a
 
-                ld hl, mc_drawing_step
-                ld (before_update_jpix+1),hl    ; update drawing to mc branch
+                ASSERT high(mc_drawing_step) == high(non_mc_draw_step)
+                ld a, low(mc_drawing_step)
+                ld (before_update_jpix+1),a    ; update drawing to mc branch
 
                 update_colors_jpix        
 

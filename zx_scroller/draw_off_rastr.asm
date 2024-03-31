@@ -299,8 +299,8 @@ draw_off_rastr_2
 draw_off_rastr_1
                 ;SET_NEXT_STEP draw_off_rastr_7
                 exx
-                ld hl, non_mc_draw_step
-                ld (before_update_jpix+1),hl
+                ld a, low(non_mc_draw_step)
+                ld (before_update_jpix+1), a
 
                 UPDATE_JPIX_HELPER -2
                 update_rastr 1, RASTR_14, RASTR_6, RASTR_22

@@ -4111,6 +4111,7 @@ int serializeTimingDataForRun(
             }
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 26;
+            kZ80CodeDelay -= 6;
         }
         else
         {
@@ -4135,6 +4136,7 @@ int serializeTimingDataForRun(
 
                 kZ80CodeDelay -= 4+1+4+1;
                 kZ80CodeDelay += 4;
+                kZ80CodeDelay -= 6;
                 break;
             case 2:
                 kZ80CodeDelay -= 34;    // new jpix_helper
