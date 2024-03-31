@@ -4877,7 +4877,7 @@ int main(int argc, char** argv)
     auto processedCells = loadInverseColorsState(inverseColorsTmpFile, imageHeight / 8);
     saveInverseColorsState(inverseColorsTmpFile, processedCells);
 
-    const bool updateImidiatly = updateInverseColors;
+    const bool updateImidiatly = false; //updateInverseColors;
 
     bool hasSomeToRepack = false;
     for (int y = 0; y < imageHeight / 8; ++y)
