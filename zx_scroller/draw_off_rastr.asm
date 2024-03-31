@@ -220,7 +220,7 @@ draw_off_rastr_6
                 UPDATE_JPIX_HELPER 2
                 update_rastr 6, RASTR_9, RASTR_1, RASTR_17
 
-                LD A, 0X7C              // LD a, iyh (0x54->0x54)
+                LD A, 0              // nop (0x54->0x54)
                 ld (RASTRS_17 - 3), A                   
 
                 UPDATE_SP2 OFF_0_21_SP, OFF_0_20_SP, OFF_0_19_SP, OFF_0_18_SP, OFF_0_17_SP, OFF_0_16_SP, OFF_1_16_SP,   RASTRS_18, RASTRS_19, RASTRS_20, RASTRS_21, RASTRS_22, RASTRS_16, RASTRS_17

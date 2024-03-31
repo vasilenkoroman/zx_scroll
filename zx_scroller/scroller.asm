@@ -169,7 +169,7 @@ RASTRJ_N?       ld hl, 0                                           ; 10
 RASTRB_N?
 
                 IF (N? == 17)
-                        ld a, iyh               ; 54->54, or 54->53 (ld a, iyl)
+                        .2 nop                  ; 54->54, or 54->53 (dec a)
                 ELSEIF (N? == 18)
                         ld a, iyl               ; 53
                 ELSEIF (N? == 19)
@@ -1006,7 +1006,7 @@ finish_non_mc_drawing_cont:
         ENDIF                
 
                 ; update ports [50..54] for the next step 7
-                LD a, #7D               ; LD a, iyl (value #54 -> #53)
+                LD a, #3D               ; dec a (value #54 -> #53)
                 ld (RASTRS_17 - 3), a
                 LD a, #8F               ; res 1, a (value #53 -> #51)
                 ld (RASTRS_19 - 3), a
