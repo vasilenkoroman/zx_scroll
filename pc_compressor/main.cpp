@@ -4002,6 +4002,9 @@ int effectRegularStepDelay(
             result += 205+77+18+21-22+4+29+10 + 33; // page 7 branch itself is longer
             result += 23 * 2;
             result -= 8;
+            result += 20 * 2;
+            result += 17 * 2;
+            result += 2;
             if (rastrFlags & directPlayerJump)
                 result += 10;
             result += *effectDelay->rbegin();
@@ -4167,6 +4170,7 @@ int serializeTimingDataForRun(
 
                 kZ80CodeDelay -= 1+4+4;
                 kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 1;
                 break;
             case 6:
                 kZ80CodeDelay -= 34;    // new jpix_helper
@@ -4183,6 +4187,7 @@ int serializeTimingDataForRun(
 
                 kZ80CodeDelay -= 1 + 4+4;
                 kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 1;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(

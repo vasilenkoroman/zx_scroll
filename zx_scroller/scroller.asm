@@ -654,6 +654,11 @@ finish_page7_drawing_cont
 pg7_0           add hl, bc: jp RASTRB_0
 page7_drawing_end
                 ;ld ix, #5051                   ; before: 14t
+
+                ld a, 0x54
+                ld (page7_depend_4+1), a
+                dec a
+                ld (page7_depend_3+1), a
                 ld a, 0x51
                 ld (page7_depend_1+1), a
                 dec a
@@ -712,6 +717,7 @@ start_draw_colors:
 page7_effect
                 exx
                 ld sp, stack_top
+
                 ld hl,finish_page7_drawing_cont
                 ex (sp),hl
                 ld (finish_page7_drawing_cont+1), hl
@@ -720,7 +726,8 @@ page7_effect
                 LD A, #50 + 7+8
                 ld (player_pg+1),a
 
-                ld sp,stack_top-2
+                .2 dec sp
+
                 push bc
                 push de
                 LONG_SET_PAGE 7+8
@@ -732,7 +739,11 @@ ef_x            call effect_step
                 SET_PAGE 6+8
 
                 ;ld ix, #5051 + #0808
-                ld a, 0x51 + 0x08
+                ld a, 0x54 + 8
+                ld (page7_depend_4+1), a
+                dec a
+                ld (page7_depend_3+1), a
+                ld a, 0x51 + 8
                 ld (page7_depend_1+1), a
                 dec a
                 ld (page7_depend_2+1), a          ; after: 37t, dt=23t
