@@ -120,7 +120,7 @@ color_data_to_restore EQU $+1
                 ld (hl),d
                 ; 4+6+16+4+7+6+7=50
 
-                ld hl, JP_VIA_HL_CODE                           ; 10
+                ld hl, JP_VIA_IX_CODE                           ; 10
                 ex (sp), hl                                     ; 19
                 ld (color_data_to_restore), hl
         ENDM
@@ -703,8 +703,6 @@ mc_drawing_step:
 
                 ld sp, color_addr + 768                         
                 ld de, bank_drawing_common
-draw_off_x_step        
-                ld hl, draw_off_rastr_7                      
                 exx                                             ; 10+10+4=24
 start_draw_colors:
                 jp 00                                           ; 10
@@ -743,8 +741,8 @@ ef_x            call effect_step
 
 
                 //ld de, bank_drawing_common
-                ld hl,(draw_off_x_step+1)
-                jp hl
+                exx
+                jp ix	; draw offrastr draw_off_rastr_7..draw_off_rastr_1
         ENDIF
 
         /************************* no-mc step drawing *********************************************/
@@ -759,12 +757,12 @@ non_mc_draw_step
                 update_colors_jpix        
 
                 ld sp, color_addr + 768                         ; 10
-                ld hl, finish_draw_colors0                      ; 10
+                ld ix, finish_draw_colors0                      ; 10
                 exx                                             ; 4
 start_draw_colors0:
                 jp 00                                           ; 8
 finish_draw_colors0        
-
+                exx
                 ; Update off rastr drawing for then next 7 steps
                 SET_NEXT_STEP draw_off_rastr_7  ; update mc offrastr jump addr
                 ld hl, off_rastr_descriptors

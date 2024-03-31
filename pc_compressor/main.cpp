@@ -3980,6 +3980,7 @@ int effectRegularStepDelay(
             result -= (kRtMcContextSwitchDelay - 72) * 24; // In rastr only mode context swithing is faster
             result += 205+77+18+21-22+4+29+10 + 33; // page 7 branch itself is longer
             result += 23 * 2;
+            result -= 8;
             if (rastrFlags & directPlayerJump)
                 result += 10;
             result += *effectDelay->rbegin();
@@ -4068,6 +4069,7 @@ int serializeTimingDataForRun(
         }
 
         int kZ80CodeDelay = 2459 - 4 - 14 - 3 - 1 - 1;
+        kZ80CodeDelay -= 10;
 
         if (line % 8 == 0)
         {
@@ -4103,6 +4105,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 23;    // new jpix_helper
 
                 kZ80CodeDelay -= 1 + 4+4;
+				kZ80CodeDelay += 6;
                 break;
             case 1:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4110,12 +4113,14 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay += 13;
 
                 kZ80CodeDelay -= 4+1+4+1;
+                kZ80CodeDelay += 4;
                 break;
             case 2:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -4 + 20;
 
                 kZ80CodeDelay -= 4+1+4+1;
+                kZ80CodeDelay -= 8;
                 break;
             case 3:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4123,12 +4128,14 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay += 13;
 
                 kZ80CodeDelay -= 4+4+1+1;
+                kZ80CodeDelay -= 8;
                 break;
             case 4:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -8 + 20;
 
                 kZ80CodeDelay -= 4+4+1+1;
+                kZ80CodeDelay -= 8;
                 break;
             case 5:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4136,12 +4143,14 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay += 13;
 
                 kZ80CodeDelay -= 1+4+4;
+                kZ80CodeDelay -= 8;
                 break;
             case 6:
                 kZ80CodeDelay -= 34;    // new jpix_helper
                 kZ80CodeDelay += -12 + 20;
 
                 kZ80CodeDelay -= 1+4+4+1;
+                kZ80CodeDelay -= 8;
                 break;
             case 7:
                 kZ80CodeDelay -= 36;    // new jpix_helper
@@ -4150,6 +4159,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 3;
 
                 kZ80CodeDelay -= 1 + 4+4;
+                kZ80CodeDelay -= 8;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(

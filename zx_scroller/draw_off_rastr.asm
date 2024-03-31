@@ -195,11 +195,11 @@ upd_rastr_itr?_1
         ENDM
 
         MACRO SET_NEXT_STEP value
-                ld hl, value
-                ld (draw_off_x_step+1),hl
+                ld ix, value
         ENDM
 
 draw_off_rastr_7
+                exx
                 SET_NEXT_STEP draw_off_rastr_6
                 UPDATE_JPIX_HELPER -2
 
@@ -215,6 +215,7 @@ draw_off_rastr_7
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
 draw_off_rastr_6
+                exx
                 SET_NEXT_STEP draw_off_rastr_5
                 UPDATE_JPIX_HELPER 2
                 update_rastr 6, RASTR_9, RASTR_1, RASTR_17
@@ -231,6 +232,7 @@ draw_off_rastr_6
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
+                exx
                 SET_NEXT_STEP draw_off_rastr_4
                 UPDATE_JPIX_HELPER -2
                 update_rastr 5, RASTR_10, RASTR_2, RASTR_18
@@ -246,6 +248,7 @@ draw_off_rastr_5
                 START_OFF_DRAWING it5_start
 
 draw_off_rastr_4
+                exx
                 SET_NEXT_STEP draw_off_rastr_3
                 UPDATE_JPIX_HELPER 2
                 update_rastr 4, RASTR_11, RASTR_3, RASTR_19
@@ -262,6 +265,7 @@ draw_off_rastr_4
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
+                exx
                 SET_NEXT_STEP draw_off_rastr_2
                 UPDATE_JPIX_HELPER -2
                 update_rastr 3, RASTR_12, RASTR_4, RASTR_20
@@ -276,6 +280,7 @@ page7_depend_1  ld a, 0x51
                 START_OFF_DRAWING it3_start
 
 draw_off_rastr_2
+                exx
                 SET_NEXT_STEP draw_off_rastr_1
                 UPDATE_JPIX_HELPER 2
                 update_rastr 2, RASTR_13, RASTR_5, RASTR_21
@@ -293,6 +298,7 @@ draw_off_rastr_2
 
 draw_off_rastr_1
                 ;SET_NEXT_STEP draw_off_rastr_7
+                exx
                 ld hl, non_mc_draw_step
                 ld (before_update_jpix+1),hl
 
