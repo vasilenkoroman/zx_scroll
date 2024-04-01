@@ -506,13 +506,14 @@ pl_delay                equ -202 -171
                         ; when image list is changed. To avoid this it is needed
                         ; to call alignInt  after image unpack.
                 IF HAS_PLAYER == 1
-                        ; 202 - (76-19-10) = 155t longer than final ret in align int.
-                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 71680 % 4
+                        ; Player time between after_play_intro - player_callback = 202t.
+                        ; 202 - 47 = 155t longer than final ret in align int.
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro-155) % 4
 INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
                 ELSE
-                        ; 0 - (76-19-10) = -47t longer than final ret in align int.
-                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+47) % 71680 % 4
-INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
+                        ; 10 - 47 = -37t longer than final ret in align int.
+                        ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+37) % 4
+INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
                 ENDIF
 
 create_jpix_delay       equ 1058 * (imageHeight/64)

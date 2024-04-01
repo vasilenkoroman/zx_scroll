@@ -4851,7 +4851,14 @@ int main(int argc, char** argv)
     mirrorBuffer8(buffer.data(), imageHeight);
     mirrorBuffer8(colorBuffer.data(), imageHeight / 8);
 
+//#define DEBUG_TIMINGS
+#ifdef DEBUG_TIMINGS
+    // Remove some flags for more easy debuging timings at ZX
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | updateColorData | directPlayerJump;
+#else
     int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump;
+#endif
+
     if (!inverseColorsTmpFile.empty())
         flags |= inverseColors;
 
