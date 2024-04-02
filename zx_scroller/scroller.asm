@@ -88,52 +88,29 @@ RASTR0_22       jp 00 ; rastr for multicolor ( up to 8 lines)
         ENDM                
 
         MACRO update_colors_jpix
-                ; bc - line number*2
+color_descriptor_ptr
+                ld sp, color_descriptor + imageHeight /2 - 4 + 2                                                ; 10
+                
+                pop de                           ; data from prev MC drawing steps (last endAddress)            ; 20
+                pop hl                           ; address to execute (current descriptor)                      ; 30
+                ld (color_descriptor_ptr+1), sp                                                                 ; 50
+                ld (start_draw_colors+1), hl                                                                    ; 66
+                ld (start_draw_colors0+1), hl                                                                   ; 82
+                pop hl                           ; end of exec address                                          ; 92
 
-                ld hl, bc
-                srl h: rr l
-                srl h: rr l
-
-                ld de, color_descriptor                         ; 10
-                add hl, de                                      ; 11
-                ld sp, hl                                       ; 6
-                ; end of exec address
-                pop de                                          ; 10
-                ;  address to execute
-                pop hl                                          ; 14
-                ld (start_draw_colors+1), hl
-                ld (start_draw_colors0+1), hl
-
-                ; restore data from prev MC drawing steps
-                pop hl
-
-                ; new JPIX from DE to SP
-                ex de,hl
-                ld sp, hl                                       ; 6
-                ex de,hl
-
+                ; new JPIX from HL to SP
+                ld sp, hl                                       
+                ex de,hl                         ; last endAddress to HL
                 ; Old data to restore to DE, restore data from prev MC drawing steps in HL
 color_data_to_restore EQU $+1        
                 ld de, 0
                 ld (hl),e
                 inc hl
                 ld (hl),d
-                ; 4+6+16+4+7+6+7=50
 
                 ld hl, JP_VIA_IX_CODE                           ; 10
                 ex (sp), hl                                     ; 19
                 ld (color_data_to_restore), hl
-        ENDM
-
-        MACRO FILL_OFF_SP Step?, Iteration?
-                ld de, color_addr
-                add hl, de
-                ld (OFF_Step?_Iteration?_SP + 1), hl
-        ENDM
-
-        MACRO CONT_OFF_SP Step?, Iteration?
-                dec h
-                ld (OFF_Step?_Iteration?_SP + 1), hl
         ENDM
 
         MACRO restore_jp_ix
@@ -411,7 +388,7 @@ continue_page:
                 ; write initial color data to restore
                 SET_PAGE 6+8
 
-                ld hl, color_descriptor + 4                     ; 10
+                ld hl, color_descriptor + imageHeight / 2 - 2   ; 10
                 ld sp, hl                                       ; 6
                 pop hl                                          ; 10
                 ld sp, hl
@@ -562,6 +539,9 @@ max_scroll_offset equ imageHeight - 1
 lower_limit_reached:
                 ld bc,  max_scroll_offset*2     ; 10 ticks
                 ld (saved_bc_value), bc
+
+                ld hl, color_descriptor + 2
+                ld (color_descriptor_ptr+1), hl
                 
                 ; Update jpix_helper data
                 ld hl, update_jpix_helper + imageHeight/2 - 2

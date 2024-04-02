@@ -3393,10 +3393,11 @@ int serializeColorData(
         descriptors.push_back(descriptor);
     }
 
-    for (const auto& descriptor : descriptors)
+    for (int i = descriptors.size() - 1; i >= 0; --i)
     {
-        descriptorFile.write((const char*)&descriptor.addressEnd, sizeof(descriptor.addressEnd));
+        const auto& descriptor = descriptors[i];
         descriptorFile.write((const char*)&descriptor.addressBegin, sizeof(descriptor.addressBegin));
+        descriptorFile.write((const char*)&descriptor.addressEnd, sizeof(descriptor.addressEnd));
     }
 
     colorDataFile.write((const char*)serializedData.data(), serializedData.size());
@@ -4097,10 +4098,11 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7488;
+            kZ80CodeDelay += 7488 - 41;
             if (line == 0)
             {
-                kZ80CodeDelay -= 15;    // new jpix_helper
+                kZ80CodeDelay -= 15;
+                kZ80CodeDelay += 26;
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page
@@ -4898,7 +4900,7 @@ int main(int argc, char** argv)
 
     if (hasSomeToRepack)
     {
-        int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, true /*silenceMode*/);
+        int newTicks = packAll(flags, codeOffset, buffer, colorBuffer, musicTimings, outputFileName, updateInverseColors /*silenceMode*/);
         saveInverseColorsState(inverseColorsTmpFile, processedCells);
         std::cout << "Improve worse ticks from "
             << bestWorseTiming << " to " << newTicks << " using previous pack data" << std::endl;
