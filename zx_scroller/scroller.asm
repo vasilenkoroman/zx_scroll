@@ -169,7 +169,7 @@ RASTRJ_N?       ld hl, 0                                           ; 10
 RASTRB_N?
 
                 IF (N? == 17)
-                        .2 nop                  ; 54->54, or 54->53 (dec a)
+                        ld a, iyh               ; 54->54, or 54->53 (dec a)
                 ELSEIF (N? == 18)
                         ld a, iyl               ; 53
                 ELSEIF (N? == 19)
@@ -181,7 +181,8 @@ RASTRB_N?
                 ELSEIF (N? == 22)
                         res 0, a                ; 50
                 ELSEIF (N?  == 0)
-                        ld a, iyh               ; 54
+page7_depend_5
+                        ld a, 0x54              ; 54
                 ELSEIF (N? % 8 == 0)
                         set 2, a
                 ELSEIF (N? % 8 == 1)
@@ -420,31 +421,6 @@ continue_page:
                 ld sp, stack_top - 2
                 ret
 
-create_jpix_helper
-                ASSERT(imageHeight / 4 < 256)
-                ld hl, update_jpix_helper
-                ld iy, jpix_table
-                ld ixl, imageHeight / 64
-.loop2          ld a, 16
-                push iy
-                pop de
-                ld bc, jpix_bank_size
-.loop:          ld (hl), e
-                inc hl
-                ld (hl), d
-                inc hl
-                ex hl, de
-                add hl, bc
-                ex hl, de
-
-                dec a
-                jr nz, .loop
-                ld bc, jp_ix_record_size
-                add iy, bc
-                dec ixl
-                jr nz, .loop2
-                ret
-
 /** ----------- Routines end -------------- */
 
 main_entry_point
@@ -453,10 +429,8 @@ main_entry_point
 
                 ld sp, stack_top
 
-                call copy_page7_screen
-                call prepare_interruption_table
+                call copy_page7_screen_and_prepare_interruption_table
                 call unpack_and_play_init_screen
-
 
         IF (HAS_PLAYER == 1)
 1               halt
@@ -494,7 +468,7 @@ screen_start_tick               equ  17988
 
 
 mc_preambula_delay      equ 46
-fixed_startup_delay     equ 32084 + 9 + 13 - 14
+fixed_startup_delay     equ 32084 + 9 + 13 - 14 + 1
         IF HAS_PLAYER == 1
 pl_delay                equ 29432 + 406 + (83186-71680)
         ELSE
@@ -658,6 +632,7 @@ page7_drawing_end
 
                 ld a, 0x54
                 ld (page7_depend_4+1), a
+                ld (page7_depend_5+1), a
                 dec a
                 ld (page7_depend_3+1), a
                 ld a, 0x51
@@ -665,7 +640,12 @@ page7_drawing_end
                 dec a
                 ld (page7_depend_2+1), a          ; after: 40t, dt=26t
 
-                ld iy, #5453
+                ;ld iy, #5453
+                ld iyl, #53             ; 11
+                ld a, iyh               ; 19
+                and ~8                  ; 26
+                ld iyh, a               ; 34
+
                 ld a,#57
                 ld (player_pg+1),a
         ENDIF
@@ -731,16 +711,26 @@ page7_effect
 
                 push bc
                 push de
+                push iy
                 LONG_SET_PAGE 7+8
 
 ef_x            call effect_step
+                pop de
+
+                ;ld iy, #5453 + #0808
+                set 3, e
+                set 3, d
+		ld iy, de
+
+
                 pop de
                 pop bc
 
                 SET_PAGE 6+8
 
-                ;ld ix, #5051 + #0808
+
                 ld a, 0x54 + 8
+                ld (page7_depend_5+1), a
                 ld (page7_depend_4+1), a
                 dec a
                 ld (page7_depend_3+1), a
@@ -748,8 +738,6 @@ ef_x            call effect_step
                 ld (page7_depend_1+1), a
                 dec a
                 ld (page7_depend_2+1), a          ; after: 37t, dt=23t
-
-                ld iy, #5453 + #0808
 
 
                 //ld de, bank_drawing_common
@@ -1019,8 +1007,9 @@ finish_non_mc_drawing_cont:
         ENDIF                
 
                 ; update ports [50..54] for the next step 7
-                LD a, #3D               ; dec a (value #54 -> #53)
-                ld (RASTRS_17 - 3), a
+                ;LD a, #3D               ; dec a (value #54 -> #53)
+                ;ld (RASTRS_17 - 3), a
+                dec iyh
                 LD a, #8F               ; res 1, a (value #53 -> #51)
                 ld (RASTRS_19 - 3), a
                 LD A, #87               ; res 0, a (value #51 -> #50)
@@ -1192,6 +1181,31 @@ upd_de_anim2    res 7,d
 /**     ----------------------------------------- routines -----------------------------------------
  *      All routines are called once before drawing. They can be moved to another page to free memory.
  */
+
+create_jpix_helper
+                ASSERT(imageHeight / 4 < 256)
+                ld hl, update_jpix_helper
+                ld iy, jpix_table
+                ld ixl, imageHeight / 64
+.loop2          ld a, 16
+                push iy
+                pop de
+                ld bc, jpix_bank_size
+.loop:          ld (hl), e
+                inc hl
+                ld (hl), d
+                inc hl
+                ex hl, de
+                add hl, bc
+                ex hl, de
+
+                dec a
+                jr nz, .loop
+                ld bc, jp_ix_record_size
+                add iy, bc
+                dec ixl
+                jr nz, .loop2
+                ret
 
 static_delay
 D0              EQU 17 + 10 + 10        ; call, initial LD, ret

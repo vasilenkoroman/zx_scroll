@@ -90,6 +90,7 @@ draw_common
                 djnz screen_loop
                 ret
 
+copy_page7_screen_and_prepare_interruption_table
 copy_page7_screen
                 IF (HAS_PLAYER == 1)
                 ld a, 0                         ; 7 ticks
@@ -109,9 +110,8 @@ copy_page7_screen
                 ld hl,#4000
                 ldir
                 ENDIF                
-                ret
 
-prepare_interruption_table:
+prepare_interruption_table
                 ; make interrupt table
 
                 ld   a, 0c3h    ; JP instruction code

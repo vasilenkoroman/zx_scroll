@@ -31,7 +31,7 @@ effect_step
                 djnz 1b
                 ld hl,ef1
                 ld (ef_x+1),hl
-                ld sp,stack_top-8
+                ld sp,stack_top-10
                 ret
 
             ; 1. Just display "Scroller"
@@ -95,7 +95,7 @@ ef3
                 djnz 1b
                 ld hl,ef3_2
                 ld (ef_x+1),hl
-                ld sp,stack_top-8
+                ld sp,stack_top-10
                 ret
                 ; total: 10+10+7+(11+13)*128-5+10+16+10+10=3140
 ef3_2
@@ -109,7 +109,7 @@ ef3_2
 
                 ld a,(ef3_2+2)
                 cp #c8
-                ld sp,stack_top-8
+                ld sp,stack_top-10
                 ret nz
                 ; total:9032+11
                 ld hl,ef4

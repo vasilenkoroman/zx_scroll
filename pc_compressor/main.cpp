@@ -4005,6 +4005,7 @@ int effectRegularStepDelay(
             result += 20 * 2;
             result += 17 * 2;
             result += 2;
+            result += 20 + 17 + 26 + 26;
             if (rastrFlags & directPlayerJump)
                 result += 10;
             result += *effectDelay->rbegin();
@@ -4092,15 +4093,14 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2459 - 4 - 14 - 3 - 1 - 1;
-        kZ80CodeDelay -= 10;
+        int kZ80CodeDelay = 2338;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7148 + 9 - 10 - 121 - 18 + 418-2 - 3 - 60 + 17 - 5 + 26*2 + 3 + 1 + 3;
+            kZ80CodeDelay += 7488;
             if (line == 0)
             {
-                kZ80CodeDelay -= 41-26;    // new jpix_helper
+                kZ80CodeDelay -= 15;    // new jpix_helper
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page
@@ -4114,80 +4114,39 @@ int serializeTimingDataForRun(
             }
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 26;
-            kZ80CodeDelay -= 6;
         }
         else
         {
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 10;
-            kZ80CodeDelay -= 54 + 7;
         }
 
         // offscreen drawing branches has different length
         switch (line % 8)
         {
             case 0:
-                kZ80CodeDelay -= 23;    // new jpix_helper
-
-                kZ80CodeDelay -= 1 + 4+4;
-				kZ80CodeDelay += 6;
+                kZ80CodeDelay -= 12;
                 break;
             case 1:
-                kZ80CodeDelay -= 36;    // new jpix_helper
-                kZ80CodeDelay -= 4;
-                kZ80CodeDelay += 13;
-
-                kZ80CodeDelay -= 4+1+4+1;
-                kZ80CodeDelay += 4;
-                kZ80CodeDelay -= 6;
+                kZ80CodeDelay -= 13;
                 break;
             case 2:
-                kZ80CodeDelay -= 34;    // new jpix_helper
-                kZ80CodeDelay += -4 + 20;
-
-                kZ80CodeDelay -= 4+1+4+1;
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 10;
                 break;
             case 3:
-                kZ80CodeDelay -= 36;    // new jpix_helper
-                kZ80CodeDelay -= 8;
-                kZ80CodeDelay += 13;
-
-                kZ80CodeDelay -= 4+4+1+1;
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 23;
                 break;
             case 4:
-                kZ80CodeDelay -= 34;    // new jpix_helper
-                kZ80CodeDelay += -8 + 20;
-
-                kZ80CodeDelay -= 4+4+1+1;
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 14;
                 break;
             case 5:
-                kZ80CodeDelay -= 36;    // new jpix_helper
-                kZ80CodeDelay -= 12;
-                kZ80CodeDelay += 13;
-
-                kZ80CodeDelay -= 1+4+4;
-                kZ80CodeDelay -= 8;
-                kZ80CodeDelay -= 1;
+                kZ80CodeDelay -= 27;    // new jpix_helper
                 break;
             case 6:
-                kZ80CodeDelay -= 34;    // new jpix_helper
-                kZ80CodeDelay += -12 + 20;
-
-                kZ80CodeDelay -= 1+4+4+1;
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 18 + 12;
                 break;
             case 7:
-                kZ80CodeDelay -= 36;    // new jpix_helper
-                kZ80CodeDelay -= 16;
-                kZ80CodeDelay += 13;
-                kZ80CodeDelay -= 3;
-
-                kZ80CodeDelay -= 1 + 4+4;
-                kZ80CodeDelay -= 8;
-                kZ80CodeDelay -= 1;
+                kZ80CodeDelay -= 34;    // new jpix_helper
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
