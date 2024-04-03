@@ -4098,11 +4098,11 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7488 - 41;
+            kZ80CodeDelay += 7488 - 41 - 47;
             if (line == 0)
             {
                 kZ80CodeDelay -= 15;
-                kZ80CodeDelay += 26;
+                kZ80CodeDelay += 26 + 26;
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page

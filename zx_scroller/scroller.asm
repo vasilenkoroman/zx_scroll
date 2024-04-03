@@ -540,8 +540,12 @@ lower_limit_reached:
                 ld bc,  max_scroll_offset*2     ; 10 ticks
                 ld (saved_bc_value), bc
 
+
                 ld hl, color_descriptor + 2
                 ld (color_descriptor_ptr+1), hl
+
+                ld hl, mc_descriptors + imageHeight/8*10 - 10
+                ld (mc_descriptors_ptr+1), hl
                 
                 ; Update jpix_helper data
                 ld hl, update_jpix_helper + imageHeight/2 - 2
@@ -941,20 +945,14 @@ finish_off_drawing_0
 
 finish_non_mc_drawing_cont:
                 SET_PAGE 6
-                ; calculate address of the MC descriptors
-                ld hl, mc_descriptors
 
-                ; prepare  multicolor drawing (for next 7 mc steps)
-                ; calculate bc/8 * 10
                 ld bc, (saved_bc_value)
-                ld de, bc
-                srl d: rr e
-                add hl, de
 
-                srl d: rr e
-                srl d: rr e
-                add hl, de
-                ld sp, hl
+mc_descriptors_ptr
+                ld sp, mc_descriptors           ; 10
+                ld hl, -10                      ; 20
+                add hl, sp                      ; 31
+                ld (mc_descriptors_ptr+1), hl   ; 47
 
                 PREPARE_MC_DRAWING 23, 22
                 PREPARE_MC_DRAWING 22, 21
