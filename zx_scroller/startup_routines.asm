@@ -146,21 +146,7 @@ unpack_and_play_init_screen
         ENDIF            
 
                 ; Create effects by run helper
-        IF (HAS_PLAYER == 1)            
-                ld sp, effects_by_run + 8
-                ld hl, effect3
-                push hl
-                ld hl, effect2
-                push hl
-                ld hl, effect1
-                push hl
-                ld hl, effect0
-                push hl
                 ld sp, stack_top-2
-                halt
-        ELSE
-                ld sp, stack_top-2
-        ENDIF            
                 jp continue_unpacking
 
 simple_scroller_end

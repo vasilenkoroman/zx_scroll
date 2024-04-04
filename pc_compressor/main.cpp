@@ -4103,6 +4103,7 @@ int serializeTimingDataForRun(
             {
                 kZ80CodeDelay -= 15;
                 kZ80CodeDelay += 26 + 26;
+                kZ80CodeDelay -= 7;
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page
@@ -4303,7 +4304,6 @@ int serializeTimingData(
     {
         for (int i = 0; i < imageHeight; ++i)
         {
-            //int page = i == 0 ? 3 : ((i-1) % 8) / 2;
             int page = (i % 8) / 2;
             int index = i + run*2;
             musicPages[page][index] = delayTicks[i + run*imageHeight];

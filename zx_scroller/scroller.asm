@@ -24,12 +24,11 @@ generated_code          equ 29900
 
 code_after_moving       equ screen_end
 
-effects_by_run          equ #bfc2
-effects_by_run_end      equ effects_by_run + 8
 timings_data            equ #c000
+data_start              equ #bfc2
 
 STACK_SIZE:             equ 12  ; in words
-stack_bottom            equ effects_by_run_end
+stack_bottom            equ data_start
 stack_top               equ stack_bottom + STACK_SIZE * 2
 
                         ASSERT(stack_top < #c000)
@@ -562,18 +561,19 @@ lower_limit_reached:
                 ; total: 10+7+7+7+7=38
 
          ; Prepare next effect for next scroll run
-                and #0f
-                rra
-                add low(effects_by_run)
-                ld l,a
-                ld h,high(effects_by_run)
-                ld sp, hl
-                pop hl
-                jp hl
-        ; total: 7+4+7+4+7+6+10+4=49
-        ELSE
-                jp loop                
+run_number      ld a, 0                                                 ; 7
+                inc a                                                   ; 11
+                ld (run_number+1), a                                    ; 24
+                bit 1, a                                                ; 32
+                ld hl, start_draw_colors                                ; 42
+                jp nz, effects_run                                      ; 52
+normal_run:     
+                ld (hl), 0xc3           ; make JP xx                    ; 62
+                jp main_loop                                            ; 72
+effects_run                
+                ld (hl), 0xca           ; make JP z, xx
         ENDIF
+                jp main_loop                
 
         IF (HAS_PLAYER == 1)
 finish_page7_drawing_cont
@@ -1280,6 +1280,8 @@ font_data_end
                 ASSERT font_data_end - font_data <= 512
 
 update_jpix_helper   EQU #c000 - 512
+jpix_helper_end EQU  update_jpix_helper  + imageHeight/2
+                DISPLAY data_start >= jpix_helper_end
                 ASSERT $ <= update_jpix_helper
                 ASSERT simple_scroller_end < static_data_page2
                 ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < static_data_page2
