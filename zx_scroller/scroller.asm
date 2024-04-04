@@ -639,18 +639,16 @@ saved_bc_value  EQU $ +1
                 ld bc, 0        ;saved_bc_value here
                 dec c
                 dec c
-loop:  
+main_loop:  
 jp_ix_line_delta_in_bank EQU 2 * 6*4
-                ; --------------------- update_jp_ix_table --------------------------------
-                ; between frames: 73248/71456
 
 before_update_jpix
                 ld hl, mc_drawing_step
                 exx
 
-                ;next_step_first_bank
-                exa
+                exa             ;next_step_first_bank
                 out (#fd),a
+                ; --------------------- update_jp_ix_table --------------------------------
 jpix_h_pos      
                 ld sp, (update_jpix_helper + imageHeight/2 - 2)
                 ld bc, JP_VIA_HL_CODE
@@ -1008,7 +1006,7 @@ mc_descriptors_ptr
                 ; 10+10+6+4+11=41
 
                 ld (saved_bc_value), bc
-                jp loop                        ; 12 ticks
+                jp main_loop                        ; 12 ticks
 
 bank_drawing_common:
                 ; save current value for the next_step_first_bank

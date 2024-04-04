@@ -3,19 +3,19 @@
 effect0
                 ld a, 0xc3                  ; make JP, XX
                 ld (start_draw_colors),a
-                jp loop
+                jp main_loop
 effect1
                 ld a, 0xca                  ; make JP z, xx
                 ld (start_draw_colors),a
-                jp loop
+                jp main_loop
 effect2
                 ld a, 0xca                  ; make JP z, xx
                 ld (start_draw_colors),a
-                jp loop
+                jp main_loop
 effect3
                 ld a, 0xc3                  ; make JP, XX
                 ld (start_draw_colors),a
-                jp loop
+                jp main_loop
 
 ef2_counter DB 8
             ; Effects inside run
