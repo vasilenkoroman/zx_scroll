@@ -549,6 +549,10 @@ lower_limit_reached:
                 ; Update jpix_helper data
                 ld hl, update_jpix_helper + imageHeight/2 - 2
                 ld (jpix_h_pos+2), hl
+
+                ld a, low(update_jpix_helper + imageHeight/2 - 4)
+                ld i, a   ; 20            
+
                 ; 10+16=26
 
         IF (HAS_PLAYER == 1)         
@@ -1003,6 +1007,11 @@ mc_descriptors_ptr
                 dec hl
                 dec l
                 push hl
+
+                ld a, l                 ; 4
+                sub 2                   ; 11
+                ld i, a                 ; 20
+                
                 ; 10+10+6+4+11=41
 
                 ld (saved_bc_value), bc
@@ -1089,6 +1098,8 @@ show_final_screen
                 LD   (hl), #BF
                 LD   a, h
                 LDIR
+                ld a, 0xbe
+                ld i, a
                 ei
 
                 ; Unpack final screen to the page 7

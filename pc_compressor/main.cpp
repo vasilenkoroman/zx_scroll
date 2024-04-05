@@ -4114,7 +4114,14 @@ int serializeTimingDataForRun(
                 {
                     kZ80CodeDelay += 10; // jp loop
                 }
+
+                kZ80CodeDelay += 16;
             }
+            else
+            {
+                kZ80CodeDelay += 20;
+            }
+
             if (flags & directPlayerJump)
                 kZ80CodeDelay -= 26;
         }
@@ -4132,24 +4139,31 @@ int serializeTimingDataForRun(
                 break;
             case 1:
                 kZ80CodeDelay -= 13;
+                kZ80CodeDelay -= 9;
                 break;
             case 2:
                 kZ80CodeDelay -= 10;
+                kZ80CodeDelay -= 2;
                 break;
             case 3:
                 kZ80CodeDelay -= 23;
+                kZ80CodeDelay -= 9;
                 break;
             case 4:
                 kZ80CodeDelay -= 14;
+                kZ80CodeDelay -= 2;
                 break;
             case 5:
                 kZ80CodeDelay -= 27;    // new jpix_helper
+                kZ80CodeDelay -= 9;
                 break;
             case 6:
                 kZ80CodeDelay -= 18 + 12;
+                kZ80CodeDelay -= 2;
                 break;
             case 7:
                 kZ80CodeDelay -= 34;    // new jpix_helper
+                kZ80CodeDelay -= 9;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
