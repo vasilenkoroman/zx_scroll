@@ -184,8 +184,8 @@ upd_rastr_itr?_1
 
         MACRO   UPDATE_JPIX_HELPER value
                 ld a, i                  ; 9
-                IF (value > 0)
-                        sub -2           ; 9/16
+                IF (value < 0)
+                        add value        ; 9/16
                 ENDIF
                 ld (jpix_h_pos+2), a     ; 22/29, dt=2/9
 

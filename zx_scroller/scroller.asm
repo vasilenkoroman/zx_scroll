@@ -550,7 +550,7 @@ lower_limit_reached:
                 ld hl, update_jpix_helper + imageHeight/2 - 2
                 ld (jpix_h_pos+2), hl
 
-                ld a, low(update_jpix_helper + imageHeight/2 - 4)
+                ld a, l
                 ld i, a   ; 20            
 
                 ; 10+16=26
@@ -1009,7 +1009,6 @@ mc_descriptors_ptr
                 push hl
 
                 ld a, l                 ; 4
-                sub 2                   ; 11
                 ld i, a                 ; 20
                 
                 ; 10+10+6+4+11=41

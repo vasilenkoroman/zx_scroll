@@ -4094,19 +4094,23 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2326;
+        int kZ80CodeDelay = 2323;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7420;
+            kZ80CodeDelay += 7423;
             if (line == 0)
             {
-                kZ80CodeDelay += 36;
+                kZ80CodeDelay += 36 - 3;
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 77;
                     kZ80CodeDelay += initEffectDelay(runNumber);
                 }
+            }
+            else
+            {
+                kZ80CodeDelay -= 7;
             }
 
             if (flags & directPlayerJump)
@@ -4121,29 +4125,26 @@ int serializeTimingDataForRun(
         // offscreen drawing branches has different length
         switch (line % 8)
         {
-            case 0:
-                kZ80CodeDelay -= 0;
-                break;
             case 1:
-                kZ80CodeDelay -= 10;
+                kZ80CodeDelay -= 0;
                 break;
             case 2:
-                kZ80CodeDelay -= 0;
-                break;
-            case 3:
-                kZ80CodeDelay -= 20;
-                break;
-            case 4:
                 kZ80CodeDelay -= 4;
                 break;
+            case 3:
+                kZ80CodeDelay -= 10;
+                break;
+            case 4:
+                kZ80CodeDelay -= 8;
+                break;
             case 5:
-                kZ80CodeDelay -= 24;
+                kZ80CodeDelay -= 14;
                 break;
             case 6:
-                kZ80CodeDelay -= 20;
+                kZ80CodeDelay -= 24;
                 break;
             case 7:
-                kZ80CodeDelay -= 31;
+                kZ80CodeDelay -= 21;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
