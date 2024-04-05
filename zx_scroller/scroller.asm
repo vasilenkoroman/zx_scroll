@@ -553,18 +553,26 @@ lower_limit_reached:
 
         IF (HAS_PLAYER == 1)         
                 ; Go to next timings page
+                /*
                 ld hl, load_timings_data+1
                 ld a, (hl)
                 add 4
                 and #ef
                 ld (hl), a
                 ; total: 10+7+7+7+7=38
-
+                */
+                
          ; Prepare next effect for next scroll run
 run_number      ld a, 0                                                 ; 7
-                inc a                                                   ; 11
+
+                ld h, high(timings_data)                                ; 7 
+                ld l, a                                                 ; 11
+                ld (load_timings_data+1), hl                            ; 27
+
+                add 4                                                   ; 11 + 3
                 ld (run_number+1), a                                    ; 24
-                bit 1, a                                                ; 32
+
+                bit 3, a                                                ; 32
                 ld hl, start_draw_colors                                ; 42
                 jp nz, effects_run                                      ; 52
 normal_run:     
@@ -572,6 +580,9 @@ normal_run:
                 jp main_loop                                            ; 72
 effects_run                
                 ld (hl), 0xca           ; make JP z, xx
+        ELSE
+                ld hl, timings_data                                     ; 10
+                ld (load_timings_data+1), hl                            ; 26
         ENDIF
                 jp main_loop                
 
@@ -1014,10 +1025,17 @@ bank_drawing_common:
 bank_drawing_common2:        
                 ASSERT (timings_data % 32 == 0)
 load_timings_data        
-                ld hl, timings_data + 12
+
+                /*
+                ld hl, timings_data + max_scroll_offset*2 +  12 
                 add hl, bc
                 ld sp, hl
                 pop hl
+                */
+                ld sp, timings_data + max_scroll_offset*2 + 12
+                pop hl
+                ld (load_timings_data+1), sp
+
 
                 delayFrom59
 

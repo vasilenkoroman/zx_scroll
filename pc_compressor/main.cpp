@@ -4094,7 +4094,7 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2338;
+        int kZ80CodeDelay = 2338 + 3;
 
         if (line % 8 == 0)
         {
@@ -4103,7 +4103,7 @@ int serializeTimingDataForRun(
             {
                 kZ80CodeDelay -= 15;
                 kZ80CodeDelay += 26 + 26;
-                kZ80CodeDelay -= 7;
+                kZ80CodeDelay -= 15;
                 if (hasPlayer)
                 {
                     kZ80CodeDelay += 38; // next timings page
@@ -4113,6 +4113,7 @@ int serializeTimingDataForRun(
                 else
                 {
                     kZ80CodeDelay += 10; // jp loop
+                    kZ80CodeDelay += 26;
                 }
             }
             if (flags & directPlayerJump)
@@ -4305,15 +4306,16 @@ int serializeTimingData(
         for (int i = 0; i < imageHeight; ++i)
         {
             int page = (i % 8) / 2;
-            int index = i + run*2;
+            int index = (imageHeight-1) - i + run*2;
             musicPages[page][index] = delayTicks[i + run*imageHeight];
         }
     }
 
-    uint16_t v = musicPages[0][0];
+    int offset = imageHeight - 1;
+    uint16_t v = musicPages[0][offset];
     for (int i = 0; i < 3; ++i)
-        musicPages[0][i*2] = musicPages[0][(i+1)*2];
-    musicPages[0][3*2] = v;
+        musicPages[0][i*2+ offset] = musicPages[0][(i+1)*2+ offset];
+    musicPages[0][3*2+ offset] = v;
 
     using namespace std;
     for (int page = 0; page < musicPages.size(); ++page)
