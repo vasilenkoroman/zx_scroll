@@ -4094,32 +4094,19 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2338;
+        int kZ80CodeDelay = 2326;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7488 - 41 - 47;
+            kZ80CodeDelay += 7420;
             if (line == 0)
             {
-                kZ80CodeDelay -= 15;
-                kZ80CodeDelay += 26 + 26;
-                kZ80CodeDelay -= 7;
+                kZ80CodeDelay += 36;
                 if (hasPlayer)
                 {
-                    kZ80CodeDelay += 38; // next timings page
-                    kZ80CodeDelay += 49; // jump to next effect handler
+                    kZ80CodeDelay += 77;
                     kZ80CodeDelay += initEffectDelay(runNumber);
                 }
-                else
-                {
-                    kZ80CodeDelay += 10; // jp loop
-                }
-
-                kZ80CodeDelay += 16;
-            }
-            else
-            {
-                kZ80CodeDelay += 20;
             }
 
             if (flags & directPlayerJump)
@@ -4135,35 +4122,28 @@ int serializeTimingDataForRun(
         switch (line % 8)
         {
             case 0:
-                kZ80CodeDelay -= 12;
+                kZ80CodeDelay -= 0;
                 break;
             case 1:
-                kZ80CodeDelay -= 13;
-                kZ80CodeDelay -= 9;
+                kZ80CodeDelay -= 10;
                 break;
             case 2:
-                kZ80CodeDelay -= 10;
-                kZ80CodeDelay -= 2;
+                kZ80CodeDelay -= 0;
                 break;
             case 3:
-                kZ80CodeDelay -= 23;
-                kZ80CodeDelay -= 9;
+                kZ80CodeDelay -= 20;
                 break;
             case 4:
-                kZ80CodeDelay -= 14;
-                kZ80CodeDelay -= 2;
+                kZ80CodeDelay -= 4;
                 break;
             case 5:
-                kZ80CodeDelay -= 27;    // new jpix_helper
-                kZ80CodeDelay -= 9;
+                kZ80CodeDelay -= 24;
                 break;
             case 6:
-                kZ80CodeDelay -= 18 + 12;
-                kZ80CodeDelay -= 2;
+                kZ80CodeDelay -= 20;
                 break;
             case 7:
-                kZ80CodeDelay -= 34;    // new jpix_helper
-                kZ80CodeDelay -= 9;
+                kZ80CodeDelay -= 31;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(

@@ -183,18 +183,6 @@ upd_rastr_itr?_1
         ENDM
 
         MACRO   UPDATE_JPIX_HELPER value
-/*        
-                ld hl, jpix_h_pos+2
-                ld a,(hl)
-                IF (value > 0)
-                        sub -value
-                ELSE                        
-                        add value
-                ENDIF
-                ld (hl),a               
-*/                
-                 // total: 31
-
                 ld a, i                  ; 9
                 IF (value > 0)
                         sub -2           ; 9/16
