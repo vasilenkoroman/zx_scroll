@@ -3893,11 +3893,6 @@ int prev_frame_line_23_overrun(
     return dt;
 }
 
-int initEffectDelay(int runNumber)
-{
-    return 7+13+10;
-}
-
 std::vector<int> getEffectDelayInternalForRun1(int imageHeight)
 {
     std::vector<int> result;
@@ -4098,19 +4093,12 @@ int serializeTimingDataForRun(
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7427;
+            kZ80CodeDelay += 7420;
             if (line == 0)
             {
-                kZ80CodeDelay += 36 - 3;
+                kZ80CodeDelay += 47;
                 if (hasPlayer)
-                {
-                    kZ80CodeDelay += 77;
-                    kZ80CodeDelay += initEffectDelay(runNumber);
-                }
-            }
-            else
-            {
-                kZ80CodeDelay -= 7;
+                    kZ80CodeDelay += 78;
             }
 
             if (flags & directPlayerJump)

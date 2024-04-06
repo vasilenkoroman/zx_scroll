@@ -420,7 +420,7 @@ INTERRUPT_PHASE         EQU 3   ; The value in range [0..3].
                 ELSE
                         ; 10 - 47 = -37t longer than final ret in align int.
                         ; Calculate phase as ticks between: (alignInt.PrevHandler-after_play_intro+37) % 4
-INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
+INTERRUPT_PHASE         EQU 1   ; The value in range [0..3].
                 ENDIF
 
 create_jpix_delay       equ 1058 * (imageHeight/64)
@@ -512,23 +512,17 @@ lower_limit_reached:
 
         IF (HAS_PLAYER == 1)         
                 ; Go to next timings page
-                ld hl, load_timings_data+1
-                ld a, (hl)
-                add 4
-                and #ef
-                ld (hl), a
-                ; total: 10+7+7+7+7=38
-
          ; Prepare next effect for next scroll run
 run_number      ld a, 0                                                 ; 7
-                inc a                                                   ; 11
-                ld (run_number+1), a                                    ; 24
-                bit 1, a                                                ; 32
-                ld hl, start_draw_colors                                ; 42
-                jp nz, effects_run                                      ; 52
+                ld (load_timings_data+1),a                              ; 20
+                add 4                                                   ; 27
+                ld (run_number+1), a                                    ; 40
+                bit 3, a                                                ; 48
+                ld hl, start_draw_colors                                ; 58
+                jp nz, effects_run                                      ; 68
 normal_run:     
-                ld (hl), 0xc3           ; make JP xx                    ; 62
-                jp main_loop                                            ; 72
+                ld (hl), 0xc3           ; make JP xx                    ; 78
+                jp main_loop                                            ; 
 effects_run                
                 ld (hl), 0xca           ; make JP z, xx
         ENDIF
