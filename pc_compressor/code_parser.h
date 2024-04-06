@@ -20,14 +20,24 @@ struct z80Command
     uint16_t data = 0;
     uint16_t ptr = 0;
 
-    bool isLoadViaHl() const 
-    { 
-        return isLoadViaHl(opCode); 
+    bool isLoadViaHl() const
+    {
+        return isLoadViaHl(opCode);
     }
 
-    static bool isLoadViaHl(uint8_t opCode) 
-    { 
+    static bool isLoadViaHl(uint8_t opCode)
+    {
         return opCode >= 0x70 && opCode <= 0x77;
+    }
+
+    static bool isLoadConstViaHl(uint8_t opCode)
+    {
+        return opCode == 0x36;
+    }
+
+    bool isLoadConstViaHl() const
+    {
+        return isLoadConstViaHl(opCode);
     }
 
 };

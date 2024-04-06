@@ -578,6 +578,22 @@ bool loadByteFromExistingRegisterExceptHl(
     return false;
 }
 
+bool loadConstByte(
+    const Context& context,
+    CompressedLine& result,
+    const uint8_t byte, const int x)
+{
+    z80Command lodHlNn;
+    lodHlNn.size = 2;
+    lodHlNn.opCode = 0x36;
+    lodHlNn.data = byte;
+    lodHlNn.ticks = 10;
+
+    result.appendCommand(lodHlNn);
+
+    return false;
+}
+
 template <int N>
 bool hasByteFromExistingRegisterExceptHl(
     const Context& context,
@@ -639,8 +655,8 @@ bool willWriteByteViaHl(
             return false;
     }
 
-    if (newX < context.maxX
-        && hasByteFromExistingRegisterExceptHl(context, line, registers, context.buffer[index]))
+    if (newX < context.maxX)
+        //&& hasByteFromExistingRegisterExceptHl(context, line, registers, context.buffer[index]))
     {
         return true;
     }
@@ -768,9 +784,11 @@ __forceinline bool compressLine(
             continue;
         }
 
-        if (awaitingLoadFromHl
-            && loadByteFromExistingRegisterExceptHl(context, result, registers, context.buffer[index], x))
+        if (awaitingLoadFromHl)
         {
+            bool loaded = loadByteFromExistingRegisterExceptHl(context, result, registers, context.buffer[index], x);
+            if (!loaded)
+                loadConstByte(context, result, context.buffer[index], x);
             ++x;
             awaitingLoadFromHl = false;
             continue;
@@ -2615,6 +2633,53 @@ struct DescriptorState
 
     }
 
+    void replaceLoadConstWithHlToSp(
+        int imageHeight,
+        uint16_t /*dataWord*/,
+        std::vector<Register16>& registers)
+    {
+        if (startSpDelta % 32 < 2)
+        {
+            std::cerr << "Unsupported startSpDelta % 32 < 2. Just a bug. Please report an issue to developers." << std::endl;
+            abort();
+        }
+        startSpDelta -= 2;
+
+        CompressedLine replaceLdHlData;
+        int prevSpDelta = startSpDelta - 1;
+
+        int drawLine = srcLine + (startSpDelta / 32) * 8;
+        drawLine = drawLine % imageHeight;
+
+        const uint8_t* cur = srcBuffer + drawLine * 32 + startSpDelta % 32;
+        uint16_t* buffer16 = (uint16_t*)(cur);
+        uint16_t valueToRestore = buffer16[0];
+        valueToRestore = swapBytes(valueToRestore);
+
+        std::unique_ptr<Register16> r = std::make_unique<Register16>("hl");
+        r->loadXX(replaceLdHlData, valueToRestore);
+        r->push(replaceLdHlData);
+
+        replaceLdHlData.serialize(preambula);
+
+        // optimize registers value if it contains same data
+        if (auto r2 = findRegister(registers, r->name()))
+        {
+            if (r2->h.hasValue(*r->h.value))
+                r2->h.value.reset();
+            if (r2->l.hasValue(*r->l.value))
+                r2->l.value.reset();
+        }
+
+
+        /** LD(HL), nn command after the descriptor.It refer to the current HL = SP value, but HL is not set when start to exec descriptor.
+         * Replace it to:
+         * PUSH REG16
+         * INC SP
+        */
+
+    }
+
     void serializeOmitedData(
         int imageHeight,
         const std::vector<uint8_t>& serializedData,
@@ -2654,6 +2719,21 @@ struct DescriptorState
                 codeInfo.startOffset++;
                 lineStartPtr++;
                 codeInfo.ticks -= 7;
+            }
+            if (!firstCommands.empty() && z80Command::isLoadConstViaHl(firstCommands[0]))
+            {
+                uint16_t dataWord = firstCommands[0] + firstCommands[1] * 256;
+                firstCommands.erase(firstCommands.begin());
+                firstCommands.erase(firstCommands.begin());
+                replaceLoadConstWithHlToSp(imageHeight, dataWord, registers);
+            }
+            else if (firstCommands.empty() && z80Command::isLoadConstViaHl(dataPtr[0]))
+            {
+                uint16_t dataWord = dataPtr[0] + dataPtr[1] * 256;
+                replaceLoadConstWithHlToSp(imageHeight, dataWord, registers);
+                codeInfo.startOffset+=2;
+                lineStartPtr+=2;
+                codeInfo.ticks -= 10;
             }
         }
 

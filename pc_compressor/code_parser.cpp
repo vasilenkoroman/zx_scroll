@@ -469,6 +469,9 @@ Z80CodeInfo Z80Parser::parseCode(
                 break;
             case 0x34: hl->incValue(info);
                 break;
+            case 0x36: // ld(hl),nn
+                info.selfReg(h->reg8Mask, l->reg8Mask);
+                break;
             case 0x37: // scf
                 break;
             case 0x39:
@@ -980,6 +983,8 @@ int Z80Parser::swap2CommandIfNeed(
 
     // Do not touch load Via HL command
     if (command1.isLoadViaHl())
+        return 0;
+    if (command1.isLoadConstViaHl())
         return 0;
 
     const Register16 af("af");
