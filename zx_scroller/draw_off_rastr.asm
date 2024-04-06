@@ -61,7 +61,38 @@ OFF_Iteration?_Step?_JP
                                   ld (r0? + 2), a
         ENDM
 
-                //ALIGN 32
+        MACRO update_rastr itr?, L1?, L2?, L3?
+
+upd_rastr_itr?_0
+                ld hl,0
+                ld (L1?+1), hl
+upd_rastr_itr?_1
+                ld hl,0
+                ld (L2?+1), hl
+                 
+
+                ld hl, mc_rastr_descriptors_next + 127 * 2
+                add hl, bc
+                ld sp, hl
+                pop hl: ld (RASTR_23+1), hl
+                pop hl: ld (L3?+1), hl
+                // 10+11+6+10+16+10+16=79
+
+        ENDM
+
+        MACRO   UPDATE_JPIX_HELPER value
+                ld a, i                  ; 9
+                IF (value < 0)
+                        add value        ; 9/16
+                ENDIF
+                ld (jpix_h_pos+2), a     ; 22/29, dt=2/9
+
+        ENDM
+
+        MACRO SET_NEXT_STEP value
+                ld ix, value
+        ENDM
+
 
 it0_start:      ld a, 0x54
                 out (0xfd), a
@@ -160,40 +191,33 @@ it2_end:        out (0xfd), a
 L141:           DRAW_OFFSCREEN_LINES 7, 8,  L141
 L142:           DRAW_OFFSCREEN_LINES 7, 0,  L142
 
-it1_end:        ex de,hl
-                jp hl
+it1_end:        ;ex de,hl
+                ;jp hl
 
-        MACRO update_rastr itr?, L1?, L2?, L3?
-
-upd_rastr_itr?_0
-                ld hl,0
-                ld (L1?+1), hl
-upd_rastr_itr?_1
-                ld hl,0
-                ld (L2?+1), hl
-                 
-
-                ld hl, mc_rastr_descriptors_next + 127 * 2
+bank_drawing_common:
+                exa                                 ; save current value for the next_step_first_bank
+bank_drawing_common2:        
+load_timings_data
+                ld hl, timings_data + 12
                 add hl, bc
                 ld sp, hl
-                pop hl: ld (RASTR_23+1), hl
-                pop hl: ld (L3?+1), hl
-                // 10+11+6+10+16+10+16=79
+                pop hl
 
-        ENDM
+                ld sp, stack_top                    ; jump to multicolor drawing after player or imidiatly
+        IF (HAS_PLAYER == 1)
+player_pg       SET_PAGE 7
+        ENDIF
 
-        MACRO   UPDATE_JPIX_HELPER value
-                ld a, i                  ; 9
-                IF (value < 0)
-                        add value        ; 9/16
-                ENDIF
-                ld (jpix_h_pos+2), a     ; 22/29, dt=2/9
+                delayFrom59
 
-        ENDM
+        IF (HAS_PLAYER == 1)
+                ;jp play
+                INCLUDE "fast_psg_player.asm"
+        ELSE                
+                scf
+                ret
+        ENDIF                                
 
-        MACRO SET_NEXT_STEP value
-                ld ix, value
-        ENDM
 
 draw_off_rastr_7
                 exx

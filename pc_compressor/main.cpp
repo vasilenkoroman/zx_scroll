@@ -4094,11 +4094,11 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2323;
+        int kZ80CodeDelay = 2319;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7423;
+            kZ80CodeDelay += 7427;
             if (line == 0)
             {
                 kZ80CodeDelay += 36 - 3;
@@ -4126,25 +4126,25 @@ int serializeTimingDataForRun(
         switch (line % 8)
         {
             case 1:
-                kZ80CodeDelay -= 0;
-                break;
-            case 2:
                 kZ80CodeDelay -= 4;
                 break;
+            case 2:
+                kZ80CodeDelay -= 0;
+                break;
             case 3:
-                kZ80CodeDelay -= 10;
+                kZ80CodeDelay -= 6;
                 break;
             case 4:
-                kZ80CodeDelay -= 8;
+                kZ80CodeDelay -= 4;
                 break;
             case 5:
-                kZ80CodeDelay -= 14;
+                kZ80CodeDelay -= 10;
                 break;
             case 6:
-                kZ80CodeDelay -= 24;
+                kZ80CodeDelay -= 20;
                 break;
             case 7:
-                kZ80CodeDelay -= 21;
+                kZ80CodeDelay -= 17;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(

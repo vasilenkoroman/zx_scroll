@@ -353,49 +353,6 @@ jp_write_data_offset    equ 8
 data_page_count         equ 4
 jp_ix_bank_size         equ (imageHeight/64 + 2) * jp_ix_record_size
 
-write_initial_jp_ix_table
-                xor a
-page_loop:
-                ld c, a
-                srl a
-                jr c, continue_page        
-                ld sp, jpix_table + jp_write_data_offset
-continue_page:
-                ld b, 3
-
-                cp 2
-                ccf
-                adc #58
-                out (#fd), a
-
-                ld a, c
-
-                ld de, JP_VIA_HL_CODE
-.rep:           write_jp_ix_data_via_de
-                write_jp_ix_data_via_de
-                ld hl, jp_ix_record_size - 4
-                add hl, sp
-                ld sp, hl
-                djnz .rep
-
-                ld sp, jpix_table + jp_ix_bank_size + jp_write_data_offset
-
-                inc a
-                cp 8
-                jr nz, page_loop
-
-                ; write initial color data to restore
-                SET_PAGE 6+8
-
-                ld hl, color_descriptor + imageHeight / 2 - 2   ; 10
-                ld sp, hl                                       ; 6
-                pop hl                                          ; 10
-                ld sp, hl
-                pop hl
-                ld (color_data_to_restore), hl                  ; 16
-
-                ld sp, stack_top - 2
-                ret
 
 /** ----------- Routines end -------------- */
 
@@ -469,8 +426,6 @@ INTERRUPT_PHASE         EQU 2   ; The value in range [0..3].
 create_jpix_delay       equ 1058 * (imageHeight/64)
 initial_delay           equ fixed_startup_delay + pl_delay + create_jpix_delay + mc_preambula_delay
 sync_tick               equ screen_ticks + screen_start_tick  - initial_delay +  FIRST_LINE_DELAY - INTERRUPT_PHASE
-
-        DISPLAY	"sync_tick ", /D, sync_tick
 
                 assert (sync_tick <= 65535 && sync_tick >= 4)
                 call static_delay
@@ -725,8 +680,6 @@ ef_x            call effect_step
                 dec a
                 ld (page7_depend_2+1), a          ; after: 37t, dt=23t
 
-
-                //ld de, bank_drawing_common
                 exx
                 jp ix	; draw offrastr draw_off_rastr_7..draw_off_rastr_1
         ENDIF
@@ -1016,28 +969,6 @@ mc_descriptors_ptr
                 ld (saved_bc_value), bc
                 jp main_loop                        ; 12 ticks
 
-bank_drawing_common:
-                ; save current value for the next_step_first_bank
-                exa                             
-bank_drawing_common2:        
-                ASSERT (timings_data % 32 == 0)
-load_timings_data        
-                ld hl, timings_data + 12
-                add hl, bc
-                ld sp, hl
-                pop hl
-
-                delayFrom59
-
-                ld sp, stack_top
-        IF (HAS_PLAYER == 1)
-player_pg       SET_PAGE 7
-                ;jp play
-                INCLUDE "fast_psg_player.asm"
-        ELSE                
-                scf
-                ret
-        ENDIF                                
 
 start_mc_drawing:
                 ; timing here on first frame: 71680 * 2 + 17988 + 224*6 - (19 + 10) - 20 = 162643-6=162637 (-phase)
@@ -1168,6 +1099,50 @@ upd_de_anim2    res 7,d
  *      All routines are called once before drawing. They can be moved to another page to free memory.
  */
 
+write_initial_jp_ix_table
+                xor a
+page_loop:
+                ld c, a
+                srl a
+                jr c, continue_page        
+                ld sp, jpix_table + jp_write_data_offset
+continue_page:
+                ld b, 3
+
+                cp 2
+                ccf
+                adc #58
+                out (#fd), a
+
+                ld a, c
+
+                ld de, JP_VIA_HL_CODE
+.rep:           write_jp_ix_data_via_de
+                write_jp_ix_data_via_de
+                ld hl, jp_ix_record_size - 4
+                add hl, sp
+                ld sp, hl
+                djnz .rep
+
+                ld sp, jpix_table + jp_ix_bank_size + jp_write_data_offset
+
+                inc a
+                cp 8
+                jr nz, page_loop
+
+                ; write initial color data to restore
+                SET_PAGE 6+8
+
+                ld hl, color_descriptor + imageHeight / 2 - 2   ; 10
+                ld sp, hl                                       ; 6
+                pop hl                                          ; 10
+                ld sp, hl
+                pop hl
+                ld (color_data_to_restore), hl                  ; 16
+
+                ld sp, stack_top - 2
+                ret
+
 create_jpix_helper
                 ASSERT(imageHeight / 4 < 256)
                 ld hl, update_jpix_helper
@@ -1291,7 +1266,7 @@ font_data_end
 
 update_jpix_helper   EQU #c000 - 512
 jpix_helper_end EQU  update_jpix_helper  + imageHeight/2
-                DISPLAY data_start >= jpix_helper_end
+                ASSERT data_start >= jpix_helper_end
                 ASSERT $ <= update_jpix_helper
                 ASSERT simple_scroller_end < static_data_page2
                 ASSERT generated_code + RAM2_UNCOMPRESSED_SIZE < static_data_page2
