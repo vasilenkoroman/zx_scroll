@@ -513,13 +513,22 @@ lower_limit_reached:
         IF (HAS_PLAYER == 1)         
                 ; Go to next timings page
          ; Prepare next effect for next scroll run
-run_number      ld a, 0                                                 ; 7
-                ld (load_timings_data+1),a                              ; 20
-                add 4                                                   ; 27
+
+                ld hl, load_timings_data+1                              ; 10
+                ld a, (hl)                                              ; 17
+                add 4                                                   ; 24
+                and 0x0f                                                ; 31
+                ld (hl), a                                              ; 38
+
+/*
+run_number      ld a, -4                                                ; 7
+                add 4                                                   ; 14
+                ld (load_timings_data+1),a                              ; 27
                 ld (run_number+1), a                                    ; 40
-                bit 3, a                                                ; 48
+                or a     ; set flag P for run 1 and 2                   ; 44
+*/                
                 ld hl, start_draw_colors                                ; 58
-                jp nz, effects_run                                      ; 68
+                jp PO, effects_run                                      ; 68
 normal_run:     
                 ld (hl), 0xc3           ; make JP xx                    ; 78
                 jp main_loop                                            ; 

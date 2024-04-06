@@ -4098,7 +4098,7 @@ int serializeTimingDataForRun(
             {
                 kZ80CodeDelay += 47;
                 if (hasPlayer)
-                    kZ80CodeDelay += 78;
+                    kZ80CodeDelay += 78 - 4 - 6;
             }
 
             if (flags & directPlayerJump)
