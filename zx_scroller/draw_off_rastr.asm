@@ -95,7 +95,7 @@ upd_rastr_itr?_1
         ENDM
 
         MACRO SET_NEXT_STEP_SHORT value
-                ld ixl, value
+                ld ixl, low(value)
         ENDM
 
 it0_start:      ld a, 0x54
