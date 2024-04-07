@@ -60,8 +60,7 @@ enum Flags
     OptimizeMcTicks = 1024,     //< Allow multicolor lines became shorter or longer than 224t in case of timing of the current line allows it.
     threeStackPos = 2048,       //< Draw multicolor line in 3 pieces with two intermediate stack moving.
     twoRastrDescriptors = 4096, //< Generate 3 descriptor tables instead of 1 to reduce wait ticks. More memory usage.
-    updateColorData = 8192,     //< Change color attribute to the same paper/inc in case of rastr data has only 0x00 or 0xff.
-    directPlayerJump = 16384,   //< Reduce only 10 ticks but make debugging more difficult. Can be turned of before debug session.
+    updateColorData = 8192     //< Change color attribute to the same paper/inc in case of rastr data has only 0x00 or 0xff.
 };
 
 static const int kJpFirstLineDelay = 10;
@@ -3554,8 +3553,6 @@ void serializeAsmFile(
 
     phaseFile << "HAS_PLAYER   EQU    " << (hasPlayer ? 1 : 0) << std::endl;
     phaseFile << "imageHeight   EQU    " << imageHeight << std::endl;
-
-    phaseFile << "DIRECT_PLAYER_JUMP  EQU    " << ((rastrFlags & directPlayerJump) ? 1 : 0) << std::endl;
 }
 
 int serializeMultiColorData(
@@ -4080,8 +4077,7 @@ int effectRegularStepDelay(
             result += 17 * 2;
             result += 2;
             result += 20 + 17 + 26 + 26;
-            if (rastrFlags & directPlayerJump)
-                result += 10;
+            result += 10;
             result += *effectDelay->rbegin();
             effectDelay->pop_back();
 
@@ -4167,25 +4163,17 @@ int serializeTimingDataForRun(
                 ticks -= 7;
         }
 
-        int kZ80CodeDelay = 2319;
+        int kZ80CodeDelay = 2309;
 
         if (line % 8 == 0)
         {
-            kZ80CodeDelay += 7420;
+            kZ80CodeDelay += 7404;
             if (line == 0)
             {
                 kZ80CodeDelay += 47;
                 if (hasPlayer)
-                    kZ80CodeDelay += 78 - 4 - 6;
+                    kZ80CodeDelay += 68;
             }
-
-            if (flags & directPlayerJump)
-                kZ80CodeDelay -= 26;
-        }
-        else
-        {
-            if (flags & directPlayerJump)
-                kZ80CodeDelay -= 10;
         }
 
         // offscreen drawing branches has different length
@@ -4195,7 +4183,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 4;
                 break;
             case 2:
-                kZ80CodeDelay -= 3;
+                kZ80CodeDelay -= 3; // SET_NEXT_STEP_SHORT here
                 break;
             case 3:
                 kZ80CodeDelay -= 6;
@@ -4210,7 +4198,8 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 20;
                 break;
             case 7:
-                kZ80CodeDelay -= 17 + 3;
+                kZ80CodeDelay -= 17;
+                kZ80CodeDelay -= 3;    // SET_NEXT_STEP_SHORT here
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
@@ -4877,9 +4866,9 @@ int main(int argc, char** argv)
 //#define DEBUG_TIMINGS
 #ifdef DEBUG_TIMINGS
     // Remove some flags for more easy debuging timings at ZX
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | updateColorData | directPlayerJump;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | updateColorData;
 #else
-    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData | directPlayerJump;
+    int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData;
 #endif
 
     if (!inverseColorsTmpFile.empty())
