@@ -71,9 +71,10 @@ upd_rastr_itr?_1
                 ld (L2?+1), hl
                  
 
-                ld hl, mc_rastr_descriptors_next + 127 * 2
-                add hl, bc
-                ld sp, hl
+                ld hl, mc_rastr_descriptors_next + 127 * 2      ; 10
+                add hl, bc                                      ; 21
+                ld sp, hl                                       ; 27
+
                 pop hl: ld (RASTR_23+1), hl
                 pop hl: ld (L3?+1), hl
                 // 10+11+6+10+16+10+16=79
@@ -93,6 +94,9 @@ upd_rastr_itr?_1
                 ld ix, value
         ENDM
 
+        MACRO SET_NEXT_STEP_SHORT value
+                ld ixl, value
+        ENDM
 
 it0_start:      ld a, 0x54
                 out (0xfd), a
@@ -220,10 +224,11 @@ player_pg       SET_PAGE 7
 
 
 draw_off_rastr_7
+                DISPLAY "draw_off_rastr_7= ", $
                 exx
-                SET_NEXT_STEP draw_off_rastr_6
+                ASSERT high(draw_off_rastr_7) == high(draw_off_rastr_6)
+                SET_NEXT_STEP_SHORT draw_off_rastr_6
                 UPDATE_JPIX_HELPER -2
-
                 
                 update_rastr 7, RASTR_8, RASTR_0, RASTR_16
 
@@ -236,6 +241,7 @@ page7_depend_4  ld a, 0x54
                 out (0xfd), a
                 START_OFF_DRAWING it7_start
 draw_off_rastr_6
+                DISPLAY "draw_off_rastr_6= ", $
                 exx
                 SET_NEXT_STEP draw_off_rastr_5
                 UPDATE_JPIX_HELPER 2
@@ -252,6 +258,7 @@ draw_off_rastr_6
                 START_OFF_DRAWING it6_start
 
 draw_off_rastr_5
+                DISPLAY "draw_off_rastr_5= ", $
                 exx
                 SET_NEXT_STEP draw_off_rastr_4
                 UPDATE_JPIX_HELPER -2
@@ -268,6 +275,7 @@ page7_depend_3  ld a, 0x53
                 START_OFF_DRAWING it5_start
 
 draw_off_rastr_4
+                DISPLAY "draw_off_rastr_4= ", $
                 exx
                 SET_NEXT_STEP draw_off_rastr_3
                 UPDATE_JPIX_HELPER 2
@@ -285,6 +293,7 @@ draw_off_rastr_4
                 START_OFF_DRAWING it4_start
 
 draw_off_rastr_3
+                DISPLAY "draw_off_rastr_3= ", $
                 exx
                 SET_NEXT_STEP draw_off_rastr_2
                 UPDATE_JPIX_HELPER -2
@@ -300,8 +309,10 @@ page7_depend_1  ld a, 0x51
                 START_OFF_DRAWING it3_start
 
 draw_off_rastr_2
+                DISPLAY "draw_off_rastr_2= ", $
                 exx
-                SET_NEXT_STEP draw_off_rastr_1
+                ASSERT high(draw_off_rastr_2) == high(draw_off_rastr_1)
+                SET_NEXT_STEP_SHORT draw_off_rastr_1
                 UPDATE_JPIX_HELPER 2
                 update_rastr 2, RASTR_13, RASTR_5, RASTR_21
 
@@ -318,6 +329,7 @@ draw_off_rastr_2
 
 draw_off_rastr_1
                 ;SET_NEXT_STEP draw_off_rastr_7
+                DISPLAY "draw_off_rastr_1= ", $
                 exx
                 ld a, low(non_mc_draw_step)
                 ld (before_update_jpix+1), a

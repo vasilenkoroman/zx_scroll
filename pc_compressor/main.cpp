@@ -4195,7 +4195,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 4;
                 break;
             case 2:
-                kZ80CodeDelay -= 0;
+                kZ80CodeDelay -= 3;
                 break;
             case 3:
                 kZ80CodeDelay -= 6;
@@ -4210,7 +4210,7 @@ int serializeTimingDataForRun(
                 kZ80CodeDelay -= 20;
                 break;
             case 7:
-                kZ80CodeDelay -= 17;
+                kZ80CodeDelay -= 17 + 3;
                 break;
         }
         int specialTicks =  effectRegularStepDelay(
