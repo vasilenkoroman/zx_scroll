@@ -23,6 +23,7 @@
 #define LOG_INFO
 //#define LOG_DEBUG
 
+static const int kMinWorseTiming = -100000;
 static const int kDefaultCodeOffset = 29900;
 static const int totalTicksPerFrame = 71680;
 
@@ -1969,7 +1970,7 @@ void alignTo4(const McToRastrInfo& info, CompressedData& multicolor)
     }
 }
 
-int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData& compressedData, bool silenceMode)
+bool alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData& compressedData, bool silenceMode)
 {
     const int imageHeight = compressedData.data.size();
 
@@ -2099,7 +2100,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
             if (beginDelay + line.mcStats.pos > line.mcStats.max)
             {
                 std::cerr << "Error. pos > max after alignment at line " << i << ". pos=" << line.mcStats.pos << " . max=" << line.mcStats.max << ". dt=" << beginDelay << std::endl;
-                abort();
+                return false;
             }
         }
         ++i;
@@ -2135,7 +2136,7 @@ int alignMulticolorTimings(const McToRastrInfo& info, int flags, CompressedData&
         }
     }
 
-    return maxVirtualTicks;
+    return true;
 }
 
 
@@ -2733,7 +2734,7 @@ struct DescriptorState
                 codeInfo.ticks -= 10;
             }
         }
-        
+
         auto regs = getSerializedRegisters(registers, af);
         if (extraDelay > 0)
             regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
@@ -4614,7 +4615,8 @@ int
     CompressedData multicolorData = compressMultiColors(flags, colorBuffer.data(), imageHeight / 8, buffer.data());
 
     const auto mcToRastrTimings = calculateTimingsTable(imageHeight, false);
-    alignMulticolorTimings(mcToRastrTimings, flags, multicolorData, silenceMode);
+    if (!alignMulticolorTimings(mcToRastrTimings, flags, multicolorData, silenceMode))
+        return kMinWorseTiming;
 
     CompressedData colorData = compressColors(colorBuffer.data(), imageHeight);
     CompressedData data = compressRastr(flags, buffer.data(), colorBuffer.data(), imageHeight);
