@@ -486,7 +486,7 @@ max_scroll_offset equ imageHeight - 1
                 */
 
                 ld b,a: ld c,a
-                ld a, 3                         ; 7 ticks
+                ld a, 5                         ; 7 ticks
                 out #fe,a                      ; 11 ticks
 
                 jp non_mc_draw_step
