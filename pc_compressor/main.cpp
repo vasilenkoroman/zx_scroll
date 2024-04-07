@@ -2635,7 +2635,6 @@ struct DescriptorState
 
     void replaceLoadConstWithHlToSp(
         int imageHeight,
-        uint16_t /*dataWord*/,
         std::vector<Register16>& registers)
     {
         if (startSpDelta % 32 < 2)
@@ -2722,21 +2721,19 @@ struct DescriptorState
             }
             if (!firstCommands.empty() && z80Command::isLoadConstViaHl(firstCommands[0]))
             {
-                uint16_t dataWord = firstCommands[0] + firstCommands[1] * 256;
                 firstCommands.erase(firstCommands.begin());
                 firstCommands.erase(firstCommands.begin());
-                replaceLoadConstWithHlToSp(imageHeight, dataWord, registers);
+                replaceLoadConstWithHlToSp(imageHeight, registers);
             }
             else if (firstCommands.empty() && z80Command::isLoadConstViaHl(dataPtr[0]))
             {
-                uint16_t dataWord = dataPtr[0] + dataPtr[1] * 256;
-                replaceLoadConstWithHlToSp(imageHeight, dataWord, registers);
+                replaceLoadConstWithHlToSp(imageHeight, registers);
                 codeInfo.startOffset+=2;
                 lineStartPtr+=2;
                 codeInfo.ticks -= 10;
             }
         }
-
+        
         auto regs = getSerializedRegisters(registers, af);
         if (extraDelay > 0)
             regs = updateRegistersForDelay(regs, extraDelay, af, /*testsmode*/ false).first;
@@ -4271,7 +4268,7 @@ int serializeTimingDataForRun(
             if (freeTicks < worseMcLineTicks)
                 worseMcLineTicks = freeTicks;
         }
-        const uint16_t freeTicks16 = (uint16_t)freeTicks;
+        const uint16_t freeTicks16 = uint16_t(std::max(kMinDelay, freeTicks));
         outputData.push_back(freeTicks16);
 
         if (specialTicks != 0 && specialTicks != 11)
