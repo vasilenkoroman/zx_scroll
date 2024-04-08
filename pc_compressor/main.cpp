@@ -985,6 +985,60 @@ std::vector<bool> removeInvisibleColors(int flags, uint8_t* buffer, uint8_t* col
     return result;
 }
 
+#if 1
+void cleanupColors(uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
+{
+    for (int y = 1; y < imageHeight; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            uint8_t* colorPtr = colorBuffer + y * 32 + x;
+            uint8_t* prevColorPtr = colorBuffer + (y - 1) * 32 + x;
+            uint8_t* rastrPtr = buffer + y * 8 * 32 + x;
+            bool isOnlyInc = true;
+            bool isOnlyPaper = true;
+            for (int k = 0; k < 8; ++k)
+            {
+                if (rastrPtr[k * 32] != 255)
+                    isOnlyInc = false;
+                if (rastrPtr[k * 32] != 0)
+                    isOnlyPaper = false;
+            }
+
+            uint8_t prevInc = prevColorPtr[0] & 0x7;
+            uint8_t currentInc = colorPtr[0] & 0x7;
+            uint8_t prevPaper = (prevColorPtr[0] & 0x38) >> 3;
+            uint8_t currentPaper = (colorPtr[0] & 0x38) >> 3;
+
+            if (isOnlyPaper)
+            {
+                if (prevInc != currentInc)
+                    colorPtr[0] = (colorPtr[0] & ~7) + prevInc;
+                else
+                {
+                    colorPtr[0] = colorPtr[0] & ~7;
+                    //colorPtr[0] = (colorPtr[0] & ~7) + currentPaper;
+                    int gg = 4;
+                }
+            }
+            else if (isOnlyInc)
+            {
+                if (prevPaper != currentPaper)
+                {
+                    colorPtr[0] = (colorPtr[0] & ~0x38) + (prevPaper << 3);
+                }
+                else
+                {
+                    //colorPtr[0] = (colorPtr[0] & ~0x38) + (currentInc << 3);
+                    colorPtr[0] = colorPtr[0] & ~0x38;
+                    int gg = 4;
+                }
+
+            }
+        }
+    }
+}
+#else
 void makePaperAndIncSameIfNeed(uint8_t* buffer, uint8_t* colorBuffer, int imageHeight)
 {
     for (int y = 0; y < imageHeight; y += 8)
@@ -1032,6 +1086,7 @@ void makePaperAndIncSameIfNeed(uint8_t* buffer, uint8_t* colorBuffer, int imageH
         }
     }
 }
+#endif
 
 Register16 findBestByte(uint8_t* buffer, int imageHeight, const std::vector<int8_t>* sameBytesCount = nullptr, int* usageCount = nullptr)
 {
@@ -2178,7 +2233,7 @@ CompressedData compressMultiColors(int flags, uint8_t* buffer, int imageHeight, 
     {
         // Can change color if all rastr pixels are 0x00 or 0xff
         memcpy(bufferAlt.data(), buffer, 32 * imageHeight);
-        makePaperAndIncSameIfNeed(rastrBuffer, bufferAlt.data(), imageHeight * 8);
+        //makePaperAndIncSameIfNeed(rastrBuffer, bufferAlt.data(), imageHeight * 8);
         fillShuffledBuffer(shufledBufferAlt.data(), bufferAlt.data(), imageHeight);
         memcpy(shufledBufferCopy.data(), shufledBuffer.data(), imageHeight * 32);
     }
@@ -4870,6 +4925,8 @@ int main(int argc, char** argv)
 #else
     int flags = verticalCompressionL | interlineRegisters | skipInvisibleColors | optimizeLineEdge | twoRastrDescriptors | OptimizeMcTicks | updateColorData;
 #endif
+
+    cleanupColors(buffer.data(), colorBuffer.data(), imageHeight / 8);
 
     if (!inverseColorsTmpFile.empty())
         flags |= inverseColors;
